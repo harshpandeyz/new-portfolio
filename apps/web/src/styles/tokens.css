@@ -1,0 +1,72 @@
+/* ═══════════════════════════════════════════════════════════════
+   HP//OS — DESIGN TOKENS
+   Deep-space graphite · luminous technical lines · electric violet
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* surfaces */
+  --bg: #05060a;
+  --bg-2: #090b12;
+  --panel: #0c0f18;
+  --panel-2: #10131e;
+  --raise: rgba(255, 255, 255, 0.03);
+
+  /* lines */
+  --line: rgba(158, 170, 205, 0.11);
+  --line-strong: rgba(158, 170, 205, 0.22);
+  --line-accent: rgba(139, 123, 255, 0.35);
+
+  /* text */
+  --text: #e9ebf4;
+  --muted: #9298ad;
+  --dim: #5b6178;
+  --faint: #3c4157;
+
+  /* accents */
+  --accent: #8b7bff;
+  --accent-dim: rgba(139, 123, 255, 0.14);
+  --accent-glow: rgba(139, 123, 255, 0.45);
+  --cyan: #5fd4ff;
+  --cyan-dim: rgba(95, 212, 255, 0.12);
+  --ok: #46d68c;
+  --warn: #f0b64a;
+  --danger: #ff6470;
+
+  /* typography */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* metrics */
+  --max-w: 1280px;
+  --gutter: clamp(20px, 4vw, 56px);
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  /* motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --z-hud: 90;
+  --z-overlay: 120;
+  --z-boot: 200;
+}
+
+/* tier colors for skill levels */
+[data-level="core"] { --level-color: var(--accent); }
+[data-level="working"] { --level-color: var(--cyan); }
+[data-level="exploring"] { --level-color: var(--ok); }
+[data-level="experimental"] { --level-color: var(--warn); }
+
+/* tier colors for projects */
+.tier-featured { --tier-color: var(--accent); }
+.tier-secondary { --tier-color: var(--cyan); }
+.tier-experiment { --tier-color: var(--ok); }
+.tier-academic { --tier-color: var(--warn); }
+.tier-legacy { --tier-color: var(--dim); }
+.tier-internship { --tier-color: var(--dim); }
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--text);
+}
