@@ -1,0 +1,24 @@
+node_modules/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# api runtime data
+apps/api/uploads/
+!apps/api/uploads/.gitkeep
+
+# prisma
+apps/api/prisma/*.db
+
+# misc
+.DS_Store
+*.log
+.vite/
