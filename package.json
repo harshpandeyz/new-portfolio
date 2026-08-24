@@ -1,0 +1,46 @@
+{
+  "name": "hp-os",
+  "private": true,
+  "version": "1.0.0",
+  "description": "HP//OS — Harsh Pandey Engineering System. Cinematic full-stack portfolio with admin control center and retrieval-backed AI assistant.",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @hp/web & npm run dev --workspace @hp/api & wait",
+    "dev:web": "npm run dev --workspace @hp/web",
+    "dev:api": "npm run dev --workspace @hp/api",
+    "build": "npm run build --workspace @hp/shared && npm run build --workspace @hp/api && npm run build --workspace @hp/web",
+    "preview": "npm run preview --workspace @hp/web",
+    "lint": "npm run lint --workspace @hp/web && npm run lint --workspace @hp/api",
+    "typecheck": "npm run typecheck --workspace @hp/shared && npm run typecheck --workspace @hp/api && npm run typecheck --workspace @hp/web",
+    "test": "npm run test --workspace @hp/web && npm run test --workspace @hp/api",
+    "test:web": "npm run test --workspace @hp/web",
+    "test:api": "npm run test --workspace @hp/api",
+    "e2e": "playwright test",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "npm run db:migrate --workspace @hp/api",
+    "db:seed": "npm run db:seed --workspace @hp/api",
+    "admin:create": "node --import tsx scripts/admin-create.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "@types/node": "^22.9.0",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "bcryptjs@2.4.3": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "nodemailer@6.10.1": true,
+    "prisma@5.22.0": true
+  }
+}
