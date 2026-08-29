@@ -5,8 +5,11 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 await page.goto("http://localhost:5173/private");
 await page.waitForSelector("#ad-email", { timeout: 15000 });
-await page.locator("#ad-email").fill("admin@harshpandey.dev");
-await page.locator("#ad-password").fill("change-me-immediately");
+const adminEmail = process.env.ADMIN_EMAIL ?? "admin@harshpandey.dev";
+const adminPassword = process.env.ADMIN_PASSWORD;
+if (!adminPassword) throw new Error("ADMIN_PASSWORD must be provided when running the admin screenshot script");
+await page.locator("#ad-email").fill(adminEmail);
+await page.locator("#ad-password").fill(adminPassword);
 await page.locator(".login-card button[type='submit']").click();
 await page.waitForSelector(".stat-grid", { timeout: 15000 });
 await page.screenshot({ path: "test-results/shot-admin.png" });

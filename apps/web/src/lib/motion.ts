@@ -40,26 +40,6 @@ export function bindReveals(scope: HTMLElement | Document, caps: EnvCapabilities
   return triggers;
 }
 
-/** Level-2 text choreography for section titles (split by word). */
-export function splitReveal(el: HTMLElement, caps: EnvCapabilities): void {
-  if (caps.reducedMotion) return;
-  const text = el.textContent ?? "";
-  const words = text.split(" ");
-  el.innerHTML = words
-    .map((w) => `<span class="w" style="display:inline-block;overflow:hidden;vertical-align:top"><span style="display:inline-block">${w}&nbsp;</span></span>`)
-    .join("");
-  const inners = el.querySelectorAll(".w > span");
-  gsap.set(inners, { yPercent: 110 });
-  ScrollTrigger.create({
-    trigger: el,
-    start: "top 86%",
-    once: true,
-    onEnter: () => {
-      gsap.to(inners, { yPercent: 0, duration: 1, ease: "power4.out", stagger: 0.06 });
-    },
-  });
-}
-
 export function killTriggers(triggers: ScrollTrigger[]): void {
   triggers.forEach((t) => t.kill());
 }

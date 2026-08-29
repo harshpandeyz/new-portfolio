@@ -35,26 +35,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
   });
 
   async function load() {
-    try {
-      const [profileRes, projectsRes, certRes, skillsRes, eduRes, tlRes, statsRes] = await Promise.all([
-        api.profile(), api.projects(), api.certificates(), api.skills(), api.education(), api.timeline(), api.stats(),
-      ]);
-      setState((s) => ({
-        profile: profileRes.profile,
-        projects: projectsRes.projects,
-        certificates: certRes.certificates,
-        certTotal: certRes.total,
-        skills: skillsRes.skills,
-        education: eduRes.items,
-        timeline: tlRes.items,
-        stats: statsRes,
-        loaded: true,
-        error: null,
-        refresh: load,
-      }));
-    } catch (err) {
-      setState((s) => ({ ...s, loaded: true, error: err instanceof Error ? err.message : "System offline" }));
-    }
+    const critical = await Promise.allSettled([api.profile(), api.projects()]);
+    const criticalValue = <T,>(index: number): T | undefined => {
+      const result = critical[index];
+      return result?.status === "fulfilled" ? result.value as T : undefined;
+    };
+    setState((s) => ({
+      ...s,
+      profile: criticalValue<{ profile: Profile }>(0)?.profile ?? s.profile,
+      projects: criticalValue<{ projects: Project[] }>(1)?.projects ?? s.projects,
+      loaded: true,
+      error: critical.some((result) => result.status === "rejected") ? "Some content is temporarily unavailable." : null,
+      refresh: load,
+    }));
+
+    // Non-critical content arrives after the first useful paint. Stats remain
+    // admin-only and are intentionally not requested by the public shell.
+    const deferred = await Promise.allSettled([api.certificates(), api.skills(), api.education(), api.timeline()]);
+    const deferredValue = <T,>(index: number): T | undefined => {
+      const result = deferred[index];
+      return result?.status === "fulfilled" ? result.value as T : undefined;
+    };
+    setState((s) => ({
+      ...s,
+      certificates: deferredValue<{ certificates: Certificate[] }>(0)?.certificates ?? s.certificates,
+      certTotal: deferredValue<{ total: number }>(0)?.total ?? s.certTotal,
+      skills: deferredValue<{ skills: Skill[] }>(1)?.skills ?? s.skills,
+      education: deferredValue<{ items: Education[] }>(2)?.items ?? s.education,
+      timeline: deferredValue<{ items: TimelineItem[] }>(3)?.items ?? s.timeline,
+      error: [...critical, ...deferred].some((result) => result.status === "rejected") ? "Some content is temporarily unavailable." : null,
+      refresh: load,
+    }));
   }
 
   useEffect(() => {
