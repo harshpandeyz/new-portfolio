@@ -6,6 +6,8 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
+import "../apps/api/src/env.js";
+
 const prisma = new PrismaClient();
 
 function arg(name: string): string | undefined {

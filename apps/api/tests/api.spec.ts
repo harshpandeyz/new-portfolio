@@ -53,7 +53,7 @@ describe("health", () => {
   it("reports system online", async () => {
     const res = await app.inject({ method: "GET", url: "/api/health" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ status: "online", system: "HP//OS" });
+    expect(res.json()).toEqual({ status: "ok" });
   });
 });
 
@@ -76,6 +76,26 @@ describe("authentication", () => {
     expect(codes.filter((c) => c === 429).length).toBeGreaterThan(0);
   });
 
+  it("a spoofed X-Forwarded-For header cannot rotate the rate-limit identity", async () => {
+    // Trust proxy is configured to a bounded hop count, so client-supplied
+    // X-Forwarded-For values must be ignored. Rotating the header must NOT
+    // bypass the login brute-force limit.
+    const codes: number[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: { email: "spoof@test.io", password: "wrong-password-x" },
+        headers: { "x-forwarded-for": `203.0.113.${i}` },
+      });
+      codes.push(res.statusCode);
+    }
+    // The first requests share one bucket (limit 8), so the 9th+ must be 429
+    // even though each carried a different spoofed X-Forwarded-For.
+    expect(codes.filter((c) => c === 429).length).toBeGreaterThanOrEqual(4);
+    expect(codes.slice(0, 2).every((c) => c === 401)).toBe(true);
+  });
+
   it("rejects malformed login payloads", async () => {
     const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "not-an-email", password: "x" } });
     expect(res.statusCode).toBe(400);
@@ -91,6 +111,14 @@ describe("authentication", () => {
     await app.inject({ method: "POST", url: "/api/auth/logout", cookies, headers: authHeaders(cookies["hp_csrf"]!) });
     const me = await app.inject({ method: "GET", url: "/api/auth/me", cookies });
     expect(me.statusCode).toBe(401);
+  });
+
+  it("returns a fresh CSRF token for an existing cross-origin SPA session", async () => {
+    const { cookies } = await login();
+    const res = await app.inject({ method: "GET", url: "/api/auth/csrf", cookies });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().csrfToken).toMatch(/^[a-f0-9]+\.[a-f0-9]+$/);
+    expect(res.cookies.some((cookie) => cookie.name === "hp_csrf")).toBe(true);
   });
 });
 
@@ -330,6 +358,41 @@ describe("certificates API", () => {
   });
 });
 
+describe("media upload security", () => {
+  it("rejects an authenticated upload without CSRF", async () => {
+    const { cookies } = await login();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/media",
+      cookies,
+      headers: { "content-type": "multipart/form-data; boundary=hp-test" },
+      payload: Buffer.from("--hp-test--\r\n"),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("CSRF");
+  });
+
+  it("accepts a valid CSRF-protected image upload and can remove it", async () => {
+    const { cookies, csrf } = await login();
+    const boundary = "hp-media-test";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const prefix = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="pixel.png"\r\nContent-Type: image/png\r\n\r\n`);
+    const suffix = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/media",
+      cookies,
+      headers: { ...authHeaders(csrf), "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: Buffer.concat([prefix, png, suffix]),
+    });
+    expect(res.statusCode).toBe(201);
+    const asset = res.json().asset as { id: string; url: string };
+    expect(asset.url).toMatch(/^\/static\/media\//);
+    const removed = await app.inject({ method: "DELETE", url: `/api/media/${asset.id}`, cookies, headers: authHeaders(csrf) });
+    expect(removed.statusCode).toBe(200);
+  });
+});
+
 describe("security headers & misc", () => {
   it("sets hardened headers", async () => {
     const res = await app.inject({ method: "GET", url: "/api/health" });
@@ -343,11 +406,16 @@ describe("security headers & misc", () => {
     expect(res.json().error).toBe("NOT_FOUND");
   });
 
-  it("stats endpoint exposes only counters", async () => {
+  it("does not expose operational stats publicly", async () => {
     const res = await app.inject({ method: "GET", url: "/api/stats" });
-    const body = res.json();
-    for (const key of Object.keys(body)) {
-      expect(typeof body[key]).toBe("number");
-    }
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("allows only the configured frontend origin", async () => {
+    const allowed = await app.inject({ method: "GET", url: "/api/profile", headers: { origin: "http://localhost:5173" } });
+    expect(allowed.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+    expect(allowed.headers["access-control-allow-credentials"]).toBe("true");
+    const denied = await app.inject({ method: "GET", url: "/api/profile", headers: { origin: "https://attacker.example" } });
+    expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
   });
 });

@@ -2,7 +2,9 @@
  * HP//OS database seed — loads Harsh's verified profile data.
  *
  * Every fact in this file comes from the provided resume, the certificate
- * documents in ../../CERTIFICATES, or the public GitHub repositories.
+ * documents in apps/api/seed-assets/certificates, or the public GitHub
+ * repositories. Certificate files are versioned so a clean clone can
+ * reproduce the site's real media.
  * Nothing is invented. Metadata that could not be verified is left null.
  *
  * Run: npm run db:seed
@@ -14,12 +16,14 @@ import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+import "../src/env.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prisma = new PrismaClient();
 
 const CERT_SOURCE_DIR = process.env.CERTIFICATES_SOURCE_DIR
   ? path.resolve(process.env.CERTIFICATES_SOURCE_DIR)
-  : path.resolve(__dirname, "../../../../CERTIFICATES");
+  : path.resolve(__dirname, "../seed-assets/certificates");
 const UPLOAD_DIR = process.env.UPLOAD_DIR
   ? path.resolve(__dirname, "..", process.env.UPLOAD_DIR) // relative to apps/api
   : path.resolve(__dirname, "../uploads");
@@ -576,7 +580,7 @@ const TIMELINE = [
   { date: "2026-01", endDate: "2026-04", title: "Backend engineering certification wave", organization: "Coursera · IBM · Packt", description: "Backend Development & API Creation, Node.js & Express (IBM), Node.js & MongoDB (IBM), Selenium testing tracks, Figma/Miro product design.", type: "certification", order: 17 },
   { date: "2026-03", title: "AMCAT certified — SHL assessment", organization: "SHL · AMCAT", description: "Computer Science 99/100 · Automata Fix 100/100 · Automata 95/100 · English 88/100 · Programming 83/100.", type: "milestone", order: 18 },
   { date: "2026", title: "CCTV-X — surveillance platform v2 in active development", organization: null, description: "Evolved the capstone into a production-oriented microservices platform with evidence chain-of-custody and Bitcoin timestamp anchoring.", type: "project", order: 19 },
-  { date: "2026", title: "HP//OS — this portfolio, engineered as a system", organization: null, description: "Full-stack system: Fastify + PostgreSQL API, React cinematic frontend, retrieval-backed AI assistant, admin control center.", type: "project", order: 20 },
+  { date: "2026", title: "This portfolio — engineered as a system", organization: null, description: "Full-stack system: Fastify + PostgreSQL API, React cinematic frontend, retrieval-backed AI assistant, admin control center.", type: "project", order: 20 },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -635,7 +639,9 @@ async function main() {
     location: "Pune, India",
     email: "harshap17058@gmail.com",
     availability: "Open to internships & full-stack / backend / AI-ML engineering roles",
-    avatarUrl: "/static/profile/harsh-photo.jpeg",
+    // Profile and résumé are frontend-owned static assets. This also works
+    // when the SPA and API are deployed on separate origins.
+    avatarUrl: "/files/harsh-photo.jpeg",
     resumeUrl: "/files/HARSH-RESUME.pdf",
     resumeLabel: "HARSH-RESUME.pdf",
   };
@@ -709,19 +715,14 @@ async function main() {
   // Certificates (+ document ingestion)
   await seedCertificates();
 
-  // Profile photo ingestion
-  const photoSource = path.resolve(CERT_SOURCE_DIR, "../harsh-photo.jpeg");
-  if (existsSync(photoSource)) {
-    const photoDir = path.join(UPLOAD_DIR, "profile");
-    mkdirSync(photoDir, { recursive: true });
-    cpSync(photoSource, path.join(photoDir, "harsh-photo.jpeg"), { force: true });
-  }
-
   // Admin user
   const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@harshpandey.dev").toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "change-me-immediately";
+  const adminPassword = process.env.ADMIN_PASSWORD;
   const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (!adminExists) {
+    if (!adminPassword || adminPassword.length < 12) {
+      throw new Error("ADMIN_PASSWORD must be set to at least 12 characters before the first seed");
+    }
     await prisma.user.create({
       data: {
         email: adminEmail,
@@ -730,7 +731,7 @@ async function main() {
         displayName: "Harsh Pandey",
       },
     });
-    console.log(`Admin user created: ${adminEmail} (password from ADMIN_PASSWORD env — change it immediately)`);
+    console.log(`Admin user created: ${adminEmail} (password supplied through ADMIN_PASSWORD)`);
   } else {
     console.log(`Admin user ${adminEmail} already exists — untouched`);
   }
