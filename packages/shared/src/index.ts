@@ -216,11 +216,11 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: "boot", title: "SYSTEM INITIALIZED", description: "Completed the boot sequence." },
-  { id: "explorer", title: "PROJECT EXPLORER", description: "Opened a project case study." },
-  { id: "archivist", title: "CERTIFICATE ARCHIVIST", description: "Inspected a credential in the archive." },
-  { id: "deepdive", title: "DEEP DIVE", description: "Read a project's engineering architecture." },
-  { id: "ai", title: "AI INTERACTION", description: "Questioned the system intelligence." },
-  { id: "signal", title: "SIGNAL SENT", description: "Transmitted a message through the contact interface." },
-  { id: "operator", title: "OPERATOR DISCOVERED", description: "Found the local operator access point." },
+  { id: "boot", title: "First look", description: "You started exploring." },
+  { id: "explorer", title: "Work explored", description: "You opened a project case study." },
+  { id: "archivist", title: "Credential found", description: "You opened a credential." },
+  { id: "deepdive", title: "Under the hood", description: "You read the architecture behind a project." },
+  { id: "ai", title: "Good question", description: "You opened Ask Harsh." },
+  { id: "signal", title: "Conversation started", description: "You sent a message." },
+  { id: "operator", title: "Curious mind", description: "You found the private access." },
 ];
