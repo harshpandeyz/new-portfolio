@@ -1,5 +1,6 @@
 @import "./tokens.css";
 @import "./base.css";
+@import "./navigation.css";
 @import "./hud.css";
 @import "./sections.css";
 @import "./chat.css";

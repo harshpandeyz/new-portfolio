@@ -1,0 +1,21 @@
+/* Public shell: calm floating navigation and its mobile sheet. */
+.bg-layers { position: fixed; inset: 0; z-index: -2; pointer-events: none; }
+.bg-ambient { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 45% at 78% 3%, rgba(41,151,255,.08), transparent 62%), radial-gradient(ellipse 45% 35% at 10% 70%, rgba(100,210,255,.035), transparent 70%); }
+.topbar { position: fixed; z-index: var(--z-hud); top: 18px; left: 50%; display: flex; align-items: center; justify-content: space-between; width: min(calc(100% - 36px), 1120px); padding: 12px 14px 12px 20px; border: 1px solid transparent; border-radius: 18px; transform: translateX(-50%); transition: background .4s var(--ease), border-color .4s var(--ease), box-shadow .4s var(--ease); }
+.topbar.scrolled { background: rgba(255,255,255,.78); border-color: var(--line); box-shadow: 0 12px 40px rgba(29,29,31,.10); backdrop-filter: blur(18px); }
+.brand { color: var(--text); font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+.topbar-nav { display: flex; align-items: center; gap: 5px; }
+.topbar-nav a, .nav-ask { min-height: 40px; display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 10px; color: var(--muted); font-size: 13px; transition: color .25s, background .25s; }
+.topbar-nav a:hover, .nav-ask:hover { color: var(--text); background: var(--raise); }
+.nav-ask { color: var(--text); }
+.mobile-menu-btn { display: none; align-items: center; gap: 9px; min-height: 40px; padding: 8px 0 8px 12px; color: var(--text); font-size: 13px; }
+.mobile-menu-btn i, .mobile-menu-btn i::after { display: block; width: 15px; height: 1px; background: currentColor; content: ""; }
+.mobile-menu-btn i::after { transform: translateY(5px); }
+.nav-sheet { position: fixed; inset: -18px; z-index: -1; display: flex; flex-direction: column; padding: 100px 40px 40px; background: rgba(245,245,247,.98); animation: overlay-in .25s var(--ease); }
+.nav-sheet-list { display: flex; flex-direction: column; }
+.nav-sheet-item { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line); color: var(--text); text-align: left; font-size: 30px; }
+.nav-sheet-item:hover { color: var(--accent); }
+.nav-sheet-item span { color: var(--accent); font-size: 18px; }
+.nav-sheet-command { margin-top: auto; color: var(--muted); text-align: left; font-size: 14px; }
+.nav-sheet-command kbd { margin-left: 10px; color: var(--dim); }
+@media (max-width: 720px) { .topbar { top: 12px; width: calc(100% - 24px); padding-left: 16px; }.topbar-nav { display: none; }.mobile-menu-btn { display: flex; }.nav-sheet { padding: 100px 30px 35px; }.nav-sheet-item { font-size: 27px; } }
