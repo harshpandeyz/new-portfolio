@@ -7,6 +7,7 @@ import { bcryptCompare, bcryptHash } from "./password.js";
 import {
   createSession,
   destroySession,
+  issueCsrfToken,
   resolveSessionUser,
 } from "./session.js";
 import { loginSchema } from "@hp/shared";
@@ -61,12 +62,24 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
 
-    await createSession(user.id, req, reply);
+    const csrfToken = await createSession(user.id, req, reply);
     await audit(req, "auth.login", "user", user.id);
-    return { ok: true, user: { email: user.email, role: user.role, displayName: user.displayName } };
+    return { ok: true, csrfToken, user: { email: user.email, role: user.role, displayName: user.displayName } };
   });
 
-  app.post("/logout", { preHandler: [requireCsrf] }, async (req, reply) => {
+  app.get("/csrf", { preHandler: [requireAdmin] }, async (_req, reply) => {
+    const csrfToken = issueCsrfToken();
+    reply.setCookie(COOKIE_NAMES.csrf, csrfToken, {
+      httpOnly: false,
+      sameSite: config.isProd ? "none" : "lax",
+      secure: config.isProd,
+      path: "/",
+      maxAge: config.sessionTtlDays * 24 * 60 * 60,
+    });
+    return { csrfToken };
+  });
+
+  app.post("/logout", { preHandler: [requireAdmin, requireCsrf] }, async (req, reply) => {
     await destroySession(req, reply);
     if (req.admin) await audit(req, "auth.logout", "user", req.admin.id);
     return { ok: true };

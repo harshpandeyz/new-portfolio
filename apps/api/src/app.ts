@@ -6,7 +6,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyServerOptions } from "fastify";
 
 import { COOKIE_NAMES, config } from "./config.js";
 import { prisma } from "./db/prisma.js";
@@ -30,7 +30,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: config.isProd
       ? true
       : { transport: { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname,reqId,res" } }, level: "warn" },
-    trustProxy: true,
+    trustProxy: config.trustProxy as FastifyServerOptions["trustProxy"],
     bodyLimit: 2 * 1024 * 1024,
   });
 
@@ -100,7 +100,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── routes ───────────────────────────────────────────────────
   app.get("/api/health", async () => {
     await prisma.$queryRaw`SELECT 1`;
-    return { status: "online", system: "HP//OS", time: new Date().toISOString() };
+    return { status: "ok" };
   });
 
   await app.register(authRoutes, { prefix: "/api/auth" });

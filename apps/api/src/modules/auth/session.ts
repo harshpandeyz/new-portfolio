@@ -53,7 +53,7 @@ export async function createSession(
   userId: string,
   req: FastifyRequest,
   reply: FastifyReply,
-): Promise<void> {
+): Promise<string> {
   const token = randomBytes(32).toString("hex");
   await prisma.session.create({
     data: {
@@ -67,17 +67,21 @@ export async function createSession(
 
   const cookieOptions = {
     httpOnly: true,
-    sameSite: "lax",
+    // Cross-origin SPAs need the session cookie on credentialed XHR. Secure
+    // is required by browsers when SameSite=None is used.
+    sameSite: config.isProd ? "none" : "lax",
     secure: config.isProd,
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,
   } as const;
 
   reply.setCookie(COOKIE_NAMES.session, token, cookieOptions);
-  reply.setCookie(COOKIE_NAMES.csrf, issueCsrfToken(), {
+  const csrfToken = issueCsrfToken();
+  reply.setCookie(COOKIE_NAMES.csrf, csrfToken, {
     ...cookieOptions,
     httpOnly: false, // must be readable by the SPA for double-submit
   });
+  return csrfToken;
 }
 
 /** Resolves the current admin from the session cookie (or null). */

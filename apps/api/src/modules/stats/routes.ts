@@ -4,8 +4,8 @@ import { prisma } from "../../db/prisma.js";
 import { requireAdmin } from "../auth/routes.js";
 
 export async function statsRoutes(app: FastifyInstance): Promise<void> {
-  /** Public system counters — power the HUD status line and exit section. */
-  app.get("/", async () => {
+  // Operational counts are private admin data, never part of the public API.
+  app.get("/", { preHandler: [requireAdmin] }, async () => {
     const [projects, featuredProjects, certificates, skills, timelineItems, chatQueries, contactMessages, unreadMessages, pageViews] =
       await Promise.all([
         prisma.project.count({ where: { status: { not: "draft" } } }),

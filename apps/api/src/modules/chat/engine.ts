@@ -70,7 +70,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
     case "greeting":
       return {
         answer:
-          "System intelligence online. I can answer factual questions about Harsh Pandey — his projects, engineering skills, education, credentials and contact channels. What would you like to know?",
+          "Hi — I can answer factual questions about Harsh Pandey, his projects, engineering skills, education, credentials and contact details. What would you like to know?",
         confidence: "VERIFIED",
         sources: [],
         links: [],
@@ -80,11 +80,11 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
     case "contact": {
       return {
         answer:
-          'Harsh can be reached at harshap17058@gmail.com, via LinkedIn (linkedin.com/in/harshpandeyz), or through the contact interface at the end of this system. He is open to internships and full-stack, backend and AI/ML engineering roles.',
+          'Harsh can be reached at harshap17058@gmail.com, via LinkedIn (linkedin.com/in/harshpandeyz), or through the contact form at the end of this page. He is open to internships and full-stack, backend and AI/ML engineering roles.',
         confidence: "VERIFIED",
         sources: [{ kind: "PROFILE", label: "Profile database" }],
         links: [
-          { label: "Transmit a message", href: "/#contact" },
+          { label: "Send a message", href: "/#contact" },
           { label: "LinkedIn", href: "https://www.linkedin.com/in/harshpandeyz/" },
         ],
         provider: "knowledge-base",
@@ -94,7 +94,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
     case "resume":
       return {
         answer:
-          "Harsh's resume is available in the system — open it from the command palette (⌘K → Download Resume) or the hero interface. It covers his B.Tech IT degree at MIT-ADT University (2023–2027, CGPA 8.38), his CodSoft web-development internship, four flagship projects and his certification record.",
+          "Harsh's résumé is available from the hero or command palette (⌘K → Download résumé). It covers his B.Tech IT degree at MIT-ADT University (2023–2027, CGPA 8.38), his CodSoft web-development internship, four flagship projects and his certification record.",
         confidence: "VERIFIED",
         sources: [{ kind: "RESUME", label: "Resume" }, { kind: "PROFILE", label: "Profile database" }],
         links: [{ label: "Download resume", href: "/files/HARSH-RESUME.pdf" }],
@@ -123,7 +123,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
         return `• ${d.title} — ${first.replace(new RegExp(`^${escapeRegex(d.title)}`, "i"), "").trim().replace(/^[-–—(: ]+/, "") || d.title}`;
       });
       return {
-        answer: `Verified systems in the project database include:\n${lines.join("\n")}\n\nOpen any case study for architecture, engineering decisions and security notes.`,
+        answer: `Selected work in the portfolio includes:\n${lines.join("\n")}\n\nOpen any case study for architecture, engineering decisions and security notes.`,
         confidence: "VERIFIED",
         sources,
         links,
@@ -137,10 +137,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
       skillDocs.slice(0, 3).forEach((h) => addSource(h.doc));
       const summary = skillDocs.slice(0, 3).map((h) => h.doc.content.split(". ").slice(0, 2).join(". ")).join(" ");
       return {
-        answer: `From the capability registry: ${summary}\n\nLevels are declared honestly — core, working, exploring, experimental — never inflated.`,
+        answer: `From the capabilities list: ${summary}\n\nLevels are declared honestly — core, working, exploring, experimental — never inflated.`,
         confidence: "VERIFIED",
         sources,
-        links: [{ label: "Open Engineering Core", href: "/#core" }],
+        links: [{ label: "Open capabilities", href: "/#capabilities" }],
         provider: "knowledge-base",
       };
     }
@@ -171,7 +171,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
           answer: summary.doc.content,
           confidence: "VERIFIED",
           sources,
-          links: [{ label: "Open the certificate archive", href: "/#credentials" }],
+          links: [{ label: "View credentials", href: "/#credentials" }],
           provider: "knowledge-base",
         };
       }
@@ -179,7 +179,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
         answer: `Verified credentials matching that query:\n${certDocs.slice(0, 5).map((h) => `• ${h.doc.title} — ${h.doc.content.match(/issued by ([^,.]+)/i)?.[1] ?? "issuer on record"}`).join("\n")}`,
         confidence: "VERIFIED",
         sources,
-        links: [{ label: "Open the certificate archive", href: "/#credentials" }],
+        links: [{ label: "View credentials", href: "/#credentials" }],
         provider: "knowledge-base",
       };
     }
@@ -187,10 +187,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
     case "learning":
       return {
         answer:
-          "Per the mission log: Harsh is deepening distributed systems and system design, actively evolving the Intelligent Surveillance System (CCTV-X) microservices platform, and exploring MLOps lifecycle tooling. His certification record shows recent focus on backend engineering (Node.js/Express, MongoDB), testing (Selenium) and cloud technologies.",
+          "From his recent work: Harsh is deepening distributed systems and system design, actively evolving the Intelligent Surveillance System (CCTV-X) microservices platform, and exploring MLOps lifecycle tooling. His certification record shows recent focus on backend engineering (Node.js/Express, MongoDB), testing (Selenium) and cloud technologies.",
         confidence: "INFERRED",
         sources: [
-          { kind: "TIMELINE", label: "Mission log" },
+          { kind: "TIMELINE", label: "Journey" },
           { kind: "PROJECT", label: "Intelligent Surveillance System", ref: "intelligent-surveillance-system" },
         ],
         links: [projectLink("intelligent-surveillance-system")],
@@ -202,7 +202,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
         answer:
           "Verified experience: Web Development Intern at CodSoft (virtual, project-based, June–July 2025) — shipped React + Node.js/Express projects over REST APIs, designed backend endpoints and data models, validated with Postman, and deployed to Netlify. He is currently seeking full-stack, backend or AI/ML engineering roles.",
         confidence: "VERIFIED",
-        sources: [{ kind: "RESUME", label: "Resume" }, { kind: "TIMELINE", label: "Mission log" }],
+        sources: [{ kind: "RESUME", label: "Résumé" }, { kind: "TIMELINE", label: "Journey" }],
         links: [{ label: "Download resume", href: "/files/HARSH-RESUME.pdf" }],
         provider: "knowledge-base",
       };
@@ -216,7 +216,7 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
           { kind: "PROFILE", label: "Profile database" },
           { kind: "RESUME", label: "Resume" },
         ],
-        links: [{ label: "Open identity module", href: "/#identity" }],
+        links: [{ label: "Read about Harsh", href: "/#about" }],
         provider: "knowledge-base",
       };
 

@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { prisma } from "../../db/prisma.js";
 import { requireAdmin } from "../auth/routes.js";
-import { parseBody } from "../../utils/http.js";
+import { clientIp, parseBody } from "../../utils/http.js";
+import { rateLimit } from "../../utils/rate-limit.js";
+
+const EVENTS_WINDOW_MS = 60 * 1000;
+const EVENTS_MAX = 30;
 
 const eventSchema = z.object({
   type: z.enum(["page_view", "project_view", "certificate_view", "chat_query", "contact_submit", "resume_download", "recruiter_view"]),
@@ -17,6 +21,12 @@ const eventSchema = z.object({
 /** Privacy-conscious analytics: aggregate counters only, no fingerprinting, no PII. */
 export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", async (req, reply) => {
+    const limit = rateLimit(`events:${clientIp(req)}`, EVENTS_MAX, EVENTS_WINDOW_MS);
+    if (!limit.allowed) {
+      reply.header("retry-after", limit.retryAfterSeconds);
+      reply.code(429);
+      return { error: "RATE_LIMITED", message: "Too many events. Try again later." };
+    }
     const input = parseBody(req, eventSchema);
     await prisma.analyticsEvent.create({
       data: { type: input.type, ref: input.ref ?? null, meta: input.meta ?? undefined },
