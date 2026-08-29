@@ -1,0 +1,8 @@
+[build]
+  command = "npm run build --workspace @hp/web"
+  publish = "apps/web/dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

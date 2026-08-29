@@ -1,4 +1,4 @@
-# HP//OS — Architecture
+# Harsh Pandey Portfolio — Architecture
 
 ## System overview
 
@@ -8,8 +8,8 @@
 │  ├── Public experience  /            GSAP ScrollTrigger choreography      │
 │  ├── Case studies       /projects/:slug                          │
 │  ├── Recruiter mode     /recruiter   code-split, printable                 │
-│  ├── HARSH AI widget                 lazy-mounted, streams from /api/chat │
-│  └── HARSH // CONTROL   /private     code-split admin app (own chunk)     │
+│  ├── Ask Harsh widget                lazy-mounted, uses /api/chat         │
+│  └── Private admin area  /private     code-split admin app (own chunk)     │
 └──────────────┬──────────────────────────────┬────────────────────────────┘
                │ /api (JSON, credentials)     │ /static (uploads)
 ┌──────────────▼──────────────────────────────▼────────────────────────────┐
@@ -41,11 +41,12 @@ slug/tier/featured/category/createdAt as appropriate.
 
 ## Frontend architecture
 
-- `lib/` — api client (auto-CSRF), data provider (single fetch fan-out + refresh),
-  device tiering (`high | medium | low`), achievements store (localStorage + pub/sub),
-  GSAP utilities (`bindReveals`, `splitReveal`) with strict cleanup
-- `components/hud/` — boot, topbar, status rail, command palette, cursor, terminal,
-  toasts, private-access modal
+- `lib/` — API client (auto-CSRF and optional cross-origin base URL), data provider
+  (single fetch fan-out + refresh), device tiering (`high | medium | low`), achievements
+  store (localStorage + pub/sub), scroll tracking, and GSAP reveal utilities
+- `components/navigation/` — public floating navigation
+- `components/hud/` — intentionally hidden advanced surfaces: command palette,
+  terminal, achievements, and private-access modal
 - `components/three/CoreScene` — R3F canvas, mode-driven (`hero|core|projects|
   credentials|contact`) parameter lerping; lazy-loaded, tier-scaled, CSS fallback
 - `features/` — sections, chat, recruiter, admin (own lazy chunk)
@@ -53,6 +54,18 @@ slug/tier/featured/category/createdAt as appropriate.
 Performance: three.js/gsap/admin are separate chunks (three ≈ 220 KB gzip loads only
 when WebGL renders; the site is fully usable without it). Reveals use `once: true`
 triggers; timelines are killed on unmount.
+
+## Media ownership
+
+- Frontend-owned files live in `apps/web/public/files` and are referenced as
+  `/files/...` (résumé and portrait). They stay on the web origin even when the
+  API is deployed separately.
+- API-owned uploads live under `apps/api/uploads` and are referenced as
+  `/static/...`. The canonical `resolveMediaUrl` helper maps these paths to
+  `VITE_API_URL` when needed.
+- Real certificate source files are tracked under
+  `apps/api/seed-assets/certificates`; seeding copies them to the persistent
+  upload volume and creates matching database records.
 
 ## Chat pipeline
 
@@ -74,9 +87,9 @@ route or UI contract. Queries are logged (`chat_query_logs`) for the admin dashb
 
 ## Certificate ingestion
 
-`npm run db:seed` scans `CERTIFICATES_SOURCE_DIR` (default `../../CERTIFICATES` outside
-the repo), copies each document into `apps/api/uploads/certificates/` with sanitized
-names, and creates records from the verified metadata table in `prisma/seed.ts`
+`npm run db:seed` scans `CERTIFICATES_SOURCE_DIR` (default
+`apps/api/seed-assets/certificates`), copies each document into
+`apps/api/uploads/certificates/` with sanitized names, and creates records from the verified metadata table in `prisma/seed.ts`
 (issuers/dates were extracted from the documents themselves; unknown dates are null).
 Admins can correct or enrich any record later — the seed never overwrites manual edits
 unless `SEED_FORCE=1`.

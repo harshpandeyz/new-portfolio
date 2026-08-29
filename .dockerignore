@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+dist
+**/dist
+build
+coverage
+playwright-report
+test-results
+.env
+.env.*
+apps/api/uploads
+*.db
+*.log
+.DS_Store

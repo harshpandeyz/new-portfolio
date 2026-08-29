@@ -18,5 +18,47 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/hp_os
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET before starting the production stack}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      CONTACT_NOTIFY_EMAIL: ${CONTACT_NOTIFY_EMAIL:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - hp_uploads:/app/apps/api/uploads
+    ports:
+      - "4000:4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
 volumes:
   hp_pgdata:
+  hp_uploads:

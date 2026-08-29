@@ -1,4 +1,4 @@
-# HP//OS — Security Model
+# Portfolio — Security Model
 
 ## Principles
 
@@ -14,17 +14,18 @@
 
 - Passwords hashed with **bcrypt (12 rounds)**; hashes never leave the server
 - Sessions are opaque 256-bit random tokens; **only the SHA-256 hash is stored** (`sessions.token_hash`)
-- Cookie: `hp_session` — **HTTP-only**, `SameSite=Lax`, `Secure` in production, path-scoped, 7-day expiry
+- Cookie: `hp_session` — **HTTP-only**, `SameSite=None` + `Secure` in production (for credentialed requests from a separately hosted SPA), path-scoped, 7-day expiry
 - Sliding `last_seen_at` refresh; expired sessions purged hourly
 - Login responses are constant-shape (dummy bcrypt compare) to blunt user-enumeration timing
 - Login rate limit: 8 attempts / 15 min / IP → `429` + `Retry-After`
 
 ## CSRF
 
-Double-submit with HMAC binding: at login the API sets a readable `hp_csrf` cookie
-`nonce.HMAC(nonce, SESSION_SECRET)`. All mutating requests must send `x-csrf-token`
-matching the cookie **and** a valid signature (timing-safe compares). The web client
-attaches the header automatically.
+Double-submit with HMAC binding: at login the API returns a token and sets a readable
+`hp_csrf` cookie. An authenticated `/api/auth/csrf` refresh endpoint supports a
+cross-origin SPA after a page reload. The token is `nonce.HMAC(nonce, SESSION_SECRET)`;
+all authenticated mutating requests, including multipart media upload, must send
+`x-csrf-token` matching the cookie and a valid signature (timing-safe compares).
 
 ## Authorization
 
@@ -47,7 +48,10 @@ messages, media, audit, analytics). There is no client-trusted role.
 - `@fastify/helmet`: `X-Content-Type-Options: nosniff`, strict `Referrer-Policy`,
   cross-origin resource policy for static uploads
 - CORS: explicit origin allow-list (from `APP_URL`), `credentials: true` — no wildcard
-- `trustProxy` for correct client IPs behind Render/Railway/nginx
+- `trustProxy` is configured as a **bounded hop count** (`TRUST_PROXY`, default `1`) so a
+  direct client cannot spoof `X-Forwarded-For` to rotate its IP identity and bypass rate
+  limits. Only the expected reverse-proxy hops are trusted; set `0`/`false` when the API is
+  exposed directly, or pass a comma-separated IP/CIDR list to trust specific proxies.
 
 ## Rate limits (in-memory fixed window)
 
@@ -56,6 +60,7 @@ messages, media, audit, analytics). There is no client-trusted role.
 | Login | 8 / 15 min / IP |
 | Contact | 5 / 10 min / IP (+3/h/email) |
 | Chat | 12 / min / IP |
+| Analytics events | 30 / min / IP |
 
 Single-instance memory store; swap for Redis when scaling horizontally
 (see `src/utils/rate-limit.ts`).
