@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 export interface Command {
   id: string;
@@ -21,7 +20,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -33,12 +33,14 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
   useEffect(() => {
     if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
       setQuery("");
       setActive(0);
       window.setTimeout(() => inputRef.current?.focus(), 30);
       document.body.classList.add("no-scroll");
     } else {
       document.body.classList.remove("no-scroll");
+      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
     }
     return () => document.body.classList.remove("no-scroll");
   }, [open]);
@@ -49,9 +51,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
       if (!cmd) return;
       onClose();
       window.setTimeout(() => cmd.action(), 60);
-      void navigate;
     },
-    [filtered, onClose, navigate],
+    [filtered, onClose],
   );
 
   useEffect(() => {
@@ -60,6 +61,18 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+      } else if (e.key === "Tab") {
+        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), a[href]");
+        if (!focusables?.length) return;
+        const first = focusables[0]!;
+        const last = focusables[focusables.length - 1]!;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setActive((a) => Math.min(filtered.length - 1, a + 1));
@@ -84,7 +97,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Command palette" onClick={onClose} onKeyDown={() => undefined}>
-      <div className="palette" onClick={(e) => e.stopPropagation()} role="document">
+      <div ref={dialogRef} className="palette" onClick={(e) => e.stopPropagation()} role="document">
         <div className="palette-input-row">
           <span className="prompt">❯</span>
           <input

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../../lib/api";
+import { api, resolveMediaUrl } from "../../lib/api";
 
 interface TerminalProps {
   open: boolean;
@@ -33,11 +33,47 @@ export function Terminal({ open, onClose }: TerminalProps) {
   const [input, setInput] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const navigate = useNavigate();
+  onCloseRef.current = onClose;
+
+  const closeTerminal = useCallback(() => {
+    onCloseRef.current();
+    window.setTimeout(() => previousFocusRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 40);
-  }, [open]);
+    if (!open) return;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    document.body.classList.add("no-scroll");
+    window.setTimeout(() => inputRef.current?.focus(), 40);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTerminal();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = terminalRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), a[href]");
+      if (!focusables?.length) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.classList.remove("no-scroll");
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeTerminal, open]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
@@ -49,7 +85,7 @@ export function Terminal({ open, onClose }: TerminalProps) {
     const cmd = raw.trim().toLowerCase();
     const out: Line[] = [{ kind: "cmd", text: raw }];
     const go = (path: string) => {
-      onClose();
+      closeTerminal();
       window.setTimeout(() => navigate(path), 80);
     };
 
@@ -80,7 +116,7 @@ export function Terminal({ open, onClose }: TerminalProps) {
         break;
       case "resume":
         out.push({ kind: "resp", text: "downloading HARSH-RESUME.pdf…" });
-        window.open("/files/HARSH-RESUME.pdf", "_blank", "noopener");
+        window.open(resolveMediaUrl("/files/HARSH-RESUME.pdf"), "_blank", "noopener");
         break;
       case "contact":
         out.push({ kind: "resp", text: "opening communication interface…" });
@@ -89,7 +125,7 @@ export function Terminal({ open, onClose }: TerminalProps) {
       case "chat":
         out.push({ kind: "resp", text: "waking the intelligence core…" });
         window.dispatchEvent(new CustomEvent("hp:open-chat"));
-        onClose();
+        closeTerminal();
         break;
       case "clear":
         setLines([]);
@@ -100,7 +136,7 @@ export function Terminal({ open, onClose }: TerminalProps) {
         out.push({ kind: "sys", text: "hint: some doors open with Ctrl+Shift+H — but they still need a key." });
         break;
       case "exit":
-        onClose();
+        closeTerminal();
         break;
       default:
         out.push({ kind: "err", text: `command not found: ${cmd} — try 'help'` });
@@ -110,10 +146,10 @@ export function Terminal({ open, onClose }: TerminalProps) {
   };
 
   return (
-    <div className="terminal" role="dialog" aria-label="System terminal" onKeyDown={(e) => e.key === "Escape" && onClose()}>
+    <div ref={terminalRef} className="terminal" role="dialog" aria-modal="true" aria-label="Advanced terminal">
       <div className="term-bar">
         <span>GUEST@HP-OS:~</span>
-        <button className="chat-icon-btn" onClick={onClose}>CLOSE ✕</button>
+        <button className="chat-icon-btn" onClick={closeTerminal}>CLOSE ✕</button>
       </div>
       <div className="term-body" ref={bodyRef}>
         {lines.map((l, i) => (

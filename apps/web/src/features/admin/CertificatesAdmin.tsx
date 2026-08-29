@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api } from "../../lib/api";
+import { api, resolveMediaUrl } from "../../lib/api";
 import type { Certificate } from "@hp/shared";
 import { ErrorNote, Field, Select, TextArea, TextInput } from "./fields";
 
@@ -100,7 +100,7 @@ export function CertificatesAdmin() {
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setEditing(c)}>EDIT</button>
-                      {c.fileUrl && <a href={c.fileUrl} target="_blank" rel="noopener noreferrer">DOC</a>}
+                      {c.fileUrl && <a href={resolveMediaUrl(c.fileUrl)} target="_blank" rel="noopener noreferrer">DOC</a>}
                       <button className="danger" onClick={() => remove(c)}>DEL</button>
                     </div>
                   </td>

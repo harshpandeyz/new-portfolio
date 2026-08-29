@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { api } from "../../lib/api";
+import { api, resolveMediaUrl } from "../../lib/api";
+import { formatTaxonomy } from "../../lib/format";
 import type { Project } from "@hp/shared";
 import { unlock } from "../../lib/achievements";
 import { useData } from "../../lib/data";
@@ -9,10 +10,10 @@ import { useData } from "../../lib/data";
 type Tab = "overview" | "architecture" | "security" | "decisions";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "OVERVIEW" },
-  { id: "architecture", label: "ARCHITECTURE / DATAFLOW" },
-  { id: "security", label: "SECURITY" },
-  { id: "decisions", label: "ENGINEERING DECISIONS" },
+  { id: "overview", label: "Overview" },
+  { id: "architecture", label: "Architecture" },
+  { id: "security", label: "Security" },
+  { id: "decisions", label: "Decisions" },
 ];
 
 /** Progressive-draw SVG pipeline built from the project's real dataFlow steps. */
@@ -39,7 +40,7 @@ function FlowDiagram({ steps, title }: { steps: string[]; title: string }) {
             <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
           </marker>
         </defs>
-        <text className="ad-label" x={20} y={26}>DATAFLOW // {title.toUpperCase()}</text>
+        <text className="ad-label" x={20} y={26}>How it works · {title}</text>
         {steps.map((step, i) => {
           const row = Math.floor(i / perRow);
           const col = i % perRow;
@@ -105,23 +106,35 @@ export function ProjectCase() {
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
 
+  // Re-resolve state whenever the slug changes so navigating between case
+  // studies never shows a stale project or carries the previous tab over.
   useEffect(() => {
-    if (project) return;
     let live = true;
-    setLoading(true);
-    api
-      .project(slug ?? "")
-      .then((r) => {
-        if (!live) return;
-        setProject(r.project);
-        unlock("explorer");
-      })
-      .catch(() => live && setNotFound(true))
-      .finally(() => live && setLoading(false));
+    const cached = projects.find((p) => p.slug === slug);
+    if (cached) {
+      setProject(cached);
+      setNotFound(false);
+      setLoading(false);
+    } else {
+      setProject(null);
+      setNotFound(false);
+      setLoading(true);
+      api
+        .project(slug ?? "")
+        .then((r) => {
+          if (!live) return;
+          setProject(r.project);
+          setNotFound(false);
+          unlock("explorer");
+        })
+        .catch(() => live && setNotFound(true))
+        .finally(() => live && setLoading(false));
+    }
+    setTab("overview");
     return () => {
       live = false;
     };
-  }, [slug, project]);
+  }, [slug, projects]);
 
   useEffect(() => {
     if (project && tab === "architecture") unlock("deepdive");
@@ -131,7 +144,7 @@ export function ProjectCase() {
     window.scrollTo({ top: 0 });
     if (project) document.title = `${project.title} — Harsh Pandey`;
     return () => {
-      document.title = "Harsh Pandey — HP//OS";
+      document.title = "Harsh Pandey — Software Engineer";
     };
   }, [project]);
 
@@ -143,7 +156,7 @@ export function ProjectCase() {
   if (loading) {
     return (
       <div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
-        <span className="mono mono-dim">LOADING SYSTEM FILE…</span>
+        <span className="mono mono-dim">Loading project…</span>
       </div>
     );
   }
@@ -152,8 +165,8 @@ export function ProjectCase() {
     return (
       <div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <div className="mono mono-dim" style={{ marginBottom: 18 }}>404 // SYSTEM FILE NOT FOUND</div>
-          <Link className="btn" to="/#projects">← BACK TO CONSTELLATION</Link>
+          <div className="mono mono-dim" style={{ marginBottom: 18 }}>Project not found</div>
+          <Link className="btn" to="/#projects">← Back to selected work</Link>
         </div>
       </div>
     );
@@ -163,21 +176,22 @@ export function ProjectCase() {
     <>
       <header className="case-hero">
         <div className="container">
-          <Link to="/#projects" className="back">← CONSTELLATION</Link>
-          <div className="mono mono-accent" style={{ marginBottom: 14 }}>
-            PROJECT IDENTIFIED · {String(project.order).padStart(2, "0")} · {project.category}
-          </div>
+          <Link to="/#projects" className="back">← Back to selected work</Link>
+          <div className="eyebrow" style={{ marginBottom: 14 }}>{formatTaxonomy(project.category)}</div>
           <h1>{project.title}</h1>
-          {project.codename && <div className="codename">CODENAME: {project.codename}</div>}
+          {project.codename && <div className="codename">{project.codename}</div>}
           <p className="short">{project.shortDescription}</p>
           <div className="case-meta">
-            <div className="cell"><div className="k">STATUS</div><div className="v" style={{ textTransform: "capitalize" }}>{project.status}</div></div>
-            <div className="cell"><div className="k">CLASS</div><div className="v">{project.tier.toUpperCase()}</div></div>
-            <div className="cell"><div className="k">TIMELINE</div><div className="v">{project.year}</div></div>
-            <div className="cell"><div className="k">STACK SIZE</div><div className="v">{project.stack.length} TECHNOLOGIES</div></div>
+            <div className="cell"><div className="k">Status</div><div className="v" style={{ textTransform: "capitalize" }}>{project.status}</div></div>
+            <div className="cell"><div className="k">Year</div><div className="v">{project.year}</div></div>
+            <div className="cell"><div className="k">Stack</div><div className="v">{project.stack.slice(0, 3).join(" · ")}</div></div>
           </div>
         </div>
       </header>
+
+      <div className="container"><div className="case-media" aria-label={`${project.title} project preview`}>
+        {project.heroImage ? <img src={resolveMediaUrl(project.heroImage)} alt="" /> : <div className="project-art"><span>{formatTaxonomy(project.category).split(" · ")[0]}</span><strong>{project.title.slice(0, 1)}</strong><i /></div>}
+      </div></div>
 
       <nav className="case-tabs" role="tablist" aria-label="Case study sections">
         {TABS.map((t) => (
@@ -197,18 +211,18 @@ export function ProjectCase() {
         <div className="container case-panel">
           {tab === "overview" && (
             <div>
-              <h3>WHY THIS SYSTEM EXISTS</h3>
+              <h3>Why it exists</h3>
               {project.longDescription ? (
                 <p className="lede">{project.longDescription}</p>
               ) : (
                 <p className="lede">{project.shortDescription}</p>
               )}
-              {project.problem && (<><h3 style={{ marginTop: 34 }}>THE PROBLEM</h3><p>{project.problem}</p></>)}
-              {project.solution && (<><h3 style={{ marginTop: 34 }}>THE SOLUTION</h3><p>{project.solution}</p></>)}
-              {project.challenges && (<><h3 style={{ marginTop: 34 }}>CHALLENGES</h3><p>{project.challenges}</p></>)}
-              {project.results && (<><h3 style={{ marginTop: 34 }}>RESULTS / LEARNINGS</h3><p>{project.results}</p></>)}
+              {project.problem && (<><h3 style={{ marginTop: 34 }}>01 — The problem</h3><p>{project.problem}</p></>)}
+              {project.solution && (<><h3 style={{ marginTop: 34 }}>02 — The solution</h3><p>{project.solution}</p></>)}
+              {project.challenges && (<><h3 style={{ marginTop: 34 }}>03 — What was difficult</h3><p>{project.challenges}</p></>)}
+              {project.results && (<><h3 style={{ marginTop: 34 }}>04 — Results</h3><p>{project.results}</p></>)}
 
-              <h3 style={{ marginTop: 40 }}>TECH STACK</h3>
+              <h3 style={{ marginTop: 40 }}>Stack</h3>
               <div className="case-stack-grid">
                 {project.stack.map((t) => <span className="tag" key={t} style={{ justifyContent: "center", padding: "10px 12px" }}>{t}</span>)}
               </div>
@@ -216,65 +230,65 @@ export function ProjectCase() {
               <div className="case-links">
                 {project.githubUrl && (
                   <a className="btn" href={project.githubUrl} target="_blank" rel="noopener noreferrer">
-                    SOURCE REPOSITORY <span aria-hidden="true">↗</span>
+                    Source repository <span aria-hidden="true">↗</span>
                   </a>
                 )}
                 {project.liveUrl && (
                   <a className="btn" href={project.liveUrl} target="_blank" rel="noopener noreferrer">
-                    LIVE DEPLOYMENT <span aria-hidden="true">↗</span>
+                    Live deployment <span aria-hidden="true">↗</span>
                   </a>
                 )}
-                <a className="btn btn-ghost" href="/files/HARSH-RESUME.pdf" target="_blank" rel="noopener noreferrer">
-                  RESUME REFERENCE ↓
+                <a className="btn btn-ghost" href={resolveMediaUrl("/files/HARSH-RESUME.pdf")} target="_blank" rel="noopener noreferrer">
+                  Résumé ↓
                 </a>
               </div>
               <p className="mono mono-dim" style={{ marginTop: 26, fontSize: 9.5 }}>
-                NOTE: NO PERFORMANCE METRICS ARE CLAIMED BEYOND WHAT THE PUBLIC REPOSITORY DEMONSTRATES.
+                Details are drawn from the public repository and project record.
               </p>
             </div>
           )}
 
           {tab === "architecture" && (
             <div>
-              <h3>SYSTEM OVERVIEW</h3>
+              <h3>Architecture</h3>
               <p>{project.architecture ?? "Architecture documentation for this module is summarized in the repository README."}</p>
               {project.dataFlow.length > 0 ? (
                 <FlowDiagram steps={project.dataFlow} title={project.title} />
               ) : (
-                <p className="mono mono-dim">NO STRUCTURED DATAFLOW ON RECORD FOR THIS MODULE.</p>
+                <p className="mono mono-dim">Architecture notes are available in the repository README.</p>
               )}
             </div>
           )}
 
           {tab === "security" && (
             <div>
-              <h3>SECURITY POSTURE</h3>
+              <h3>Security</h3>
               {project.securityNotes ? (
                 <>
-                  <p>Security properties implemented in this system, as verifiable in the repository:</p>
+                  <p>Security properties implemented in this system, as verifiable in the repository.</p>
                   <div className="case-list">
                     {project.securityNotes.split(" · ").map((s, i) => (
-                      <div className="case-list-item" key={i}><span className="n">SEC-{String(i + 1).padStart(2, "0")}</span>{s}</div>
+                      <div className="case-list-item" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span>{s}</div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p>No dedicated security layer is claimed for this module — it is a front-end or static artifact.</p>
+                <p>No dedicated security layer is claimed for this module.</p>
               )}
             </div>
           )}
 
           {tab === "decisions" && (
             <div>
-              <h3>KEY ENGINEERING DECISIONS</h3>
+              <h3>Engineering decisions</h3>
               {project.decisions.length > 0 ? (
                 <div className="case-list">
                   {project.decisions.map((d, i) => (
-                    <div className="case-list-item" key={i}><span className="n">D-{String(i + 1).padStart(2, "0")}</span>{d}</div>
+                    <div className="case-list-item" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span>{d}</div>
                   ))}
                 </div>
               ) : (
-                <p>Decision records for this module live in the repository history.</p>
+                <p>Decision records for this project live in the repository history.</p>
               )}
             </div>
           )}
@@ -283,11 +297,11 @@ export function ProjectCase() {
 
       {related.length > 0 && (
         <div className="container" style={{ paddingBottom: 90 }}>
-          <div className="mono mono-dim" style={{ marginBottom: 16 }}>RELATED SYSTEMS</div>
+          <div className="eyebrow" style={{ marginBottom: 16 }}>More selected work</div>
           <div className="proj-grid">
             {related.map((p) => (
               <Link to={`/projects/${p.slug}`} className={`proj-node tier-${p.tier}`} key={p.id}>
-                <div className="pn-top"><span className="pn-id">{p.category}</span></div>
+                <div className="pn-top"><span className="pn-id">{formatTaxonomy(p.category)}</span></div>
                 <h3>{p.title}</h3>
                 <p>{p.shortDescription}</p>
               </Link>

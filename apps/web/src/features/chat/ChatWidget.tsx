@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "../../lib/api";
@@ -9,6 +9,7 @@ interface Msg {
   role: "user" | "ai";
   text: string;
   reply?: ChatReply;
+  retry?: string;
 }
 
 export function ChatWidget() {
@@ -18,14 +19,29 @@ export function ChatWidget() {
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
 
+  const openChat = useCallback(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    setOpen(true);
+  }, []);
+
+  const closeChat = useCallback(() => {
+    setOpen(false);
+    window.setTimeout(() => {
+      const target = previousFocusRef.current?.isConnected ? previousFocusRef.current : fabRef.current;
+      target?.focus();
+    }, 0);
+  }, []);
+
   useEffect(() => {
-    const openChat = () => setOpen(true);
     window.addEventListener("hp:open-chat", openChat);
     return () => window.removeEventListener("hp:open-chat", openChat);
-  }, []);
+  }, [openChat]);
 
   useEffect(() => {
     if (open && suggestions.length === 0) {
@@ -33,6 +49,37 @@ export function ChatWidget() {
     }
     if (open) window.setTimeout(() => inputRef.current?.focus(), 60);
   }, [open, suggestions.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    document.body.classList.add("no-scroll");
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeChat();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+        "button:not(:disabled), input:not(:disabled), a[href]",
+      );
+      if (!focusables?.length) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.classList.remove("no-scroll");
+    };
+  }, [closeChat, open]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
@@ -51,7 +98,7 @@ export function ChatWidget() {
     } catch {
       setMessages((m) => [
         ...m,
-        { role: "ai", text: "The intelligence core is unreachable right now. Retry in a moment." },
+        { role: "ai", text: "Something went wrong. Please try again.", retry: q },
       ]);
     } finally {
       setBusy(false);
@@ -60,7 +107,7 @@ export function ChatWidget() {
   };
 
   const handleLink = (href: string) => {
-    setOpen(false);
+    closeChat();
     if (href.startsWith("/#")) {
       const id = href.slice(2);
       window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 80);
@@ -74,26 +121,26 @@ export function ChatWidget() {
   return (
     <>
       {!open && (
-        <button className="chat-fab" onClick={() => setOpen(true)} aria-label="Open HARSH AI assistant">
+        <button ref={fabRef} className="chat-fab" onClick={openChat} aria-label="Ask Harsh">
           <span className="pulse" aria-hidden="true" />
-          <span className="label">ASK HARSH AI</span>
-          <span aria-hidden="true">◈</span>
+          <span className="label">Ask Harsh</span>
+          <span aria-hidden="true">✦</span>
         </button>
       )}
 
       {open && (
-        <div className="chat-panel" role="dialog" aria-label="HARSH AI assistant">
+        <div ref={dialogRef} className="chat-panel" role="dialog" aria-modal="true" aria-label="Ask Harsh">
           <div className="chat-head">
             <div className="ai-orb" aria-hidden="true" />
             <div>
-              <div className="ai-name">HARSH AI</div>
-              <div className="ai-status">KNOWLEDGE CORE ONLINE</div>
+              <div className="ai-name">Ask Harsh</div>
+              <div className="ai-status">A quick way to learn more</div>
             </div>
             <div className="ai-actions">
               {messages.length > 0 && (
-                <button className="chat-icon-btn" onClick={() => setMessages([])} aria-label="Clear conversation">CLEAR</button>
+                <button className="chat-icon-btn" onClick={() => setMessages([])} aria-label="Clear conversation">Clear</button>
               )}
-              <button className="chat-icon-btn" onClick={() => setOpen(false)} aria-label="Close assistant">✕</button>
+              <button className="chat-icon-btn" onClick={closeChat} aria-label="Close assistant">✕</button>
             </div>
           </div>
 
@@ -101,8 +148,7 @@ export function ChatWidget() {
             {messages.length === 0 && (
               <div className="msg msg-ai">
                 <div className="msg-bubble">
-                  HARSH AI online. I answer from Harsh's verified portfolio knowledge base — projects,
-                  skills, education, credentials, contact. I don't guess.
+                  Hi — ask me about Harsh’s work, skills, education, or the way a project was built.
                 </div>
               </div>
             )}
@@ -117,7 +163,7 @@ export function ChatWidget() {
                           <span className={`msg-confidence ${m.reply.confidence}`}>{m.reply.confidence}</span>
                         )}
                         {m.reply.sources.slice(0, 3).map((s, si) => (
-                          <span className="msg-source" key={si}>SRC · {s.label}</span>
+                          <span className="msg-source" key={si}>From {s.label}</span>
                         ))}
                       </div>
                     )}
@@ -129,6 +175,9 @@ export function ChatWidget() {
                       </div>
                     )}
                   </>
+                )}
+                {m.retry && (
+                  <button className="msg-retry" onClick={() => void send(m.retry!)}>Try again</button>
                 )}
               </div>
             ))}
@@ -157,15 +206,15 @@ export function ChatWidget() {
             <input
               ref={inputRef}
               className="chat-input"
-              placeholder="Ask about projects, skills, education…"
+              placeholder="Ask about projects, skills…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              aria-label="Message HARSH AI"
+              aria-label="Message Ask Harsh"
               maxLength={600}
             />
             <button className="chat-send" type="submit" disabled={busy || !input.trim()} aria-label="Send">➤</button>
           </form>
-          <div className="chat-disclaimer">RETRIEVAL-BACKED · SOURCES CITED · NO HALLUCINATED FACTS</div>
+          <div className="chat-disclaimer">Answers are based on Harsh’s portfolio</div>
         </div>
       )}
     </>

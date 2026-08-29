@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api } from "../../lib/api";
+import { api, resolveMediaUrl } from "../../lib/api";
 import type { MediaAsset } from "@hp/shared";
 import { ErrorNote } from "./fields";
 
@@ -67,7 +67,7 @@ export function MediaAdmin() {
           <div className="media-card" key={a.id}>
             <div className="m-preview">
               {a.kind === "image" ? (
-                <img src={a.url} alt={a.filename} loading="lazy" />
+                <img src={resolveMediaUrl(a.url)} alt={a.filename} loading="lazy" />
               ) : (
                 <span>{a.kind.toUpperCase()}</span>
               )}

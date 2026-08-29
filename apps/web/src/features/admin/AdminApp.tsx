@@ -50,6 +50,9 @@ export default function AdminApp() {
       .me()
       .then((r) => {
         setUser(r.user);
+        return api.csrf();
+      })
+      .then(() => {
         refreshUnread();
       })
       .catch(() => setUser(null))
