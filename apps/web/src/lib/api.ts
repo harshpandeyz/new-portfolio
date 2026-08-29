@@ -3,7 +3,17 @@ import type {
   SystemStats, ChatReply, GithubOverview, AuditLogEntry, ContactMessage, MediaAsset,
 } from "@hp/shared";
 
-const BASE = "";
+// Keep same-origin as the default, while allowing the static site and API to
+// live on separate production origins without changing the API surface.
+const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
+/** Resolve frontend-owned and API-owned media from one place. */
+export function resolveMediaUrl(url?: string | null, apiOrigin = BASE): string {
+  if (!url) return "";
+  if (/^(?:[a-z]+:|data:|blob:)/i.test(url)) return url;
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return path.startsWith("/api/") || path.startsWith("/static/") ? `${apiOrigin.replace(/\/$/, "")}${path}` : path;
+}
 
 class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) {
@@ -11,7 +21,10 @@ class ApiError extends Error {
   }
 }
 
+let csrfToken = "";
+
 function getCsrfToken(): string {
+  if (csrfToken) return csrfToken;
   const match = document.cookie.match(/(?:^|;\s*)hp_csrf=([^;]+)/);
   return match ? decodeURIComponent(match[1]!) : "";
 }
@@ -32,6 +45,9 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
   const data = await res.json().catch(() => ({}));
+  if (typeof (data as { csrfToken?: unknown }).csrfToken === "string") {
+    csrfToken = (data as { csrfToken: string }).csrfToken;
+  }
   if (!res.ok) {
     throw new ApiError(res.status, (data as { error?: string }).error ?? "ERROR", (data as { message?: string }).message ?? res.statusText, (data as { details?: unknown }).details);
   }
@@ -60,9 +76,14 @@ export const api = {
 
   // auth
   login: (email: string, password: string) =>
-    request<{ ok: boolean; user: { email: string; role: string } }>("/api/auth/login", { method: "POST", json: { email, password } }),
+    request<{ ok: boolean; csrfToken: string; user: { email: string; role: string } }>("/api/auth/login", { method: "POST", json: { email, password } }),
   me: () => request<{ user: { id: string; email: string; role: string; displayName: string | null } }>("/api/auth/me"),
-  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST", json: {} }),
+  csrf: () => request<{ csrfToken: string }>("/api/auth/csrf"),
+  logout: async () => {
+    const result = await request<{ ok: boolean }>("/api/auth/logout", { method: "POST", json: {} });
+    csrfToken = "";
+    return result;
+  },
 
   // admin CRUD
   admin: {
@@ -106,12 +127,15 @@ export const api = {
         const xhr = new XMLHttpRequest();
         const form = new FormData();
         form.append("file", file);
-        xhr.open("POST", "/api/media");
+        xhr.open("POST", `${BASE}/api/media`);
         xhr.withCredentials = true;
+        const token = getCsrfToken();
+        if (token) xhr.setRequestHeader("x-csrf-token", token);
         xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
         xhr.onload = () => {
           try {
             const data = JSON.parse(xhr.responseText);
+            if (typeof data.csrfToken === "string") csrfToken = data.csrfToken;
             if (xhr.status >= 200 && xhr.status < 300) resolve(data.asset);
             else reject(new ApiError(xhr.status, data.error, data.message));
           } catch {
