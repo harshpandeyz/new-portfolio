@@ -39,12 +39,19 @@ function parseTrustProxy(raw: string | undefined): boolean | number | string[] {
   return value.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+const rawSessionSecret = required("SESSION_SECRET", isTest ? "test-only-session-secret-not-for-prod" : undefined);
+
+// Reject placeholder secrets in production
+if (!isTest && process.env.NODE_ENV === "production" && /^(generate|change-me|test-only)/i.test(rawSessionSecret)) {
+  throw new Error("SESSION_SECRET must be a strong random value in production. Generate one with: openssl rand -hex 32");
+}
+
 export const config = {
   port: Number(process.env.API_PORT ?? 4000),
   appUrl: process.env.APP_URL ?? "http://localhost:5173",
   isProd: process.env.NODE_ENV === "production",
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
-  sessionSecret: required("SESSION_SECRET", isTest ? "test-only-session-secret-not-for-prod" : undefined),
+  sessionSecret: rawSessionSecret,
   sessionTtlDays: 7,
   // resolved relative to the API package root in both source and compiled
   // layouts, regardless of the process CWD

@@ -82,6 +82,8 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   app.patch("/:id/status", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
     const { id } = req.params as { id: string };
     const { status } = parseBody(req, messageStatusSchema);
+    const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) notFound("Contact message");
     const message = await prisma.contactMessage.update({ where: { id }, data: { status } });
     await audit(req, "contact.status", "contact_message", id, { status });
     return { message };
@@ -89,6 +91,8 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/:id", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
     const { id } = req.params as { id: string };
+    const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) notFound("Contact message");
     await prisma.contactMessage.delete({ where: { id } });
     await audit(req, "contact.delete", "contact_message", id);
     return { ok: true };

@@ -52,7 +52,8 @@ export async function audit(
         ip: clientIp(req),
       },
     });
-  } catch {
-    // auditing must never break the request path
+  } catch (err) {
+    // auditing must never break the request path, but log the failure
+    console.error("[audit] failed to write audit log:", err);
   }
 }

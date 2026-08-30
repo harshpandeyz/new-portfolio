@@ -313,9 +313,14 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
     .map((h, i) => `[${i + 1}] (${h.doc.kind}) ${h.doc.title}: ${h.doc.content.slice(0, 1200)}`)
     .join("\n\n");
 
+  // Sanitize user input: strip potential injection patterns
+  const sanitizedQuestion = question
+    .replace(/\b(ignore|disregard|forget|override)\b.*\b(previous|above|instructions?|system)\b/gi, "")
+    .slice(0, 600);
+
   const messages: LlmMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `Knowledge base context:\n${context}\n\nQuestion: ${question}` },
+    { role: "user", content: `Knowledge base context:\n${context}\n\nQuestion: ${sanitizedQuestion}` },
   ];
 
   try {
@@ -333,8 +338,9 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
         .map((h) => projectLink(h.doc.ref!)),
       provider: provider.name,
     };
-  } catch {
+  } catch (err) {
     // provider failure → degrade to deterministic answer
+    console.error("[chat] LLM provider error:", err);
     return composeDeterministic(detectIntent(question), hits, question);
   }
 }
