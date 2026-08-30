@@ -96,7 +96,7 @@ HERO → ABOUT → SELECTED WORK → CAPABILITIES → JOURNEY → CREDENTIALS �
   portfolio sources, distinguishes verified and inferred answers, and admits when information
   is unavailable. It works without an LLM configured through the deterministic composer
 - **Recruiter view** — `/recruiter`: compressed, factual, printable
-- **Advanced details** — terminal, private access, achievements, and easter eggs remain
+- **Advanced details** — private access, achievements, and easter eggs remain
   discoverable without defining the public visual language
 
 ## Content management
