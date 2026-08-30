@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Profile, Project, Certificate, Skill, Education, TimelineItem, SystemStats } from "@hp/shared";
 
 import { api } from "./api";
@@ -34,6 +34,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     refresh: async () => undefined,
   });
 
+  const loadRef = useRef<() => Promise<void>>(undefined!);
+
   async function load() {
     const critical = await Promise.allSettled([api.profile(), api.projects()]);
     const criticalValue = <T,>(index: number): T | undefined => {
@@ -46,7 +48,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       projects: criticalValue<{ projects: Project[] }>(1)?.projects ?? s.projects,
       loaded: true,
       error: critical.some((result) => result.status === "rejected") ? "Some content is temporarily unavailable." : null,
-      refresh: load,
+      refresh: loadRef.current,
     }));
 
     // Non-critical content arrives after the first useful paint. Stats remain
@@ -64,9 +66,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       education: deferredValue<{ items: Education[] }>(2)?.items ?? s.education,
       timeline: deferredValue<{ items: TimelineItem[] }>(3)?.items ?? s.timeline,
       error: [...critical, ...deferred].some((result) => result.status === "rejected") ? "Some content is temporarily unavailable." : null,
-      refresh: load,
+      refresh: loadRef.current,
     }));
   }
+
+  loadRef.current = load;
 
   useEffect(() => {
     void load();
