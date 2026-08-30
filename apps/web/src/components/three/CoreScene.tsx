@@ -14,6 +14,7 @@ export type CoreMode = "hero" | "core" | "projects" | "credentials" | "contact";
 interface CoreSceneProps {
   mode: CoreMode;
   tier: "high" | "medium";
+  reducedMotion?: boolean;
 }
 
 const MODE_PARAMS: Record<CoreMode, { spread: number; rings: number; speed: number; scale: number; hue: number }> = {
@@ -28,10 +29,10 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
-function Ring({ radius, tilt, speed, offset, color }: { radius: number; tilt: number; speed: number; offset: number; color: THREE.Color }) {
+function Ring({ radius, tilt, speed, offset, color, paused }: { radius: number; tilt: number; speed: number; offset: number; color: THREE.Color; paused?: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }, delta) => {
-    if (!ref.current) return;
+    if (!ref.current || paused) return;
     ref.current.rotation.z += delta * speed;
     ref.current.rotation.x = tilt + Math.sin(offset + clock.elapsedTime * 0.12) * 0.08;
   });
@@ -43,10 +44,10 @@ function Ring({ radius, tilt, speed, offset, color }: { radius: number; tilt: nu
   );
 }
 
-function Node({ position, color, size }: { position: [number, number, number]; color: THREE.Color; size: number }) {
+function Node({ position, color, size, paused }: { position: [number, number, number]; color: THREE.Color; size: number; paused?: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
-    if (!ref.current) return;
+    if (!ref.current || paused) return;
     const s = 1 + Math.sin(clock.elapsedTime * 2 + position[0] * 5) * 0.25;
     ref.current.scale.setScalar(s * 0.8);
   });
@@ -58,7 +59,7 @@ function Node({ position, color, size }: { position: [number, number, number]; c
   );
 }
 
-function Particles({ count, color }: { count: number; color: THREE.Color }) {
+function Particles({ count, color, paused }: { count: number; color: THREE.Color; paused?: boolean }) {
   const ref = useRef<THREE.Points>(null);
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3);
@@ -74,7 +75,7 @@ function Particles({ count, color }: { count: number; color: THREE.Color }) {
   }, [count]);
 
   useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 0.03;
+    if (ref.current && !paused) ref.current.rotation.y += delta * 0.03;
   });
 
   return (
@@ -87,7 +88,7 @@ function Particles({ count, color }: { count: number; color: THREE.Color }) {
   );
 }
 
-function Core({ mode, tier }: { mode: CoreMode; tier: "high" | "medium" }) {
+function Core({ mode, tier, paused }: { mode: CoreMode; tier: "high" | "medium"; paused?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const inner = useRef<THREE.Mesh>(null);
   const nodesRef = useRef<THREE.Group>(null);
@@ -115,6 +116,7 @@ function Core({ mode, tier }: { mode: CoreMode; tier: "high" | "medium" }) {
   }, [nodeCount, accent, cyan, amber]);
 
   useFrame((state, delta) => {
+    if (paused) return;
     const c = current.current;
     const t = 1 - Math.pow(0.02, delta); // smooth approach
     c.spread = lerp(c.spread, target.spread, t);
@@ -152,16 +154,16 @@ function Core({ mode, tier }: { mode: CoreMode; tier: "high" | "medium" }) {
         <meshBasicMaterial color="#dbeeff" transparent opacity={0.7} />
       </mesh>
       {/* rings */}
-      <Ring radius={1.05} tilt={1.1} speed={0.5} offset={0} color={accent} />
-      <Ring radius={1.3} tilt={-0.6} speed={-0.35} offset={1.4} color={cyan} />
-      {target.rings >= 3 && <Ring radius={1.55} tilt={0.35} speed={0.22} offset={2.6} color={accent} />}
-      {target.rings >= 4 && <Ring radius={1.8} tilt={-1.2} speed={-0.16} offset={0.8} color={cyan} />}
-      {target.rings >= 5 && <Ring radius={2.0} tilt={1.5} speed={0.1} offset={3.4} color={amber} />}
+      <Ring radius={1.05} tilt={1.1} speed={0.5} offset={0} color={accent} paused={paused} />
+      <Ring radius={1.3} tilt={-0.6} speed={-0.35} offset={1.4} color={cyan} paused={paused} />
+      {target.rings >= 3 && <Ring radius={1.55} tilt={0.35} speed={0.22} offset={2.6} color={accent} paused={paused} />}
+      {target.rings >= 4 && <Ring radius={1.8} tilt={-1.2} speed={-0.16} offset={0.8} color={cyan} paused={paused} />}
+      {target.rings >= 5 && <Ring radius={2.0} tilt={1.5} speed={0.1} offset={3.4} color={amber} paused={paused} />}
       {/* orbital nodes */}
       <group ref={nodesRef}>
         {nodes.map((n, i) => (
           <group key={i} position={n.pos}>
-            <Node position={[0, 0, 0]} color={n.color} size={0.035} />
+            <Node position={[0, 0, 0]} color={n.color} size={0.035} paused={paused} />
           </group>
         ))}
       </group>
@@ -182,13 +184,13 @@ function Core({ mode, tier }: { mode: CoreMode; tier: "high" | "medium" }) {
         </group>
       )}
       <group ref={particlesRef}>
-        <Particles count={particleCount} color={accent} />
+        <Particles count={particleCount} color={accent} paused={paused} />
       </group>
     </group>
   );
 }
 
-export default function CoreScene({ mode, tier }: CoreSceneProps) {
+export default function CoreScene({ mode, tier, reducedMotion = false }: CoreSceneProps) {
   const [visible, setVisible] = useState(() => document.visibilityState === "visible");
 
   useEffect(() => {
@@ -206,7 +208,7 @@ export default function CoreScene({ mode, tier }: CoreSceneProps) {
       style={{ background: "transparent" }}
       aria-hidden="true"
     >
-      <Core mode={mode} tier={tier} />
+      <Core mode={mode} tier={tier} paused={reducedMotion} />
     </Canvas>
   );
 }
