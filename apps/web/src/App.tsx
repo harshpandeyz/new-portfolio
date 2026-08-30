@@ -3,32 +3,33 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { DataProvider, useData } from "./lib/data";
 import { detectCapabilities, type EnvCapabilities } from "./lib/device";
-import { bindReveals, killTriggers, ScrollTrigger } from "./lib/motion";
+import { bindReveals, killTriggers, type ScrollTrigger } from "./lib/motion";
 import { unlock } from "./lib/achievements";
-import { api, resolveMediaUrl } from "./lib/api";
+import { api } from "./lib/api";
+import { applyMeta } from "./lib/seo";
+import { SEO } from "./app/constants";
 import type { CoreMode } from "./components/three/CoreScene";
 
 import { TopBar } from "./components/navigation/TopBar";
+import { CORE_MODE_BY_INDEX, SECTION_IDS, type SectionId } from "./components/navigation/nav";
+import { Footer } from "./components/layout/Footer";
+import { ResumeViewer } from "./components/document/ResumeViewer";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useScrollPosition } from "./lib/scroll";
-import { CommandPalette, type Command } from "./components/hud/CommandPalette";
+import { CommandPalette, type Command, type CommandIcon } from "./components/hud/CommandPalette";
 import { AchievementToasts } from "./components/hud/AchievementToasts";
-import { Terminal } from "./components/hud/Terminal";
 import { PrivateAccess, useGlobalShortcuts } from "./components/hud/PrivateAccess";
 
-import { Hero } from "./features/sections/Hero";
-import { About } from "./features/sections/About";
-import { Capabilities } from "./features/sections/Capabilities";
-import { Projects } from "./features/sections/Projects";
-import { Timeline } from "./features/sections/Timeline";
-import { Credentials } from "./features/sections/Credentials";
-import { Contact } from "./features/sections/Contact";
-import { Closing } from "./features/sections/Closing";
-import { ProjectCase } from "./features/sections/ProjectCase";
-import { Recruiter } from "./features/recruiter/Recruiter";
+import { Hero } from "./features/home/Hero";
+import { Work } from "./features/home/Work";
+import { About } from "./features/home/About";
+import { Capabilities } from "./features/home/Capabilities";
+import { Journey } from "./features/home/Journey";
+import { Credentials } from "./features/home/Credentials";
+import { Contact } from "./features/contact/Contact";
+import { Closing } from "./features/home/Closing";
+import { ProjectCase } from "./features/projects/ProjectCase";
 import { ChatWidget } from "./features/chat/ChatWidget";
-
-const SECTION_IDS = ["hero", "about", "projects", "capabilities", "timeline", "credentials", "contact", "exit"];
-const CORE_MODE_BY_INDEX: CoreMode[] = ["hero", "hero", "projects", "core", "hero", "credentials", "contact", "contact"];
 
 function Experience({ caps }: { caps: EnvCapabilities }) {
   const { loaded, error, refresh } = useData();
@@ -37,14 +38,25 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [privateOpen, setPrivateOpen] = useState(false);
-  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
   const [coreMode, setCoreMode] = useState<CoreMode>("hero");
   const triggersRef = useRef<ScrollTrigger[]>([]);
   const recruiterMode = location.pathname === "/recruiter";
 
-  const { sectionIndex, scrolled } = useScrollPosition(SECTION_IDS);
+  const { sectionIndex, scrolled } = useScrollPosition([...SECTION_IDS]);
 
   useEffect(() => { void api.track("page_view"); }, []);
+
+  useEffect(() => {
+    // Page-specific metadata (defaults for the home shell).
+    if (location.pathname === "/recruiter") {
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Résumé`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education." });
+    } else if (location.pathname.startsWith("/projects/")) {
+      applyMeta({ title: "Project — Harsh Pandey", description: SEO.description });
+    } else {
+      applyMeta({ title: SEO.title, description: SEO.description });
+    }
+  }, [location.pathname]);
 
   // section → 3D core mode
   useEffect(() => {
@@ -58,7 +70,6 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     const t = window.setTimeout(() => {
       killTriggers(triggersRef.current);
       triggersRef.current = bindReveals(document, caps);
-      ScrollTrigger.refresh();
     }, loaded ? 60 : 600);
     return () => window.clearTimeout(t);
   }, [caps, loaded, location.pathname]);
@@ -70,6 +81,16 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     const open = () => setPrivateOpen(true);
     window.addEventListener("hp:private-access", open);
     return () => window.removeEventListener("hp:private-access", open);
+  }, []);
+
+  const openResume = useCallback(() => {
+    setResumeOpen(true);
+    void api.track("resume_view");
+  }, []);
+
+  const openChat = useCallback(() => {
+    unlock("ai");
+    window.dispatchEvent(new CustomEvent("hp:open-chat"));
   }, []);
 
   // triple-click logo easter egg → minimal mode (visual only)
@@ -101,80 +122,87 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     const go = (id: string) => () => {
       if (location.pathname !== "/") {
         navigate("/");
-        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 120);
+        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" }), 120);
       } else {
         document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
       }
     };
     return [
-      { id: "home", label: "Go Home", icon: "▲", hint: "TOP", action: go("hero"), keywords: "top start hero" },
-      { id: "about", label: "About Harsh", icon: "01", action: go("about"), keywords: "identity about bio who" },
-      { id: "projects", label: "Selected work", icon: "02", action: go("projects"), keywords: "projects systems work portfolio" },
-      { id: "capabilities", label: "Capabilities", icon: "03", action: go("capabilities"), keywords: "skills capabilities tech stack" },
-      { id: "timeline", label: "Journey", icon: "04", action: go("timeline"), keywords: "timeline education history experience" },
-      { id: "certs", label: "Credentials", icon: "05", action: go("credentials"), keywords: "certificates credentials archive" },
-      { id: "contact", label: "Contact", icon: "06", action: go("contact"), keywords: "contact email message hire" },
-      { id: "resume", label: "Download résumé", icon: "↓", hint: "PDF", action: () => { void api.track("resume_download"); window.open(resolveMediaUrl("/files/HARSH-RESUME.pdf"), "_blank", "noopener"); }, keywords: "resume cv pdf download" },
-      { id: "recruiter", label: "Recruiter view", icon: "↗", hint: "FAST", action: () => navigate("/recruiter"), keywords: "recruiter quick summary hr" },
-      { id: "github", label: "Open GitHub", icon: "↗", hint: "EXT", action: () => window.open("https://github.com/harshpandeyz", "_blank", "noopener"), keywords: "github code repos" },
-      { id: "linkedin", label: "Open LinkedIn", icon: "↗", hint: "EXT", action: () => window.open("https://www.linkedin.com/in/harshpandeyz/", "_blank", "noopener"), keywords: "linkedin profile network" },
-      { id: "chat", label: "Ask Harsh", icon: "✦", action: () => { unlock("ai"); window.dispatchEvent(new CustomEvent("hp:open-chat")); }, keywords: "ai chat assistant ask" },
-      { id: "terminal", label: "Open terminal", icon: "⌘", action: () => setTerminalOpen(true), keywords: "terminal console shell commands easter egg" },
-      { id: "private", label: "Private access", icon: "•", hint: "AUTH", action: () => setPrivateOpen(true), keywords: "admin private operator login" },
+      { id: "work", label: "Go to Work", icon: "work" as const, action: go("work"), keywords: "projects systems work portfolio" },
+      { id: "about", label: "Go to About", icon: "about" as const, action: go("about"), keywords: "identity about bio who" },
+      { id: "journey", label: "Go to Journey", icon: "journey" as const, action: go("journey"), keywords: "timeline education history experience" },
+      { id: "credentials", label: "Go to Credentials", icon: "credentials" as const, action: go("credentials"), keywords: "certificates credentials archive" },
+      { id: "contact", label: "Go to Contact", icon: "contact" as const, action: go("contact"), keywords: "contact email message hire" },
+      { id: "resume", label: "View résumé", icon: "resume" as const, hint: "PDF", action: openResume, keywords: "resume cv pdf view" },
+      { id: "recruiter", label: "Recruiter view", icon: "recruiter" as const, hint: "FAST", action: () => navigate("/recruiter"), keywords: "recruiter quick summary hr" },
+      { id: "github", label: "Open GitHub", icon: "github" as const, hint: "EXT", action: () => window.open("https://github.com/harshpandeyz", "_blank", "noopener"), keywords: "github code repos" },
+      { id: "linkedin", label: "Open LinkedIn", icon: "linkedin" as const, hint: "EXT", action: () => window.open("https://www.linkedin.com/in/harshpandeyz/", "_blank", "noopener"), keywords: "linkedin profile network" },
+      { id: "chat", label: "Ask Harsh", icon: "chat" as const, action: openChat, keywords: "ai chat assistant ask" },
+      { id: "recruiter-home", label: "Return Home", icon: "home" as const, action: () => navigate("/"), keywords: "home top start hero" },
     ];
-  }, [caps.reducedMotion, location.pathname, navigate]);
+  }, [caps.reducedMotion, location.pathname, navigate, openResume, openChat]);
+
+  const activeSection: SectionId = SECTION_IDS[sectionIndex] ?? "hero";
 
   return (
-    <>
+    <ErrorBoundary>
       {!recruiterMode && <a href="#main" className="skip-link">SKIP TO CONTENT</a>}
       {!recruiterMode && <div className="bg-layers" aria-hidden="true"><div className="bg-ambient" /></div>}
-      {!recruiterMode && <TopBar scrolled={scrolled} onLogoClick={onLogoClick} />}
-      {!recruiterMode && error && <div className="data-notice" role="status">Some content is temporarily unavailable. <button onClick={() => void refresh()}>Try again</button></div>}
+      {!recruiterMode && <TopBar scrolled={scrolled} onLogoClick={onLogoClick} activeSection={activeSection} onViewResume={openResume} onAskHarsh={openChat} onOpenPalette={() => setPaletteOpen(true)} />}
+      {!recruiterMode && (error && <div className="data-notice" role="status">Some content is temporarily unavailable. <button onClick={() => void refresh()}>Try again</button></div>)}
       <main id="main">
         <Routes>
           <Route
             path="/"
             element={
               <>
-                <Hero caps={caps} coreMode={coreMode} />
+                <Hero caps={caps} coreMode={coreMode} onViewResume={openResume} />
+                <Work />
                 <About />
-                <Projects />
                 <Capabilities />
-                <Timeline />
+                <Journey />
                 <Credentials />
-                <Contact />
-                <Closing />
+                <Contact onViewResume={openResume} />
+                <Closing onViewResume={openResume} />
               </>
             }
           />
-          <Route path="/projects/:slug" element={<ProjectCase />} />
-          <Route path="/recruiter" element={<Recruiter />} />
-          <Route
-            path="*"
-            element={
-              <div style={{ minHeight: "70vh", display: "grid", placeItems: "center", textAlign: "center" }}>
-                <div>
-                  <h1 style={{ marginBottom: 18, fontSize: "clamp(42px, 7vw, 72px)" }}>Page not found</h1>
-                  <button className="btn" onClick={() => navigate("/")}>Back to home →</button>
-                </div>
-              </div>
-            }
-          />
+          <Route path="/projects/:slug" element={<ProjectCase onViewResume={openResume} />} />
+          <Route path="/recruiter" element={<RecruiterRoute onViewResume={openResume} />} />
+          <Route path="*" element={<NotFound onHome={() => navigate("/")} />} />
         </Routes>
       </main>
 
-      {!recruiterMode && <footer className="footer">
-        <div><strong>Harsh Pandey</strong><span>Software Engineer</span></div>
-        <nav aria-label="Footer navigation"><a href="/#projects">Work</a><a href="/#about">About</a><a href="/#contact">Contact</a></nav>
-        <div className="footer-links"><a href="https://github.com/harshpandeyz" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="https://www.linkedin.com/in/harshpandeyz/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a><button className="term-btn" onClick={() => setTerminalOpen(true)} aria-label="Open advanced terminal">⌘</button><span>© {new Date().getFullYear()}</span></div>
-      </footer>}
+      {!recruiterMode && <Footer onViewResume={openResume} />}
 
+      {!recruiterMode && <ResumeViewer open={resumeOpen} onClose={() => setResumeOpen(false)} />}
       {!recruiterMode && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
-      {!recruiterMode && <Terminal open={terminalOpen} onClose={() => setTerminalOpen(false)} />}
       {!recruiterMode && <PrivateAccess open={privateOpen} onClose={() => setPrivateOpen(false)} />}
       {!recruiterMode && <ChatWidget />}
       {!recruiterMode && <AchievementToasts />}
-    </>
+    </ErrorBoundary>
+  );
+}
+
+function NotFound({ onHome }: { onHome: () => void }) {
+  return (
+    <div style={{ minHeight: "70vh", display: "grid", placeItems: "center", textAlign: "center" }}>
+      <div>
+        <h1 style={{ marginBottom: 18, fontSize: "clamp(42px, 7vw, 72px)" }}>Page not found</h1>
+        <button className="btn" onClick={onHome}>Back to home →</button>
+      </div>
+    </div>
+  );
+}
+
+const Recruiter = lazy(() =>
+  import("./features/recruiter/Recruiter").then((m) => ({ default: m.Recruiter })),
+);
+function RecruiterRoute({ onViewResume }: { onViewResume: () => void }) {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}><span className="mono mono-dim">Loading…</span></div>}>
+      <Recruiter onViewResume={onViewResume} />
+    </Suspense>
   );
 }
 
@@ -190,7 +218,7 @@ export default function App() {
   );
 }
 
-// code-split the entire admin dashboard (three.js + gsap stay out of this chunk)
+// code-split the admin dashboard (three.js + gsap stay out of this chunk)
 const AdminApp = lazy(() => import("./features/admin/AdminApp"));
 
 function AdminRoute() {
