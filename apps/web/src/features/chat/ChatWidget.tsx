@@ -148,7 +148,7 @@ export function ChatWidget() {
             {messages.length === 0 && (
               <div className="msg msg-ai">
                 <div className="msg-bubble">
-                  Hi — ask me about Harsh’s work, skills, education, or the way a project was built.
+                  Hi — ask me about Harsh's work, skills, education, or the way a project was built.
                 </div>
               </div>
             )}
@@ -214,7 +214,7 @@ export function ChatWidget() {
             />
             <button className="chat-send" type="submit" disabled={busy || !input.trim()} aria-label="Send">➤</button>
           </form>
-          <div className="chat-disclaimer">Answers are based on Harsh’s portfolio</div>
+          <div className="chat-disclaimer">Answers are based on Harsh's portfolio</div>
         </div>
       )}
     </>
