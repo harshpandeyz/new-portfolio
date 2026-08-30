@@ -1,47 +1,237 @@
 :root {
-  --bg: #f5f5f7;
-  --bg-2: #f0f0f2;
-  --panel: #ffffff;
-  --panel-2: #fafafa;
-  --raise: rgba(29, 29, 31, .045);
-  --line: rgba(29, 29, 31, .10);
-  --line-strong: rgba(29, 29, 31, .18);
-  --line-accent: rgba(0, 113, 227, .38);
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --dim: #86868b;
-  --faint: #b7b7bc;
-  --accent: #0071e3;
-  --accent-dim: rgba(0, 113, 227, .10);
-  --accent-glow: rgba(0, 113, 227, .20);
-  --cyan: #0a84ff;
-  --cyan-dim: rgba(10, 132, 255, .10);
-  --ok: #34c759;
-  --warn: #ff9500;
-  --danger: #ff3b30;
-  --font-display: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", "Roboto Mono", ui-monospace, monospace;
-  --max-w: 1240px;
-  --gutter: clamp(22px, 5vw, 72px);
-  --radius: 20px;
-  --radius-sm: 12px;
-  --radius-lg: 32px;
-  --shadow-soft: 0 22px 60px rgba(29,29,31,.10);
-  --shadow-deep: 0 30px 100px rgba(29,29,31,.18);
-  --ease: cubic-bezier(.22, 1, .36, 1);
-  --ease-io: cubic-bezier(.65, 0, .35, 1);
-  --z-hud: 90;
-  --z-overlay: 120;
-}
+  /* ═══════════════════════════════════════════════════════════════
+     COLOR SYSTEM — calibrated for a premium, technical aesthetic
+     ═══════════════════════════════════════════════════════════════ */
 
-[data-level="core"] { --level-color: var(--accent); }
-[data-level="working"] { --level-color: var(--cyan); }
-[data-level="exploring"] { --level-color: var(--ok); }
-[data-level="experimental"] { --level-color: var(--warn); }
-.tier-featured { --tier-color: var(--accent); }
-.tier-secondary { --tier-color: var(--cyan); }
-.tier-experiment { --tier-color: var(--ok); }
-.tier-academic { --tier-color: var(--warn); }
-.tier-legacy, .tier-internship { --tier-color: var(--dim); }
-::selection { background: rgba(41,151,255,.28); color: var(--text); }
+  /* Base surfaces */
+  --color-bg: #f5f5f7;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #f0f0f2;
+  --color-bg-hover: #e8e8ec;
+
+  /* Borders & lines */
+  --color-line: rgba(29, 29, 31, 0.08);
+  --color-line-strong: rgba(29, 29, 31, 0.14);
+  --color-line-focus: rgba(0, 113, 227, 0.45);
+
+  /* Text hierarchy */
+  --color-text: #1d1d1f;
+  --color-text-muted: #6e6e73;
+  --color-text-dim: #86868b;
+  --color-text-faint: #b7b7bc;
+  --color-text-inverse: #ffffff;
+
+  /* Accent system */
+  --color-accent: #0071e3;
+  --color-accent-hover: #006bd6;
+  --color-accent-active: #0058b8;
+  --color-accent-subtle: rgba(0, 113, 227, 0.08);
+  --color-accent-hover-bg: rgba(0, 113, 227, 0.12);
+  --color-accent-glow: rgba(0, 113, 227, 0.22);
+
+  /* Semantic colors */
+  --color-success: #34c759;
+  --color-success-subtle: rgba(52, 199, 89, 0.1);
+  --color-warning: #ff9500;
+  --color-warning-subtle: rgba(255, 149, 0, 0.1);
+  --color-danger: #ff3b30;
+  --color-danger-subtle: rgba(255, 59, 48, 0.1);
+  --color-info: #0a84ff;
+  --color-info-subtle: rgba(10, 132, 255, 0.1);
+
+  /* Skill level colors */
+  --color-level-core: var(--color-accent);
+  --color-level-working: var(--color-info);
+  --color-level-exploring: var(--color-success);
+  --color-level-experimental: var(--color-warning);
+
+  /* Project tier colors */
+  --color-tier-featured: var(--color-accent);
+  --color-tier-secondary: var(--color-info);
+  --color-tier-experiment: var(--color-success);
+  --color-tier-academic: var(--color-warning);
+  --color-tier-legacy: var(--color-text-dim);
+  --color-tier-internship: var(--color-text-dim);
+
+  /* ═══════════════════════════════════════════════════════════════
+     TYPOGRAPHY — Inter for UI, SF Mono for code
+     ═══════════════════════════════════════════════════════════════ */
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "Roboto Mono", ui-monospace, monospace;
+
+  /* Fluid type scale (clamp-based) */
+  --text-display-xl: clamp(56px, 10vw, 120px);   /* Hero name */
+  --text-display-lg: clamp(40px, 6vw, 72px);      /* Section titles */
+  --text-display-md: clamp(32px, 4.5vw, 54px);    /* Card titles, case study h1 */
+  --text-display-sm: clamp(24px, 3.5vw, 40px);    /* Sub-section titles */
+
+  --text-heading-xl: clamp(28px, 4vw, 46px);      /* Identity h3 */
+  --text-heading-lg: 24px;                         /* Card h3 */
+  --text-heading-md: 20px;                         /* Section h3 */
+  --text-heading-sm: 17px;                         /* Small headings */
+
+  --text-body-lg: clamp(18px, 2.2vw, 22px);       /* Hero brief, lede */
+  --text-body: 16px;                               /* Default body */
+  --text-body-sm: 15px;                            /* Slightly smaller body */
+  --text-caption: 13px;                            /* Metadata, labels */
+  --text-caption-sm: 12px;                         /* Small metadata */
+  --text-micro: 11px;                              /* Timestamps, badges */
+
+  /* Line heights */
+  --leading-tight: 1.02;
+  --leading-snug: 1.12;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  /* Font weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 650;
+
+  /* Letter spacing */
+  --tracking-tight: -0.045em;
+  --tracking-snug: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.1em;
+
+  /* ═══════════════════════════════════════════════════════════════
+     SPACING — 4px base unit, fluid where appropriate
+     ═══════════════════════════════════════════════════════════════ */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-28: 112px;
+  --space-32: 128px;
+
+  /* Fluid section padding */
+  --space-section-y: clamp(64px, 9vw, 128px);
+  --space-section-y-sm: clamp(48px, 7vw, 96px);
+
+  /* Container */
+  --container-max: 1240px;
+  --container-gutter: clamp(22px, 5vw, 72px);
+
+  /* ═══════════════════════════════════════════════════════════════
+     BORDER RADIUS — consistent scale
+     ═══════════════════════════════════════════════════════════════ */
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* ═══════════════════════════════════════════════════════════════
+     SHADOWS — layered depth
+     ══════════════════════════════════════════════════════════════ */
+
+  --shadow-xs: 0 1px 2px rgba(29, 29, 31, 0.04);
+  --shadow-sm: 0 4px 12px rgba(29, 29, 31, 0.06);
+  --shadow-md: 0 12px 32px rgba(29, 29, 31, 0.08);
+  --shadow-lg: 0 22px 60px rgba(29, 29, 31, 0.1);
+  --shadow-xl: 0 30px 100px rgba(29, 29, 31, 0.14);
+  --shadow-focus: 0 0 0 4px rgba(41, 151, 255, 0.12);
+
+  /* ═══════════════════════════════════════════════════════════════
+     MOTION — refined, purposeful
+     ═══════════════════════════════════════════════════════════════ */
+
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 0ms;
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --duration-slower: 450ms;
+
+  /* ═══════════════════════════════════════════════════════════════
+     Z-INDEX — layered hierarchy
+     ══════════════════════════════════════════════════════════════ */
+
+  --z-bg: -1;
+  --z-base: 1;
+  --z-sticky: 40;
+  --z-nav: 60;
+  --z-hud: 80;
+  --z-overlay: 100;
+  --z-modal: 120;
+  --z-toast: 200;
+  --z-skip: 300;
+
+  /* ═══════════════════════════════════════════════════════════════
+     BREAKPOINTS
+     ═══════════════════════════════════════════════════════════════ */
+
+  --bp-xs: 480px;
+  --bp-sm: 620px;
+  --bp-md: 768px;
+  --bp-lg: 980px;
+  --bp-xl: 1240px;
+  --bp-2xl: 1440px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     COMPONENT TOKENS — derived values for consistency
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Button heights */
+  --btn-h-sm: 36px;
+  --btn-h-md: 44px;
+  --btn-h-lg: 52px;
+
+  /* Input heights */
+  --input-h-sm: 40px;
+  --input-h-md: 48px;
+  --input-h-lg: 56px;
+
+  /* Icon button sizes */
+  --icon-btn-sm: 32px;
+  --icon-btn-md: 38px;
+  --icon-btn-lg: 44px;
+
+  /* Transition defaults */
+  --transition-fast: var(--duration-fast) var(--ease-standard);
+  --transition-normal: var(--duration-normal) var(--ease-standard);
+  --transition-slow: var(--duration-slow) var(--ease-standard);
+
+  /* ═══════════════════════════════════════════════════════════════
+     SELECTION
+     ═══════════════════════════════════════════════════════════════ */
+  ::selection {
+    background: rgba(41, 151, 255, 0.28);
+    color: var(--color-text);
+  }
+
+  /* Level/tier attribute selectors for dynamic coloring */
+  [data-level="core"] { --level-color: var(--color-level-core); }
+  [data-level="working"] { --level-color: var(--color-level-working); }
+  [data-level="exploring"] { --level-color: var(--color-level-exploring); }
+  [data-level="experimental"] { --level-color: var(--color-level-experimental); }
+
+  .tier-featured { --tier-color: var(--color-tier-featured); }
+  .tier-secondary { --tier-color: var(--color-tier-secondary); }
+  .tier-experiment { --tier-color: var(--color-tier-experiment); }
+  .tier-academic { --tier-color: var(--color-tier-academic); }
+  .tier-legacy,
+  .tier-internship { --tier-color: var(--color-tier-legacy); }
+}
