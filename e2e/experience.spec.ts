@@ -9,14 +9,26 @@ async function assertBrowserImagesHealthy(page: Page) {
     if (response.request().resourceType() === "image" && response.status() >= 400) brokenResponses.push(`${response.status()} ${response.url()}`);
   };
   page.on("response", onResponse);
+  // Lazy-loaded images beyond the fold only start fetching when near the
+  // viewport; with smooth scrolling the helper's scroll-through can skip them.
+  // Force any pending lazy image to load so the check is deterministic.
   await page.locator("img").evaluateAll((images) => {
-    images.forEach((image) => image.scrollIntoView({ block: "center" }));
+    images.forEach((image) => {
+      image.scrollIntoView({ block: "center" });
+      if (image.loading === "lazy") image.loading = "eager";
+    });
   });
-  await page.waitForTimeout(250);
-  const imageStates = await page.locator("img").evaluateAll((images) => images.map((image) => ({ src: image.currentSrc || image.src, naturalWidth: image.naturalWidth })));
+  await expect
+    .poll(
+      async () =>
+        page.locator("img").evaluateAll((images) =>
+          images.filter((image) => image.naturalWidth === 0).map((image) => image.currentSrc || image.src),
+        ),
+      { timeout: 10000, intervals: [150, 250, 500] },
+    )
+    .toEqual([]);
   page.off("response", onResponse);
   expect(brokenResponses, "image requests must return a successful HTTP response").toEqual([]);
-  expect(imageStates.filter((image) => image.naturalWidth === 0), "rendered images must have a non-zero naturalWidth").toEqual([]);
 }
 
 test.describe("public experience", () => {
@@ -26,7 +38,7 @@ test.describe("public experience", () => {
     await expect(page.getByRole("heading", { name: /harsh/i }).first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator("#about")).toBeAttached();
     await expect(page.locator("#capabilities")).toBeAttached();
-    await expect(page.locator("#projects")).toBeAttached();
+    await expect(page.locator("#work")).toBeAttached();
     await expect(page.locator("#credentials")).toBeAttached();
     await expect(page.locator("#contact")).toBeAttached();
   });
@@ -34,7 +46,7 @@ test.describe("public experience", () => {
   test("project case study opens with tabs", async ({ page }) => {
     await page.goto("/projects/quantummind");
     await expect(page.getByRole("heading", { name: /QuantumMind/i })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("tab", { name: /ARCHITECTURE/i }).click();
+    await page.getByRole("button", { name: /architecture/i }).click();
     await expect(page.locator(".arch-diagram")).toBeVisible();
   });
 
@@ -44,10 +56,10 @@ test.describe("public experience", () => {
     const before = await page.locator(".vault-grid .vault-item").count();
     expect(before).toBeGreaterThan(0);
     await page.getByRole("button", { name: /View all credentials/i }).click();
-    await page.getByRole("button", { name: "Backend", exact: true }).click();
+    await page.getByRole("group", { name: "Credential categories" }).getByRole("button", { name: "Backend", exact: true }).click();
     await expect(page.locator(".vault-count")).toContainText(/credential/i);
     await page.locator(".vault-grid .vault-item").first().click();
-    await expect(page.locator(".cert-viewer-body")).toBeVisible();
+    await expect(page.locator(".credential-viewer")).toBeVisible();
   });
 
   test("certificate viewer supports keyboard navigation and restores focus", async ({ page }) => {
@@ -56,11 +68,11 @@ test.describe("public experience", () => {
     await page.waitForSelector(".vault-grid .vault-item", { timeout: 20000 });
     const first = page.locator(".vault-grid .vault-item").first();
     await first.click();
-    await expect(page.locator(".cert-viewer-body")).toBeVisible();
+    await expect(page.locator(".credential-viewer")).toBeVisible();
     await expect(page.locator("body")).toHaveClass(/no-scroll/);
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Escape");
-    await expect(page.locator(".cert-viewer-body")).toBeHidden();
+    await expect(page.locator(".credential-viewer")).toBeHidden();
     await expect(first).toBeFocused();
   });
 
@@ -102,7 +114,7 @@ test.describe("public experience", () => {
 
     // The failed request leaves the form intact so a user can correct/retry it.
     await page.locator(".contact-form button[type='submit']").dblclick();
-    await expect(page.locator(".form-status.ok")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(".contact-success")).toBeVisible({ timeout: 10000 });
   });
 
   test("command palette opens and navigates", async ({ page }) => {
@@ -132,15 +144,15 @@ test.describe("public experience", () => {
     await expect(page.getByRole("heading", { name: /harsh pandey/i }).first()).toBeVisible({ timeout: 15000 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
-    await page.getByRole("button", { name: /^Menu$/ }).click();
+    await page.getByRole("button", { name: /open menu/i }).click();
     await expect(page.locator(".nav-sheet")).toBeVisible();
-    await page.getByRole("button", { name: /^Close$/ }).click();
+    await page.getByRole("button", { name: /dismiss menu/i }).click();
   });
 
   test("unknown routes offer a natural way home", async ({ page }) => {
     await page.goto("/not-a-real-page");
     await expect(page.getByText("Page not found")).toBeVisible();
-    await page.getByRole("button", { name: /Back to home/i }).click();
+    await page.getByRole("button", { name: /Back to home →/ }).click();
     await expect(page).toHaveURL(/\/$/);
   });
 
