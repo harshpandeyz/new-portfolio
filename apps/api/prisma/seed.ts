@@ -62,7 +62,7 @@ const CERTIFICATES: CertSeed[] = [
   { file: "infosys Power BI for Business Professionals.pdf", title: "Power BI for Business Professionals", issuer: "Infosys Springboard", issuedOn: "2025-06-13", category: "DATA", order: 24 },
   { file: "infosys introduction to business intelligence.pdf", title: "Introduction to Business Intelligence", issuer: "Infosys Springboard", issuedOn: "2025-06-07", category: "DATA", order: 25 },
   // ── AI ──
-  { file: "ibm.png", title: "Ethical Considerations for Generative AI", issuer: "IBM SkillsBuild", issuedOn: null, category: "AI", featured: true, order: 30 },
+  { file: "ibm.png", title: "Ethical Considerations for Generative AI", issuer: "IBM SkillsBuild", issuedOn: null, category: "AI", order: 30 },
   { file: "infosys data science.pdf", title: "Data Science", issuer: "Infosys Springboard", issuedOn: "2025-06-07", category: "AI", order: 31 },
   // ── Cloud ──
   { file: "infosys Cloud Technologies.pdf", title: "Cloud Technologies", issuer: "Infosys Springboard", issuedOn: "2025-06-09", category: "CLOUD", featured: true, order: 40 },
@@ -155,7 +155,7 @@ const PROJECTS = [
     status: "complete",
     featured: true,
     year: "2024—2025",
-    order: 2,
+    order: 6,
     problem:
       "During mob gatherings, manual monitoring fails at scale and recorded evidence is vulnerable to tampering challenges in legal contexts.",
     solution:
@@ -193,7 +193,7 @@ const PROJECTS = [
     status: "complete",
     featured: true,
     year: "2025—2026",
-    order: 3,
+    order: 2,
     problem: "LLMs answer confidently but hallucinate; research questions demand grounded, source-linked answers over private document sets.",
     solution:
       "Documents are chunked, embedded with sentence-transformers and indexed in FAISS. At query time the AI service retrieves the most similar chunks and grounds the LLM answer (Groq / OpenAI / Sarvam providers) in them — the model elaborates, the vector store cites.",
@@ -287,7 +287,7 @@ const PROJECTS = [
     status: "complete",
     featured: false,
     year: "2025—2026",
-    order: 6,
+    order: 3,
     problem: null,
     solution: "Classic Spring Boot monolith with a decoupled JS frontend, deployed end to end.",
     architecture: "Spring Boot 3.5 · Spring Data JPA + MySQL · Spring Security + JWT (jjwt) · Mailjet + spring-boot-starter-mail · Lombok · Maven wrapper · separate frontend directory.",
@@ -633,8 +633,8 @@ async function main() {
   const existingProfile = await prisma.profile.findFirst();
   const profileData = {
     name: "Harsh Pandey",
-    headline: "Full-Stack Engineer",
-    subHeadline: "BACKEND • AI • SYSTEMS",
+    headline: "Software Engineer",
+    subHeadline: "Backend systems · Applied AI · Full Stack",
     bio: "Final-year B.Tech Information Technology student at MIT-ADT University, Pune, who builds systems end to end — training a YOLOv8 model, writing the REST API that serves its output, and getting the whole stack running in Docker. Comfortable across Java/Spring Boot and Node.js/Express on the backend, React on the frontend, FastAPI for AI-facing services, and SQL/NoSQL databases with CI/CD in between. Picks up new ecosystems fast — taught himself Swift/UIKit well enough to ship an iOS app — and would rather trace a bug to its root cause than work around it. Looking for full-stack, backend, or AI/ML engineering roles.",
     location: "Pune, India",
     email: "harshap17058@gmail.com",
