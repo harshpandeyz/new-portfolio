@@ -1,12 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
+import React from "react";
+import { IconExternal, IconMenu, IconChevron, IconInfo, IconSearch, IconFilter, IconMail, IconGithub, IconLinkedIn, IconStar, IconCheck, IconClose, IconSpark } from "../../components/ui/icons";
+
+export type CommandIcon =
+  | "work"
+  | "about"
+  | "journey"
+  | "credentials"
+  | "contact"
+  | "resume"
+  | "recruiter"
+  | "github"
+  | "linkedin"
+  | "chat"
+  | "home";
 
 export interface Command {
   id: string;
   label: string;
   hint?: string;
-  icon: string;
+  icon: CommandIcon | React.ComponentType;
   action: () => void;
   keywords?: string;
+}
+
+const iconMap: Record<CommandIcon, React.ComponentType> = {
+  work: IconChevron,
+  about: IconSearch,
+  journey: IconFilter,
+  credentials: IconStar,
+  contact: IconMail,
+  resume: IconChevron,
+  recruiter: IconChevron,
+  github: IconGithub,
+  linkedin: IconLinkedIn,
+  chat: IconInfo,
+  home: IconChevron,
+};
+
+function renderIcon(icon: CommandIcon | React.ComponentType) {
+  if (typeof icon === "string") {
+    const mapped = iconMap[icon as CommandIcon];
+    if (!mapped) return <IconSearch />;
+    return React.createElement(mapped);
+  }
+  if (typeof icon === "function") return null;
+  return <IconSearch />;
 }
 
 interface CommandPaletteProps {
@@ -97,9 +136,9 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Command palette" onClick={onClose} onKeyDown={() => undefined}>
-      <div ref={dialogRef} className="palette" onClick={(e) => e.stopPropagation()} role="document">
+      <div ref={dialogRef} className="palette" onClick={(e) => e.stopPropagation()}>
         <div className="palette-input-row">
-          <span className="prompt">❯</span>
+          <span className="prompt" aria-hidden="true">❯</span>
           <input
             ref={inputRef}
             className="palette-input"
@@ -110,24 +149,28 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
               setActive(0);
             }}
             aria-label="Search commands"
+            aria-expanded={filtered.length > 0}
+            aria-controls="palette-listbox"
+            aria-activedescendant={filtered.length > 0 ? `palette-option-${active}` : undefined}
+            role="combobox"
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 9.5, color: "var(--faint)", border: "1px solid var(--line)", borderRadius: 4, padding: "2px 6px" }}>ESC</kbd>
         </div>
-        <div className="palette-list" ref={listRef} role="listbox">
+        <div className="palette-list" ref={listRef} role="listbox" id="palette-listbox">
           {filtered.length === 0 && <div className="palette-empty">NO MATCHING COMMANDS</div>}
           {filtered.map((cmd, i) => (
             <button
               key={cmd.id}
               className={`palette-item${i === active ? " active" : ""}`}
+              id={`palette-option-${i}`}
               data-idx={i}
               role="option"
               aria-selected={i === active}
               onMouseEnter={() => setActive(i)}
               onClick={() => run(i)}
             >
-              <span className="pi-icon">{cmd.icon}</span>
+              <span className="pi-icon">{renderIcon(cmd.icon)}</span>
               <span className="pi-label">{cmd.label}</span>
               {cmd.hint && <span className="pi-hint">{cmd.hint}</span>}
             </button>
