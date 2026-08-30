@@ -91,6 +91,7 @@ export default function AdminApp() {
             key={n.path}
             to={n.path}
             className={`admin-nav-item${(n.end ? location.pathname === n.path : location.pathname.startsWith(n.path)) ? " active" : ""}`}
+            aria-current={(n.end ? location.pathname === n.path : location.pathname.startsWith(n.path)) ? "page" : undefined}
           >
             {n.label}
             {n.badge && unread > 0 && <span className="admin-unread">{unread}</span>}
