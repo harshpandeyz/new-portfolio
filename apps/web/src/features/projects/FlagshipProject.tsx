@@ -8,7 +8,7 @@ interface FlagshipProjectProps {
   onOpen: (slug: string) => void;
 }
 
-/** The flagship project — visually distinct, communicates the strongest work first. */
+/** The flagship: the strongest work, full-width, with room to breathe. */
 export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
   return (
     <button className="flagship-project" onClick={() => onOpen(project.slug)} data-reveal aria-label={`Open case study: ${project.title}`}>

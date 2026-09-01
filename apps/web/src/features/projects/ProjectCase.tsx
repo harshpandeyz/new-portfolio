@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api, resolveMediaUrl } from "../../lib/api";
@@ -8,6 +8,8 @@ import { unlock } from "../../lib/achievements";
 import { useData } from "../../lib/data";
 import { Button } from "../../components/ui/Button";
 import { IconArrowLeft, IconArrowRight, IconExternal } from "../../components/ui/icons";
+import { TechGlyph } from "../tech/TechIcons";
+import { ProjectMedia } from "./ProjectMedia";
 
 /** Progressive-draw SVG flow built from the project's real dataFlow steps. */
 function FlowDiagram({ steps, title }: { steps: string[]; title: string }) {
@@ -89,26 +91,17 @@ function FlowDiagram({ steps, title }: { steps: string[]; title: string }) {
   );
 }
 
-const STEPS = [
-  { id: "overview", label: "Overview" },
-  { id: "architecture", label: "Architecture" },
-  { id: "decisions", label: "Decisions" },
-  { id: "security", label: "Security" },
-  { id: "results", label: "Results" },
-] as const;
-
 interface ProjectCaseProps {
   onViewResume: () => void;
 }
 
+/** A case study is a visual engineering paper — mostly visuals, little text. */
 export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   const { slug } = useParams<{ slug: string }>();
   const { projects } = useData();
   const [project, setProject] = useState<Project | null>(() => projects.find((p) => p.slug === slug) ?? null);
   const [loading, setLoading] = useState(!project);
   const [notFound, setNotFound] = useState(false);
-  const [active, setActive] = useState<string>("overview");
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     let live = true;
@@ -126,7 +119,6 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
         .catch(() => live && setNotFound(true))
         .finally(() => live && setLoading(false));
     }
-    setActive("overview");
     return () => { live = false; };
   }, [slug, projects]);
 
@@ -139,30 +131,18 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
     return () => { document.title = "Harsh Pandey — Software Engineer"; };
   }, [project]);
 
-  // Sticky in-page scroll spy for the case-study navigation.
-  useEffect(() => {
-    if (!project) return;
-    const onScroll = () => {
-      const mid = window.scrollY + window.innerHeight * 0.35;
-      let current = "overview";
-      for (const step of STEPS) {
-        const el = sectionRefs.current[step.id];
-        if (el && el.offsetTop <= mid) current = step.id;
-      }
-      setActive(current);
+  const { prev, next } = useMemo(() => {
+    const ordered = [...projects].sort((a, b) => a.order - b.order);
+    const idx = project ? ordered.findIndex((p) => p.id === project.id) : -1;
+    return {
+      prev: idx > 0 ? ordered[idx - 1] : null,
+      next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null,
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [project]);
-
-  const related = useMemo(
-    () => projects.filter((p) => p.slug !== slug && (p.category === project?.category || p.stack.some((s) => project?.stack.includes(s)))).slice(0, 3),
-    [projects, slug, project],
-  );
+  }, [projects, project]);
 
   if (loading) {
     return (
-      <div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
+      <div className="archive-page" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
         <h1 className="visually-hidden">Loading project</h1>
         <span className="mono mono-dim">Loading project…</span>
       </div>
@@ -171,7 +151,7 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
 
   if (notFound || !project) {
     return (
-      <div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
+      <div className="archive-page" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
         <div style={{ textAlign: "center" }}>
           <h1 className="visually-hidden">Project not found</h1>
           <div className="mono mono-dim" style={{ marginBottom: 18 }}>Project not found</div>
@@ -181,19 +161,16 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
     );
   }
 
-  const scrollStep = (id: string) => sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-
   return (
-    <>
+    <div className="subspace" data-tier={project.tier}>
       <header className="case-hero">
         <div className="container">
-          <Link to="/#work" className="back"><IconArrowLeft /> Back to selected work</Link>
-          <div className="eyebrow" style={{ marginBottom: 14 }}>{formatTaxonomy(project.category)}</div>
+          <Link to="/#work" className="back"><IconArrowLeft /> Back to work</Link>
+          <div className="eyebrow case-eyebrow">{formatTaxonomy(project.category)}</div>
           <h1>{project.title}</h1>
           {project.codename && <div className="codename">{project.codename}</div>}
-          <p className="short">{project.shortDescription}</p>
+          <p className="short case-short">{project.shortDescription}</p>
 
-          {/* PROJECT SNAPSHOT */}
           <div className="case-snapshot">
             <div className="cell"><div className="k">Year</div><div className="v">{project.year}</div></div>
             <div className="cell"><div className="k">Status</div><div className="v" style={{ textTransform: "capitalize" }}>{project.status}</div></div>
@@ -206,84 +183,104 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
         </div>
       </header>
 
-      <div className="container"><div className="case-media" aria-label={`${project.title} project preview`}>
-        {project.heroImage ? <img src={resolveMediaUrl(project.heroImage)} alt={`${project.title} project preview`} /> : <div className="project-art"><span>{formatTaxonomy(project.category).split(" · ")[0]}</span><strong>{project.title.slice(0, 1)}</strong><i /></div>}
-      </div></div>
+      <div className="container case-media" aria-label={`${project.title} project preview`}>
+        <ProjectMedia project={project} />
+      </div>
 
       <div className="case-layout">
-        <nav className="case-tabs" aria-label="Case study sections">
-          {STEPS.map((step) => (
-            <button
-              key={step.id}
-              className={active === step.id ? "active" : ""}
-              aria-current={active === step.id ? "true" : undefined}
-              onClick={() => scrollStep(step.id)}
-            >
-              {step.label}
-            </button>
-          ))}
-        </nav>
-
         <div className="case-body">
           <div className="case-panel">
-            <section ref={(el) => { sectionRefs.current["overview"] = el; }} data-step="overview">
+            {project.problem && (
+              <section data-step="problem">
+                <h2>The problem</h2>
+                <p className="lede">{project.problem}</p>
+              </section>
+            )}
+
+            {project.solution && (
+              <section data-step="solution">
+                <h2>The solution</h2>
+                <p>{project.solution}</p>
+              </section>
+            )}
+
+            <section data-step="overview">
               <h2>Overview</h2>
-              <p className="lede">{project.longDescription ?? project.shortDescription}</p>
-              {project.problem && (<><h3>01 — The problem</h3><p>{project.problem}</p></>)}
-              {project.solution && (<><h3>02 — The solution</h3><p>{project.solution}</p></>)}
-              {project.challenges && (<><h3>03 — What was difficult</h3><p>{project.challenges}</p></>)}
-              {project.results && (<><h3>04 — Results</h3><p>{project.results}</p></>)}
+              <p>{project.longDescription ?? project.shortDescription}</p>
             </section>
 
-            <section ref={(el) => { sectionRefs.current["architecture"] = el; }} data-step="architecture">
-              <h2>Architecture</h2>
-              <p>{project.architecture ?? "Architecture documentation for this module is summarized in the repository README."}</p>
-              {project.dataFlow.length > 0 ? <FlowDiagram steps={project.dataFlow} title={project.title} /> : <p className="mono mono-dim">Architecture notes are available in the repository README.</p>}
+            {project.dataFlow.length > 0 && (
+              <section data-step="architecture">
+                <h2>Architecture</h2>
+                <p>{project.architecture ?? "Architecture documentation for this module is summarized in the repository README."}</p>
+                <FlowDiagram steps={project.dataFlow} title={project.title} />
+              </section>
+            )}
 
+            {project.challenges && (
+              <section data-step="challenges">
+                <h2>What was difficult</h2>
+                <p>{project.challenges}</p>
+              </section>
+            )}
+
+            <section data-step="technology">
               <h2>Technology</h2>
-              <div className="case-stack-grid">
-                {project.stack.map((t) => <span className="tag" key={t} style={{ justifyContent: "center", padding: "10px 12px" }}>{t}</span>)}
+              <div className="case-tech">
+                {project.stack.map((t) => (
+                  <div className="case-tech-item" key={t}>
+                    <TechGlyph name={t} />
+                    <span>{t}</span>
+                  </div>
+                ))}
               </div>
             </section>
 
-            <section ref={(el) => { sectionRefs.current["decisions"] = el; }} data-step="decisions">
-              <h2>Engineering decisions</h2>
-              {project.decisions.length > 0 ? (
+            {project.decisions.length > 0 && (
+              <section data-step="decisions">
+                <h2>Engineering decisions</h2>
                 <div className="case-list">
                   {project.decisions.map((d, i) => (
                     <div className="case-list-item" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span>{d}</div>
                   ))}
                 </div>
-              ) : (
-                <p>Decision records for this project live in the repository history.</p>
-              )}
-            </section>
+              </section>
+            )}
 
-            <section ref={(el) => { sectionRefs.current["security"] = el; }} data-step="security">
-              <h2>Security & reliability</h2>
-              {project.securityNotes ? (
-                <>
-                  <p>Security properties implemented in this system, as verifiable in the repository.</p>
-                  <div className="case-list">
-                    {project.securityNotes.split(" · ").map((s, i) => (
-                      <div className="case-list-item" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span>{s}</div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p>No dedicated security layer is claimed for this module.</p>
-              )}
-            </section>
+            {project.gallery.length > 0 && (
+              <section data-step="gallery">
+                <h2>In the repository</h2>
+                <div className="case-gallery">
+                  {project.gallery.map((src, i) => <img key={i} src={resolveMediaUrl(src)} alt={`${project.title} screenshot ${i + 1}`} loading="lazy" />)}
+                </div>
+              </section>
+            )}
 
-            <section ref={(el) => { sectionRefs.current["results"] = el; }} data-step="results">
-              <h2>Results & lessons</h2>
-              <p>{project.results ?? "Outcomes are summarized in the repository documentation."}</p>
-              <div className="case-links" style={{ marginTop: 28 }}>
+            {project.securityNotes && (
+              <section data-step="security">
+                <h2>Security & reliability</h2>
+                <div className="case-list">
+                  {project.securityNotes.split(" · ").map((s, i) => (
+                    <div className="case-list-item" key={i}><span className="n">{String(i + 1).padStart(2, "0")}</span>{s}</div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {project.results && (
+              <section data-step="results">
+                <h2>Results</h2>
+                <p>{project.results}</p>
+              </section>
+            )}
+
+            <section data-step="links">
+              <div className="case-links" style={{ marginTop: 8 }}>
                 {project.githubUrl && <a className="btn" href={project.githubUrl} target="_blank" rel="noopener noreferrer">Source repository <IconExternal /></a>}
                 {project.liveUrl && <a className="btn btn-solid" href={project.liveUrl} target="_blank" rel="noopener noreferrer">Live deployment <IconExternal /></a>}
                 <Button onClick={onViewResume}>View résumé</Button>
               </div>
-              <p className="mono mono-dim" style={{ marginTop: 26, fontSize: 9.5 }}>
+              <p className="mono mono-dim" style={{ marginTop: 20, fontSize: 9.5 }}>
                 Details are drawn from the public repository and project record.
               </p>
             </section>
@@ -291,20 +288,20 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
         </div>
       </div>
 
-      {related.length > 0 && (
-        <div className="container" style={{ paddingBottom: 90 }}>
-          <div className="eyebrow" style={{ marginBottom: 16 }}>More selected work</div>
-          <div className="proj-grid">
-            {related.map((p) => (
-              <Link to={`/projects/${p.slug}`} className={`proj-node tier-${p.tier}`} key={p.id}>
-                <div className="pn-top"><span className="pn-id">{formatTaxonomy(p.category)}</span><IconArrowRight /></div>
-                <h3>{p.title}</h3>
-                <p>{p.shortDescription}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+      <nav className="case-nav" aria-label="More projects">
+        {prev ? (
+          <Link to={`/projects/${prev.slug}`} className="case-nav-link" data-tier={prev.tier}>
+            <span className="cn-label"><IconArrowLeft /> Previous</span>
+            <span className="cn-title">{prev.title}</span>
+          </Link>
+        ) : <span />}
+        {next ? (
+          <Link to={`/projects/${next.slug}`} className="case-nav-link" data-tier={next.tier}>
+            <span className="cn-label">Next <IconArrowRight /></span>
+            <span className="cn-title">{next.title}</span>
+          </Link>
+        ) : <span />}
+      </nav>
+    </div>
   );
 }

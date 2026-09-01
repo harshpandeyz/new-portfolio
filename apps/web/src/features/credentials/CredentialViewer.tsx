@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Certificate } from "@hp/shared";
 import { resolveMediaUrl } from "../../lib/api";
@@ -6,6 +6,8 @@ import { Dialog } from "../../components/ui/Dialog";
 import { IconButton } from "../../components/ui/IconButton";
 import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import { IconDownload, IconExternal, IconClose, IconArrowLeft, IconArrowRight } from "../../components/ui/icons";
+
+const PDF_LOAD_GRACE_MS = 4000;
 
 export interface CredentialViewerProps {
   certificate: Certificate | null;
@@ -16,19 +18,38 @@ export interface CredentialViewerProps {
 
 /**
  * In-page modal credential viewer (never a new route).
- * Shows image previews for image certificates and an embedded PDF otherwise,
- * with prev/next, download/open and Escape/arrow-key + touch-swipe navigation.
+ * Images: loading → visible preview, with a real error/retry path.
+ * PDFs: the viewer iframe renders immediately — never gated on an unreliable
+ * onLoad event, so a browser that can display PDFs shows them right away.
+ * If the browser hasn't signalled a load within the grace window, a small
+ * hint offers the document in a new tab instead of a dead "Loading…" screen.
  */
 export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbors }: CredentialViewerProps) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [pdfSlow, setPdfSlow] = useState(false);
   const [touchX, setTouchX] = useState<number | null>(null);
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isImage = useMemo(() => certificate?.fileUrl?.match(/\.(png|jpe?g|webp|avif|gif)$/i), [certificate]);
   const url = certificate?.fileUrl ? resolveMediaUrl(certificate.fileUrl) : null;
+  const isPdf = Boolean(url) && !isImage;
+
+  const clearSlowTimer = () => {
+    if (slowTimer.current) {
+      clearTimeout(slowTimer.current);
+      slowTimer.current = null;
+    }
+  };
 
   useEffect(() => {
     setState("loading");
-  }, [certificate?.id]);
+    setPdfSlow(false);
+    clearSlowTimer();
+    if (isPdf) {
+      slowTimer.current = setTimeout(() => setPdfSlow(true), PDF_LOAD_GRACE_MS);
+    }
+    return clearSlowTimer;
+  }, [certificate?.id, isPdf]);
 
   useKeyboardShortcut(["ArrowRight"], () => hasNeighbors && onNavigate(1), !!certificate);
   useKeyboardShortcut(["ArrowLeft"], () => hasNeighbors && onNavigate(-1), !!certificate);
@@ -37,6 +58,12 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
 
   const titleId = `cred-dialog-${certificate.id}`;
   const category = certificate.category.charAt(0) + certificate.category.slice(1).toLowerCase();
+
+  const handlePdfLoad = () => {
+    setState("ready");
+    setPdfSlow(false);
+    clearSlowTimer();
+  };
 
   return (
     <Dialog open={!!certificate} onClose={onClose} labelledBy={titleId} size="lg" className="credential-viewer">
@@ -69,20 +96,36 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
             <span>The record is still available with its issuer and date details.</span>
           </div>
         )}
-        {url && state === "loading" && <div className="cert-viewer-fallback"><span>Loading credential…</span></div>}
-        {url && state === "error" && (
+        {url && isImage && state === "loading" && (
+          <div className="cert-viewer-fallback" role="status">
+            <span className="cert-viewer-spin" aria-hidden="true" />
+            <span>Loading credential…</span>
+          </div>
+        )}
+        {url && isImage && state === "error" && (
           <div className="cert-viewer-fallback">
             <strong>Preview unavailable.</strong>
-            <span>This document could not be loaded right now.</span>
+            <span>This image could not be loaded right now.</span>
             <IconButton label="Retry loading credential" onClick={() => setState("loading")}>Retry</IconButton>
           </div>
         )}
-        {url && state !== "error" && (
-          isImage ? (
-            <img src={url} alt={`${certificate.title} certificate`} onLoad={() => setState("ready")} onError={() => setState("error")} />
-          ) : (
-            <iframe src={`${url}#toolbar=0`} title={`${certificate.title} certificate`} loading="lazy" onLoad={() => setState("ready")} onError={() => setState("error")} />
-          )
+        {url && isImage && state !== "error" && (
+          <img src={url} alt={`${certificate.title} certificate`} onLoad={() => setState("ready")} onError={() => setState("error")} />
+        )}
+        {url && isPdf && (
+          <>
+            <iframe
+              src={`${url}#toolbar=0`}
+              title={`${certificate.title} certificate`}
+              onLoad={handlePdfLoad}
+            />
+            {pdfSlow && (
+              <div className="cert-viewer-fallback cert-viewer-pdf-hint" role="status">
+                <span>Preview still loading? Open it in a new tab.</span>
+                <a className="link-btn" href={url} target="_blank" rel="noopener noreferrer">Open document <IconExternal /></a>
+              </div>
+            )}
+          </>
         )}
       </div>
 

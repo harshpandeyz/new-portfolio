@@ -17,13 +17,13 @@ export function Contact({ onViewResume }: ContactProps) {
         <SectionHeader
           eyebrow="Contact"
           title="Let's build something."
-          sub="Have a project, a role, a collaboration, or an interesting problem? I'd love to talk."
+          sub="A project, a role, or just an interesting problem — I'd love to talk."
         />
 
         <div className="contact-grid">
           <div className="contact-intro" data-reveal>
-            <h3>Have an opportunity, project, or interesting problem?</h3>
-            <p>The fastest way to reach me is one action away.</p>
+            <h3>Say hi — the fastest way is one action away.</h3>
+            <p>Prefer a message? The form is right there. Either way, I reply to people, not spam.</p>
             <ContactChannels onViewResume={onViewResume} />
           </div>
 
