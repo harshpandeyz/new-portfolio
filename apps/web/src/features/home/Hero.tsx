@@ -1,27 +1,20 @@
-import { Suspense, lazy, useEffect, useState } from "react";
-
 import { useData } from "../../lib/data";
 import type { EnvCapabilities } from "../../lib/device";
-import type { CoreMode } from "../../components/three/CoreScene";
 import { Button } from "../../components/ui/Button";
 import { PROFILE } from "../../app/constants";
 
-const CoreScene = lazy(() => import("../../components/three/CoreScene"));
-
 export interface HeroProps {
   caps: EnvCapabilities;
-  coreMode: CoreMode;
   onViewResume: () => void;
 }
 
-/** First viewport: who / what / where / what to click — understood in seconds. */
-export function Hero({ caps, coreMode, onViewResume }: HeroProps) {
+/**
+ * First viewport: typography only. Name, role, a short promise, and one clear
+ * action. No photo (About owns the only portrait), no HUD, no decorative UI —
+ * the strongest thing on first load is the writing.
+ */
+export function Hero({ caps, onViewResume }: HeroProps) {
   const { profile } = useData();
-  const [glOk, setGlOk] = useState(true);
-
-  useEffect(() => {
-    setGlOk(caps.webgl && !caps.reducedMotion && caps.tier !== "low");
-  }, [caps]);
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
@@ -29,38 +22,25 @@ export function Hero({ caps, coreMode, onViewResume }: HeroProps) {
 
   return (
     <section className="hero" id="hero" aria-label="Introduction">
-      <div className="hero-core" aria-hidden="true">
-        {glOk ? (
-          <Suspense fallback={<div className="hero-core-fallback" />}>
-            <div style={{ width: "min(90vw, 760px)", height: "min(90vw, 760px)" }}>
-              <CoreScene mode={coreMode} tier={caps.tier === "medium" ? "medium" : "high"} reducedMotion={caps.reducedMotion} />
-            </div>
-          </Suspense>
-        ) : (
-          <div className="hero-core-fallback" />
-        )}
-      </div>
-
-      <div className="hero-content">
-        <div className="hero-kicker">
+      <div className="hero-inner">
+        <p className="hero-kicker">
           <span className="kicker-dot" aria-hidden="true" />
-          <span>Software Engineer</span>
-        </div>
+          Software Engineer · Pune
+        </p>
 
-        <h1 className="hero-name">
-          <span className="row"><span className="hero-line">Harsh Pandey</span></span>
-        </h1>
+        <h1 className="hero-name">{profile?.name ?? PROFILE.name}</h1>
 
         <p className="hero-tagline" data-reveal>
-          {profile?.subHeadline ?? PROFILE.positioning}
+          {profile?.headline ?? PROFILE.headline}
         </p>
 
         <p className="hero-brief" data-reveal data-reveal-delay="0.08">
-          I build reliable software systems end to end — from APIs and databases to intelligent products and polished interfaces.
+          I build software systems that hold up past the demo — reliable APIs and databases,
+          applied AI, and interfaces that respect the people using them.
         </p>
 
         <div className="hero-cta" data-reveal data-reveal-delay="0.16">
-          <Button variant="primary" onClick={() => scrollTo("work")}>View selected work</Button>
+          <Button variant="primary" onClick={() => scrollTo("work")}>See my work</Button>
           <Button onClick={onViewResume}>View résumé</Button>
         </div>
 

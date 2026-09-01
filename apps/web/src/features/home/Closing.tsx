@@ -14,7 +14,7 @@ export function Closing({ onViewResume }: ClosingProps) {
         <h2>Thanks for taking a look.</h2>
         <p>If something here feels like the kind of work your team is doing, let's talk.</p>
         <div className="exit-cta">
-          <Button href="#contact">Start a conversation</Button>
+          <Button href="#contact" variant="primary">Start a conversation</Button>
           <Button variant="secondary" onClick={onViewResume}>View résumé</Button>
           <Button variant="ghost" onClick={() => navigate("/recruiter")}>Recruiter view</Button>
         </div>

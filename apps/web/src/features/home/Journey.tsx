@@ -1,66 +1,55 @@
-import { useMemo } from "react";
-
 import { useData } from "../../lib/data";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 
 /**
- * Journey is a story of meaningful milestones — NOT a certificate timeline.
- * Individual external certifications live in Credentials. This section keeps
- * the education story visible and the certifications out of the narrative.
+ * Education is deliberately small: a compact university section, text only —
+ * one line about the program and the degree detail. Class 10/12 is excluded;
+ * only the university record is shown, and no photo appears here (About owns
+ * the single portrait).
  */
 export function Journey() {
-  const { timeline, education, error, refresh } = useData();
+  const { education, error, refresh } = useData();
 
-  // Drop certificate entries and pre-B.Tech education from the narrative.
-  const milestones = useMemo(
-    () =>
-      [...timeline]
-        .filter((item) => item.type !== "certification" && !(item.type === "education" && Number(item.date) < 2023))
-        .sort((a, b) => a.order - b.order),
-    [timeline],
-  );
-
-  const btech = education.find((e) => e.startYear === "2023") ?? education[0];
+  const university = education.filter((e) => Number(e.startYear) >= 2022);
+  const btech = university.find((e) => e.field) ?? university[0];
 
   return (
-    <section className="section journey-section" id="journey" aria-label="Journey">
+    <section className="section edu-section" id="journey" aria-label="Education">
       <div className="container">
-        <SectionHeader eyebrow="Journey" title="Building, year by year." sub="The milestones that shaped how I build — from the first project to the platform you're reading this on." />
+        <SectionHeader eyebrow="Education" title="The formal kind of learning." sub="One university. One specialization. Four years of building." />
 
-        <div className="journey-layout">
-          <div className="timeline">
-            {milestones.length > 0 ? (
-              milestones.map((item, index) => (
-                <article className="tl-item" key={item.id} data-reveal data-reveal-delay={String((index % 3) * 0.06)}>
-                  <div className="tl-year">{item.date}</div>
-                  <div>
-                    <h3>{item.title}</h3>
-                    {item.organization && <div className="tl-org">{item.organization}</div>}
-                    {item.description && <p>{item.description}</p>}
+        {university.length > 0 ? (
+          <div className="edu-grid">
+            <div className="edu-rows">
+              {university.map((item, index) => (
+                <article className="edu-row" key={item.id} data-reveal data-reveal-delay={String(index * 0.06)}>
+                  <div className="edu-main">
+                    <h3>{item.degree}</h3>
+                    <p className="edu-inst">{item.institution}</p>
+                    {item.description && <p className="edu-desc">{item.description}</p>}
+                  </div>
+                  <div className="edu-meta">
+                    <span className="edu-years">
+                      {item.startYear}–{item.endYear ?? "Present"}
+                    </span>
+                    {item.grade && <span className="edu-grade">{item.grade}</span>}
                   </div>
                 </article>
-              ))
-            ) : (
-              <EmptyState>{error ? <ErrorState message="Journey couldn't load." onRetry={() => void refresh()} /> : "Journey is loading…"}</EmptyState>
-            )}
+              ))}
+            </div>
+            <p className="edu-school">
+              Final-year B.Tech, Information Technology at <strong>MIT-ADT University, Pune</strong>.
+            </p>
+            <p className="edu-final">
+              Software &amp; Mobile Application Development specialization · CGPA 8.38 · graduating 2027.
+            </p>
           </div>
-
-          {btech && (
-            <aside className="education-note" data-reveal>
-              <span className="eyebrow">Education</span>
-              <div className="education-item">
-                <h3>{btech.degree}</h3>
-                <p>{btech.institution}</p>
-                <small>
-                  {btech.startYear} — {btech.endYear ?? "Present"}
-                  {btech.grade ? ` · ${btech.grade}` : ""}
-                </small>
-                {btech.description && <p className="education-item-desc">{btech.description}</p>}
-              </div>
-            </aside>
-          )}
-        </div>
+        ) : error ? (
+          <ErrorState message="Education couldn't load." onRetry={() => void refresh()} />
+        ) : (
+          <EmptyState>Education is loading…</EmptyState>
+        )}
       </div>
     </section>
   );
