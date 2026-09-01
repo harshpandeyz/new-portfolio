@@ -15,8 +15,6 @@ export function Work() {
 
   const ordered = useMemo(() => [...projects].sort((a, b) => a.order - b.order), [projects]);
 
-  // One flagship, then two selected cards, then the compact tail. Each piece
-  // has one job; no project appears twice with equal visual weight.
   const flagship = ordered.find((p) => p.tier === "featured") ?? ordered[0];
 
   const selected = ordered
@@ -48,8 +46,8 @@ export function Work() {
       <div className="container">
         <SectionHeader
           eyebrow="Selected work"
-          title="A few systems I've built."
-          sub="Applied computer vision, ranked search, and tools that make complex information easier to work with."
+          title="Systems, not slogans."
+          sub="Flagship first — visual, verifiable, built end to end. Secondary work stays compact."
           inline
         />
 
@@ -59,27 +57,41 @@ export function Work() {
 
         <div className="work-row">
           {selected.map((project, index) => (
-            <ProjectCard key={project.id} project={project} index={index + 1} onOpen={open} />
+            <ProjectCard key={project.id} project={project} index={index + 1} onOpen={open} compact />
           ))}
-          <button className="explore-card" onClick={() => navigate("/projects")} data-reveal data-reveal-delay="0.12" aria-label="Open the full project archive">
-            <span className="explore-num" aria-hidden="true">{String(selected.length + 2).padStart(2, "0")}</span>
-            <span className="explore-text">
-              <span className="explore-title">Explore the archive</span>
-              <span className="explore-sub">Every project, filterable by tier and domain.</span>
-            </span>
-            <span className="explore-order">More work <span aria-hidden="true">→</span></span>
+          <button
+            className="project-card project-card--compact project-card--archive explore-card"
+            onClick={() => navigate("/projects")}
+            data-reveal
+            data-reveal-delay="0.12"
+            aria-label="Open the full project archive"
+          >
+            <div className="project-card-visual project-card-visual--archive" aria-hidden="true">
+              <div className="archive-visual">
+                <span className="archive-num">{String(selected.length + 2).padStart(2, "0")}</span>
+                <span className="archive-kicker">More work</span>
+                <span className="archive-meta">{projects.length} projects · filterable</span>
+              </div>
+            </div>
+            <div className="project-card-body">
+              <div className="project-meta">
+                <span>{String(selected.length + 2).padStart(2, "0")}</span>
+                <span>Archive</span>
+                <span>{projects.length} total</span>
+              </div>
+              <h3 className="project-card-title">Explore the archive</h3>
+              <p className="project-card-desc">All tiers · filterable · honest scopes.</p>
+              <span className="project-card-link">
+                Open archive <span aria-hidden="true">→</span>
+              </span>
+            </div>
           </button>
         </div>
 
         {compact.length > 0 && (
-          <div className="work-list">
+          <div className="work-list" aria-label="More projects">
             {compact.map((project, i) => (
-              <div
-                className="work-list-item"
-                key={project.id}
-                data-reveal
-                data-reveal-delay={String(i * 0.05)}
-              >
+              <div className="work-list-item" key={project.id} data-reveal data-reveal-delay={String(i * 0.04)}>
                 <button className="work-list-open" onClick={() => open(project.slug)} aria-label={`Open case study: ${project.title}`}>
                   <span className="work-list-num" aria-hidden="true">{String(i + selected.length + 3).padStart(2, "0")}</span>
                   <span className="work-list-main">
@@ -89,13 +101,7 @@ export function Work() {
                   <span className="work-list-arrow" aria-hidden="true">→</span>
                 </button>
                 {project.githubUrl && (
-                  <a
-                    className="work-list-repo"
-                    href={project.githubUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <a className="work-list-repo" href={project.githubUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                     GitHub ↗
                   </a>
                 )}

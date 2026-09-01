@@ -28,9 +28,16 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
   }, [profile?.name]);
 
   const top = projects.filter((p) => p.tier === "featured").slice(0, 4);
-  const skillGroups = ["BACKEND", "AI_ML", "FRONTEND", "CLOUD_DEVOPS", "DATABASES"].map((category) => ({
+  const skillGroups = ["BACKEND", "FRONTEND", "AI_ML", "DATABASES", "LANGUAGES", "CLOUD_DEVOPS", "SECURITY"].map((category) => ({
     category,
-    items: skills.filter((skill) => skill.category === category && (skill.featured || skill.level === "core")).map((skill) => skill.name),
+    items: skills
+      .filter((skill) => skill.category === category && (skill.level === "core" || skill.level === "working" || skill.featured))
+      .sort((a, b) => {
+        const order: Record<string, number> = { core: 0, working: 1, exploring: 2, experimental: 3 };
+        if (a.featured !== b.featured) return a.featured ? -1 : 1;
+        return (order[a.level] ?? 9) - (order[b.level] ?? 9);
+      })
+      .map((skill) => skill.name),
   })).filter((group) => group.items.length);
 
   const social = (label: string) => profile?.socials.find((s) => s.label.toLowerCase() === label.toLowerCase())?.url;
@@ -50,10 +57,15 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
         </header>
 
         <section className="recruiter-intro">
-          <span className="eyebrow">Résumé</span>
+          <span className="eyebrow">Résumé — Fast review</span>
           <h1>{profile?.name ?? PROFILE.name}</h1>
           <p className="recruiter-role">Software Engineer · Backend · AI · Full Stack</p>
           <p className="recruiter-summary">I build reliable backend systems, applied AI products and thoughtful full-stack experiences end to end. I'm completing my B.Tech in Information Technology at MIT-ADT University, Pune, and am open to backend, full-stack and AI/ML opportunities.</p>
+          <div className="recruiter-cta">
+            <Button variant="primary" href={`mailto:${email}`}>Contact Harsh — {email}</Button>
+            <Button href="/#work">View selected work</Button>
+            <Button onClick={onViewResume}>View résumé</Button>
+          </div>
           <div className="recruiter-contact">
             <a href={`mailto:${email}`}><IconMail /> {email}</a>
             <span>{profile?.location ?? PROFILE.location}</span>

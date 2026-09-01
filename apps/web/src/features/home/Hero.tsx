@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useData } from "../../lib/data";
 import type { EnvCapabilities } from "../../lib/device";
 import { Button } from "../../components/ui/Button";
@@ -15,6 +16,7 @@ export interface HeroProps {
  */
 export function Hero({ caps, onViewResume }: HeroProps) {
   const { profile } = useData();
+  const navigate = useNavigate();
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
@@ -42,6 +44,7 @@ export function Hero({ caps, onViewResume }: HeroProps) {
         <div className="hero-cta" data-reveal data-reveal-delay="0.16">
           <Button variant="primary" onClick={() => scrollTo("work")}>See my work</Button>
           <Button onClick={onViewResume}>View résumé</Button>
+          <Button variant="secondary" onClick={() => navigate("/recruiter")}>Recruiter view — fast résumé</Button>
         </div>
 
         <div className="hero-meta" data-reveal data-reveal-delay="0.22">
