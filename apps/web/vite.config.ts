@@ -23,12 +23,12 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
-    chunkSizeWarningLimit: 900,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks: {
           gsap: ["gsap"],
-          admin: ["react-router-dom"],
+          router: ["react-router-dom"],
         },
       },
     },

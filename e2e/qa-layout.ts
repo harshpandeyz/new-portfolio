@@ -22,10 +22,11 @@ for (const width of [2560, 1440, 1280, 1024, 768, 430, 390, 360]) {
     return {
       heroName: r(".hero-name"),
       topbar: r(".topbar"),
-      flagshipCopy: r(".flagship-copy"),
-      evolution: r(".evolution"),
+      flagship: r(".flagship"),
+      flagshipVisual: r(".flagship-visual"),
       workRow: gc(".work-row"),
       techGrid: gc(".tech-grid"),
+      techGridNine: gc(".tech-grid--nine"),
       vaultGrid: gc(".vault-grid"),
       eduGrid: gc(".edu-grid"),
       contactGrid: gc(".contact-grid"),

@@ -46,9 +46,9 @@ test.describe("public experience", () => {
   test("project case study scrolls through architecture", async ({ page }) => {
     await page.goto("/projects/quantummind");
     await expect(page.getByRole("heading", { name: /QuantumMind/i })).toBeVisible({ timeout: 15000 });
-    const diagram = page.locator(".arch-diagram");
-    await diagram.scrollIntoViewIfNeeded();
-    await expect(diagram).toBeVisible();
+    const diagram = page.locator(".case-system-map, .arch-diagram");
+    await diagram.first().scrollIntoViewIfNeeded();
+    await expect(diagram.first()).toBeVisible();
   });
 
   test("credential archive filters and opens viewer", async ({ page }) => {

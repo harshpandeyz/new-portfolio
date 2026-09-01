@@ -12,13 +12,21 @@ const OUT = process.env.QA_OUT || "test-results/qa";
   await page.waitForTimeout(4000);
   await page.screenshot({ path: `${OUT}/01-hero.png` });
 
+  await page.evaluate(() => document.getElementById("about").scrollIntoView());
+  await page.waitForTimeout(1600);
+  await page.screenshot({ path: `${OUT}/02-about.png` });
+
+  await page.evaluate(() => document.getElementById("journey").scrollIntoView());
+  await page.waitForTimeout(1600);
+  await page.screenshot({ path: `${OUT}/03-journey.png` });
+
   await page.evaluate(() => document.getElementById("work").scrollIntoView());
   await page.waitForTimeout(1600);
-  await page.screenshot({ path: `${OUT}/02-work.png` });
+  await page.screenshot({ path: `${OUT}/04-work.png` });
 
-  await page.evaluate(() => document.getElementById("capabilities").scrollIntoView());
+  await page.evaluate(() => document.getElementById("tech").scrollIntoView());
   await page.waitForTimeout(1600);
-  await page.screenshot({ path: `${OUT}/04-capabilities.png` });
+  await page.screenshot({ path: `${OUT}/05-tech.png` });
 
   await page.evaluate(() => document.getElementById("credentials").scrollIntoView());
   await page.waitForTimeout(1600);

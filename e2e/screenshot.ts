@@ -9,11 +9,15 @@ await page.screenshot({ path: "test-results/shot-hero.png" });
 
 await page.evaluate(() => document.getElementById("about")?.scrollIntoView());
 await page.waitForTimeout(1200);
-await page.screenshot({ path: "test-results/shot-identity.png" });
+await page.screenshot({ path: "test-results/shot-about.png" });
 
-await page.evaluate(() => document.getElementById("projects")?.scrollIntoView());
+await page.evaluate(() => document.getElementById("work")?.scrollIntoView());
 await page.waitForTimeout(1200);
-await page.screenshot({ path: "test-results/shot-projects.png" });
+await page.screenshot({ path: "test-results/shot-work.png" });
+
+await page.evaluate(() => document.getElementById("tech")?.scrollIntoView());
+await page.waitForTimeout(1200);
+await page.screenshot({ path: "test-results/shot-tech.png" });
 
 await page.goto("http://localhost:5173/projects/intelligent-surveillance-system");
 await page.waitForTimeout(1500);

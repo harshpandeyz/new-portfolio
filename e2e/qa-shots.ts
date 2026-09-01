@@ -19,10 +19,10 @@ await desktop.evaluate(() => document.getElementById("about")?.scrollIntoView())
 await desktop.waitForTimeout(1600);
 await desktop.screenshot({ path: `${OUT}/03-about.png` });
 
-// capabilities
-await desktop.evaluate(() => document.getElementById("capabilities")?.scrollIntoView());
+// tech (formerly capabilities)
+await desktop.evaluate(() => document.getElementById("tech")?.scrollIntoView());
 await desktop.waitForTimeout(1500);
-await desktop.screenshot({ path: `${OUT}/04-capabilities.png` });
+await desktop.screenshot({ path: `${OUT}/04-tech.png` });
 
 // journey
 await desktop.evaluate(() => document.getElementById("journey")?.scrollIntoView());
@@ -35,13 +35,13 @@ await desktop.waitForTimeout(1500);
 await desktop.screenshot({ path: `${OUT}/06-credentials.png` });
 
 // credentials full vault
-await desktop.getByRole("button", { name: /View all credentials/i }).click();
+await desktop.getByRole("button", { name: /Others/i }).click();
 await desktop.waitForSelector(".vault-grid .vault-item", { timeout: 20000 });
 await desktop.waitForTimeout(800);
 await desktop.screenshot({ path: `${OUT}/07-vault.png` });
 
-// credential modal
-await desktop.locator(".vault-grid .vault-item").first().click();
+// credential modal — trigger via View details button
+await desktop.locator(".vault-grid .vault-item .vault-open").first().click();
 await desktop.waitForSelector(".credential-viewer", { timeout: 10000 });
 await desktop.waitForTimeout(1200);
 await desktop.screenshot({ path: `${OUT}/08-credential-modal.png` });
@@ -80,7 +80,7 @@ await desktop.screenshot({ path: `${OUT}/13-footer.png` });
 await desktop.goto(`${BASE}/projects/intelligent-surveillance-system`);
 await desktop.waitForTimeout(1800);
 await desktop.screenshot({ path: `${OUT}/14-case.png` });
-await desktop.getByRole("button", { name: /architecture/i }).click();
+await desktop.evaluate(() => document.querySelector(".case-system-map")?.scrollIntoView({ behavior: "instant" }));
 await desktop.waitForTimeout(1200);
 await desktop.screenshot({ path: `${OUT}/15-case-architecture.png` });
 
