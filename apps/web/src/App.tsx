@@ -41,11 +41,14 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   const [privateOpen, setPrivateOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const triggersRef = useRef<ScrollTrigger[]>([]);
+  const imageCleanupsRef = useRef<(() => void)[]>([]);
   const recruiterMode = location.pathname === "/recruiter";
 
-  const { sectionIndex, scrolled } = useScrollPosition([...SECTION_IDS]);
+  const { sectionIndex, scrolled } = useScrollPosition(SECTION_IDS);
 
-  useEffect(() => { void api.track("page_view"); }, []);
+  // Track page views on route changes. In the SPA, the Experience component
+  // doesn't remount on navigation so we depend on location.pathname.
+  useEffect(() => { void api.track("page_view", location.pathname); }, [location.pathname]);
 
   useEffect(() => {
     // Page-specific metadata (defaults for the home shell).
@@ -70,7 +73,9 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   // past its start).
   useEffect(() => {
     if (location.pathname !== "/") return;
+    let cancelled = false;
     const t = window.setTimeout(() => {
+      if (cancelled) return;
       killTriggers(triggersRef.current);
       triggersRef.current = bindReveals(document, caps);
       if (caps.reducedMotion) return;
@@ -82,6 +87,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       void document.fonts.ready.then(refresh).catch(() => undefined);
 
       const lazyImages = [...document.querySelectorAll<HTMLImageElement>("img[loading='lazy']")];
+      const cleanups: (() => void)[] = [];
       if (lazyImages.length > 0) {
         let pending = lazyImages.length;
         const onImageReady = () => {
@@ -90,11 +96,22 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
         };
         lazyImages.forEach((img) => {
           if (img.complete) onImageReady();
-          else img.addEventListener("load", onImageReady, { once: true });
+          else {
+            img.addEventListener("load", onImageReady, { once: true });
+            cleanups.push(() => img.removeEventListener("load", onImageReady));
+          }
         });
       }
+      // Store cleanups so the effect cleanup can remove them if it re-runs.
+      imageCleanupsRef.current = cleanups;
     }, loaded ? 60 : 600);
-    return () => window.clearTimeout(t);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+      // Clean up any lazy-image listeners from a previous timer fire.
+      imageCleanupsRef.current.forEach((fn) => fn());
+      imageCleanupsRef.current = [];
+    };
   }, [caps, loaded, location.pathname]);
 
   // Shared deep links (/#work, /#credentials, …) must land on their section on
@@ -206,8 +223,8 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   const commands: Command[] = useMemo(() => {
     const go = (id: string) => () => {
       if (location.pathname !== "/") {
-        navigate("/");
-        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" }), 120);
+        navigate(`/#${id}`);
+        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" }), 220);
       } else {
         document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
       }

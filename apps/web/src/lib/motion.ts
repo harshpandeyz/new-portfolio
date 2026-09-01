@@ -41,10 +41,20 @@ export function bindReveals(scope: HTMLElement | Document, caps: EnvCapabilities
   // this scan (async content), and refresh() also fires onEnter for anything
   // already past its start — so an element never stays wedged at opacity 0
   // purely because its crossing happened before the trigger existed.
-  requestAnimationFrame(() => ScrollTrigger.refresh());
+  try {
+    requestAnimationFrame(() => ScrollTrigger.refresh());
+  } catch {
+    // ScrollTrigger may be unavailable if GSAP loaded partially.
+  }
   return triggers;
 }
 
 export function killTriggers(triggers: ScrollTrigger[]): void {
-  triggers.forEach((t) => t.kill());
+  triggers.forEach((t) => {
+    try {
+      t.kill();
+    } catch {
+      // Defensive: trigger may already be GC'd.
+    }
+  });
 }

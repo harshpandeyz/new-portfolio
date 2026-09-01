@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useScrollLock } from "../../hooks/useScrollLock";
-import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import { Button } from "../ui/Button";
 import { IconMenu, IconClose } from "../ui/icons";
 import { NAV_LINKS, type SectionId } from "./nav";
@@ -16,33 +16,36 @@ export interface TopBarProps {
   onOpenPalette: () => void;
 }
 
-function scrollToId(id: string, reducedMotion: boolean) {
-  document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onAskHarsh, onOpenPalette }: TopBarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  useFocusTrap(sheetRef, mobileOpen, () => setMobileOpen(false));
+  const closeMenu = useCallback(() => setMobileOpen(false), []);
+  useFocusTrap(sheetRef, mobileOpen, closeMenu);
   useScrollLock(mobileOpen);
-  useKeyboardShortcut(["Escape"], () => setMobileOpen(false), mobileOpen);
 
-  const go = (id: SectionId) => {
-    setMobileOpen(false);
-    scrollToId(id, window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  };
+  const scrollToId = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, []);
 
-  const goViaHash = (href: string) => {
+  const navigateToSection = useCallback((id: SectionId) => {
     setMobileOpen(false);
-    // "#id" deep-links work from any route because router handles "/#id".
-    const id = href.replace(/^\/?#/, "");
-    if (window.location.pathname !== "/") {
-      window.location.assign(`/#${id}`);
+    if (location.pathname !== "/") {
+      // SPA navigate to homepage with hash — App.tsx hash effect handles scroll after settle
+      navigate(`/#${id}`);
+      // Fallback timer in case App hash effect hasn't fired yet (e.g. immediate)
+      window.setTimeout(() => scrollToId(id), 220);
     } else {
-      scrollToId(id, window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      scrollToId(id);
     }
-  };
+  }, [location.pathname, navigate, scrollToId]);
 
   return (
     <>
@@ -60,9 +63,8 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
               className={activeSection === link.id ? "active" : ""}
               aria-current={activeSection === link.id ? "true" : undefined}
               onClick={(e) => {
-                if (window.location.pathname !== "/" && link.id !== "hero") return;
                 e.preventDefault();
-                go(link.id);
+                navigateToSection(link.id);
               }}
             >
               {link.label}
@@ -77,6 +79,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
         </nav>
 
         <button
+          ref={triggerRef}
           className="mobile-menu-btn"
           onClick={() => setMobileOpen((open) => !open)}
           aria-expanded={mobileOpen}
@@ -88,13 +91,13 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
       </header>
 
       {mobileOpen && (
-        <div className="nav-sheet" id="primary-mobile-nav" ref={sheetRef} data-open>
-          <button className="nav-sheet-close" onClick={() => setMobileOpen(false)} aria-label="Dismiss menu">
+        <div className="nav-sheet" id="primary-mobile-nav" ref={sheetRef} data-open role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <button className="nav-sheet-close" onClick={closeMenu} aria-label="Dismiss menu">
             <IconClose />
           </button>
           <nav className="nav-sheet-list" aria-label="Mobile navigation">
             {NAV_LINKS.map((link) => (
-              <a key={link.id} href={`#${link.id}`} className="nav-sheet-item" onClick={(e) => { e.preventDefault(); go(link.id); }}>
+              <a key={link.id} href={`/#${link.id}`} className="nav-sheet-item" onClick={(e) => { e.preventDefault(); navigateToSection(link.id); }}>
                 {link.label}
               </a>
             ))}
