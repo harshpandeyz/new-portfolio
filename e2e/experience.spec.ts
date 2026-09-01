@@ -37,43 +37,42 @@ test.describe("public experience", () => {
     // The public shell should be usable immediately; data may continue loading.
     await expect(page.getByRole("heading", { name: /harsh/i }).first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator("#about")).toBeAttached();
-    await expect(page.locator("#capabilities")).toBeAttached();
+    await expect(page.locator("#tech")).toBeAttached();
     await expect(page.locator("#work")).toBeAttached();
     await expect(page.locator("#credentials")).toBeAttached();
     await expect(page.locator("#contact")).toBeAttached();
   });
 
-  test("project case study opens with tabs", async ({ page }) => {
+  test("project case study scrolls through architecture", async ({ page }) => {
     await page.goto("/projects/quantummind");
     await expect(page.getByRole("heading", { name: /QuantumMind/i })).toBeVisible({ timeout: 15000 });
-    await page.getByRole("button", { name: /architecture/i }).click();
-    await expect(page.locator(".arch-diagram")).toBeVisible();
+    const diagram = page.locator(".arch-diagram");
+    await diagram.scrollIntoViewIfNeeded();
+    await expect(diagram).toBeVisible();
   });
 
-  test("certificate vault filters and opens viewer", async ({ page }) => {
-    await page.goto("/");
+  test("credential archive filters and opens viewer", async ({ page }) => {
+    await page.goto("/credentials");
     await page.waitForSelector(".vault-grid .vault-item", { timeout: 20000 });
     const before = await page.locator(".vault-grid .vault-item").count();
     expect(before).toBeGreaterThan(0);
-    await page.getByRole("button", { name: /View all credentials/i }).click();
     await page.getByRole("group", { name: "Credential categories" }).getByRole("button", { name: "Backend", exact: true }).click();
     await expect(page.locator(".vault-count")).toContainText(/credential/i);
-    await page.locator(".vault-grid .vault-item").first().click();
+    await page.locator(".vault-grid .vault-item").first().locator(".vault-open").click();
     await expect(page.locator(".credential-viewer")).toBeVisible();
   });
 
   test("certificate viewer supports keyboard navigation and restores focus", async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: /View all credentials/i }).click();
+    await page.goto("/credentials");
     await page.waitForSelector(".vault-grid .vault-item", { timeout: 20000 });
-    const first = page.locator(".vault-grid .vault-item").first();
-    await first.click();
+    const open = page.locator(".vault-grid .vault-item").first().locator(".vault-open");
+    await open.click();
     await expect(page.locator(".credential-viewer")).toBeVisible();
     await expect(page.locator("body")).toHaveClass(/no-scroll/);
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Escape");
     await expect(page.locator(".credential-viewer")).toBeHidden();
-    await expect(first).toBeFocused();
+    await expect(open).toBeFocused();
   });
 
   test("chatbot answers factual question and admits ignorance", async ({ page }) => {
@@ -141,7 +140,7 @@ test.describe("public experience", () => {
   test("mobile layout stays within the viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /harsh pandey/i }).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: /harsh/i }).first()).toBeVisible({ timeout: 15000 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
     await page.getByRole("button", { name: /open menu/i }).click();
@@ -159,8 +158,9 @@ test.describe("public experience", () => {
   test("reduced motion keeps the experience lightweight", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /harsh pandey/i }).first()).toBeVisible({ timeout: 15000 });
-    await expect(page.locator(".hero-core-fallback")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /harsh/i }).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".hero-brief")).toBeVisible();
+    await expect(page.locator(".hero-name canvas")).toHaveCount(0);
   });
 
   test("homepage has no browser errors", async ({ page }) => {
@@ -168,7 +168,7 @@ test.describe("public experience", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => message.type() === "error" && errors.push(message.text()));
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /harsh pandey/i }).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: /harsh/i }).first()).toBeVisible({ timeout: 15000 });
     expect(errors).toEqual([]);
   });
 
@@ -201,7 +201,7 @@ test.describe("public experience", () => {
 
     await page.goto("/");
     await expect(page.locator("#about img")).toHaveCount(1, { timeout: 15000 });
-    await page.getByRole("button", { name: /View all credentials/i }).click();
+    await page.goto("/credentials");
     await page.waitForSelector(".vault-grid .vault-item", { timeout: 20000 });
     await assertBrowserImagesHealthy(page);
 

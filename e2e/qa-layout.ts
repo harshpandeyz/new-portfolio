@@ -4,7 +4,7 @@ const BASE = process.env.QA_BASE ?? "http://localhost:5173";
 const browser = await chromium.launch();
 const errors = [];
 
-for (const width of [1440, 1024, 768, 390]) {
+for (const width of [2560, 1440, 1280, 1024, 768, 430, 390, 360]) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -24,11 +24,10 @@ for (const width of [1440, 1024, 768, 390]) {
       topbar: r(".topbar"),
       flagshipCopy: r(".flagship-copy"),
       evolution: r(".evolution"),
-      archiveHead: r(".archive-head"),
-      secondaryGrid: gc(".secondary-projects"),
-      capGrid: gc(".capability-grid"),
+      workRow: gc(".work-row"),
+      techGrid: gc(".tech-grid"),
       vaultGrid: gc(".vault-grid"),
-      journeyLayout: gc(".journey-layout"),
+      eduGrid: gc(".edu-grid"),
       contactGrid: gc(".contact-grid"),
       footerInner: gc(".footer-inner"),
       heroOverflowLeft: (() => { const h = r(".hero-name"); return h ? h[0] >= 0 : true; })(),
@@ -56,11 +55,9 @@ console.log("resume-viewer", JSON.stringify(res));
 if (!res.iframe || res.iframe.h < 600) errors.push("resume iframe too small");
 await page.keyboard.press("Escape");
 
+await page.goto(`${BASE}/credentials`, { waitUntil: "networkidle" });
 await page.getByRole("group", { name: "Credential categories" }).waitFor();
-// open a credential from home selected list
-await page.evaluate(() => document.getElementById("credentials")?.scrollIntoView());
-await page.waitForTimeout(800);
-await page.locator(".vault-item").first().click();
+await page.locator(".vault-item .vault-open").first().click();
 await page.waitForSelector(".credential-viewer", { timeout: 10000 });
 const cred = await page.evaluate(() => {
   const panel = document.querySelector(".credential-viewer");
