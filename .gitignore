@@ -17,8 +17,13 @@ apps/api/uploads/
 
 # prisma
 apps/api/prisma/*.db
+*.tsbuildinfo
+
+# tooling / editor
+.vite/
+.opencode/
+.vscode/
 
 # misc
 .DS_Store
 *.log
-.vite/

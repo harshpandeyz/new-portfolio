@@ -9,6 +9,13 @@ test-results
 .env
 .env.*
 apps/api/uploads
+e2e
+docs
+scripts/admin-create.ts
 *.db
 *.log
 .DS_Store
+.vscode
+.opencode
+*.tsbuildinfo
+README.md
