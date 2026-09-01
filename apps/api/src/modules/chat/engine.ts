@@ -137,10 +137,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], query: strin
       skillDocs.slice(0, 3).forEach((h) => addSource(h.doc));
       const summary = skillDocs.slice(0, 3).map((h) => h.doc.content.split(". ").slice(0, 2).join(". ")).join(" ");
       return {
-        answer: `From the capabilities list: ${summary}\n\nLevels are declared honestly — core, working, exploring, experimental — never inflated.`,
+        answer: `From the tech stack: ${summary}\n\nLevels are declared honestly — core, working, exploring, experimental — never inflated.`,
         confidence: "VERIFIED",
         sources,
-        links: [{ label: "Open capabilities", href: "/#capabilities" }],
+        links: [{ label: "Open tech stack", href: "/#tech" }],
         provider: "knowledge-base",
       };
     }

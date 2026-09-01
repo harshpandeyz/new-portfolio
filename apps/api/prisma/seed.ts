@@ -538,32 +538,10 @@ const EDUCATION = [
     description: "Final-year undergraduate program with a software & mobile application development specialization. Active in hackathons (SIH 2024 internal, IdeaSpark 2K24 winner).",
     order: 1,
   },
-  {
-    degree: "Higher Secondary Certificate (HSC) — Science",
-    institution: "Maharashtra State Board",
-    field: null,
-    startYear: "2020",
-    endYear: "2022",
-    grade: "63%",
-    description: null,
-    order: 2,
-  },
-  {
-    degree: "Secondary School Certificate (SSC)",
-    institution: "Maharashtra State Board",
-    field: null,
-    startYear: "2020",
-    endYear: null,
-    grade: "86.60%",
-    description: null,
-    order: 3,
-  },
 ];
 
 const TIMELINE = [
-  { date: "2020", title: "SSC completed — 86.60%", organization: "Maharashtra State Board", description: "Secondary school completion with distinction-level score.", type: "education", order: 1 },
-  { date: "2022", title: "HSC (Science) completed", organization: "Maharashtra State Board", description: "Higher secondary education, science stream.", type: "education", order: 2 },
-  { date: "2023", title: "Enrolled — B.Tech Information Technology", organization: "MIT-ADT University, Pune", description: "Software & Mobile Application Development specialization (2023–2027).", type: "education", order: 3 },
+  { date: "2023", title: "Enrolled — B.Tech Information Technology", organization: "MIT-ADT University, Pune", description: "Software & Mobile Application Development specialization (2023–2027).", type: "education", order: 1 },
   { date: "2023-12", title: "Computational Thinking — UPenn via Coursera", organization: "Coursera", description: "First university-level certification, completed in the first semester.", type: "certification", order: 4 },
   { date: "2024-03", title: "Lingua Skill Test — English", organization: "Lingua Skills", description: "English comprehension assessment (CEFR A2 listening).", type: "certification", order: 5 },
   { date: "2024-05", title: "Python 3.4.3 — Spoken Tutorial Test", organization: "IIT Bombay · Spoken Tutorial", description: "Passed the IIT Bombay spoken-tutorial Python test at MIT-ADT.", type: "certification", order: 6 },
@@ -715,23 +693,26 @@ async function main() {
   // Certificates (+ document ingestion)
   await seedCertificates();
 
-  // Admin user
+  // Admin user — optional. No password configured means no admin account is
+  // created; the site is fully usable without one and admin provisioning is
+  // available via `npm run admin:create` or ADMIN_EMAIL/ADMIN_PASSWORD.
   const adminEmail = (process.env.ADMIN_EMAIL ?? "admin@harshpandey.dev").toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (!adminExists) {
     if (!adminPassword || adminPassword.length < 12) {
-      throw new Error("ADMIN_PASSWORD must be set to at least 12 characters before the first seed");
+      console.warn(`No admin account created — set ADMIN_EMAIL/ADMIN_PASSWORD (12+ chars) to provision ${adminEmail}.`);
+    } else {
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          passwordHash: await bcrypt.hash(adminPassword, 12),
+          role: "ADMIN",
+          displayName: "Harsh Pandey",
+        },
+      });
+      console.log(`Admin user created: ${adminEmail} (password supplied through ADMIN_PASSWORD)`);
     }
-    await prisma.user.create({
-      data: {
-        email: adminEmail,
-        passwordHash: await bcrypt.hash(adminPassword, 12),
-        role: "ADMIN",
-        displayName: "Harsh Pandey",
-      },
-    });
-    console.log(`Admin user created: ${adminEmail} (password supplied through ADMIN_PASSWORD)`);
   } else {
     console.log(`Admin user ${adminEmail} already exists — untouched`);
   }
