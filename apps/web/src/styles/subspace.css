@@ -83,18 +83,20 @@
 .case-eyebrow::before { background: var(--subs-accent); }
 
 .case-hero h1 {
-  max-width: 720px;
-  font-size: clamp(28px, 4vw, 44px);
+  max-width: 760px;
+  font-size: clamp(30px, 4.2vw, 46px);
   letter-spacing: var(--tracking-tight);
+  line-height: 1.02;
+  font-weight: 700;
 }
-.case-hero .codename { margin-top: 14px; color: var(--subs-accent); }
+.case-hero .codename { margin-top: 12px; color: var(--subs-accent); font-size: 12px; letter-spacing: 0.08em; }
 
 .case-short {
-  max-width: 56ch;
-  margin-top: 16px;
+  max-width: 60ch;
+  margin-top: 18px;
   color: var(--subs-ink-muted);
-  font-size: var(--text-body);
-  line-height: var(--leading-relaxed);
+  font-size: 17px;
+  line-height: 1.65;
 }
 
 /* Properties grid */
@@ -126,40 +128,62 @@
 .container.case-media {
   position: relative;
   z-index: 1;
-  margin-top: clamp(28px, 4vw, 48px);
+  margin-top: clamp(32px, 4vw, 48px);
   border: 1px solid var(--subs-line);
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--subs-surface);
   box-shadow: var(--elev-2);
 }
-.case-media .project-art { min-height: clamp(180px, 28vw, 320px); }
+.case-media .project-art { min-height: clamp(200px, 26vw, 360px); }
+.case-media .project-media > img { width: 100%; height: auto; }
+
+@media (min-width: 1280px) {
+  .container.case-media { max-width: 1240px; }
+}
+@media (min-width: 1920px) {
+  .container.case-media { max-width: 1320px; }
+  .case-media .project-art { min-height: 400px; }
+}
 
 /* ────────────────────────────────────────────────
-   CASE BODY — one long, calm scroll
+   CASE BODY — editorial: readable measure with proper rhythm
 ──────────────────────────────────────────────── */
 
-.case-layout { padding-top: 8px; }
-.case-body { padding: 0 0 80px; }
+.case-layout { padding-top: 12px; }
+.case-body { padding: 0 0 88px; }
+.case-panel { max-width: 1240px; margin: 0 auto; padding: 0 var(--container-gutter); }
 .case-panel section { max-width: 680px; scroll-margin-top: 30px; }
-.case-panel section + section { padding-top: clamp(36px, 5vw, 56px); }
+.case-panel section + section { padding-top: clamp(40px, 5vw, 64px); }
+/* Compact case — visual-first, less whitespace */
+.case-panel--compact section + section { padding-top: 22px; }
+.case-panel--compact h2 { margin-bottom: 10px; font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; font-weight: 650; }
+.case-panel--compact p { font-size: 13.5px; line-height: 1.62; }
 
-.case-panel h2 { margin-bottom: 16px; font-size: var(--text-display-sm); color: var(--subs-ink); }
+@media (min-width: 1280px) {
+  .case-panel { display: grid; grid-template-columns: minmax(0, 680px) 280px; gap: 48px; align-items: start; }
+  .case-panel section { grid-column: 1; }
+}
+@media (min-width: 1440px) {
+  .case-panel { gap: 64px; }
+}
+
+.case-panel h2 { margin-bottom: 16px; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; color: var(--subs-ink); line-height: 1.2; }
 .case-panel h3 {
-  margin: 20px 0 8px;
+  margin: 24px 0 8px;
   color: var(--subs-ink);
-  font-size: var(--text-heading-md);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-snug);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .case-panel h3::before { color: var(--subs-accent); }
 
 .case-panel p {
   color: var(--subs-ink-muted);
-  font-size: var(--text-body);
-  line-height: var(--leading-relaxed);
+  font-size: 15px;
+  line-height: 1.7;
 }
-.case-panel p.lede { color: var(--subs-ink); font-size: var(--text-body-lg); }
+.case-panel p.lede { color: var(--subs-ink); font-size: 17px; line-height: 1.6; font-weight: 450; }
 
 /* Technology strip */
 .case-tech {
@@ -223,13 +247,18 @@
 
 .arch-diagram {
   margin: 28px 0 4px;
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--subs-line);
   border-radius: var(--radius-lg);
   background: var(--subs-surface);
   overflow-x: auto;
+  box-shadow: var(--shadow-sm);
 }
 .arch-diagram svg { width: 100%; height: auto; display: block; min-width: 560px; }
+@media (min-width: 1280px) {
+  .arch-diagram { margin-left: -8px; margin-right: -8px; padding: 20px; }
+  .arch-diagram svg { min-width: 680px; }
+}
 
 .ad-label { fill: var(--subs-ink-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
 

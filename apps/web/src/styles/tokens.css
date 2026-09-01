@@ -114,10 +114,10 @@
   --font-mono: "SF Mono", "Roboto Mono", ui-monospace, monospace;
 
   /* Fluid type scale (clamp-based) — editorial, restrained, never poster-like.
-     The site reads like a well-set page, not a billboard. Project titles
-     never dominate the viewport. */
-  --text-display-xl: clamp(30px, 3.6vw, 46px);     /* Hero name */
-  --text-display-lg: clamp(24px, 2.8vw, 36px);     /* Section titles */
+      The site reads like a well-set page, not a billboard. Project titles
+      never dominate the viewport. */
+  --text-display-xl: clamp(32px, 3.8vw, 50px);     /* Hero name */
+  --text-display-lg: clamp(26px, 2.9vw, 38px);     /* Section titles */
   --text-display-md: clamp(20px, 2.2vw, 28px);     /* Card titles, case study h1 */
   --text-display-sm: clamp(18px, 1.8vw, 24px);     /* Sub-section titles */
 
@@ -182,12 +182,13 @@
   --space-32: 128px;
 
   /* Fluid section padding */
-  --space-section-y: clamp(48px, 7vw, 96px);
+  --space-section-y: clamp(56px, 7vw, 96px);
   --space-section-y-sm: clamp(36px, 5vw, 72px);
 
-  /* Container */
-  --container-max: 1120px;
-  --container-gutter: clamp(20px, 4vw, 60px);
+  /* Container — expanded slightly so desktop/ultrawide use horizontal space
+     without enlarging readable measure */
+  --container-max: 1240px;
+  --container-gutter: clamp(20px, 3.5vw, 48px);
 
   /* ═══════════════════════════════════════════════════════════════
      BORDER RADIUS — consistent scale
@@ -196,9 +197,9 @@
   --radius-xs: 6px;
   --radius-sm: 10px;
   --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
-  --radius-2xl: 36px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 32px;
   --radius-pill: 999px;
   --radius-circle: 50%;
 
@@ -207,16 +208,16 @@
      ══════════════════════════════════════════════════════════════ */
 
   --shadow-xs: 0 1px 2px rgba(29, 29, 31, 0.04);
-  --shadow-sm: 0 4px 12px rgba(29, 29, 31, 0.06);
-  --shadow-md: 0 12px 32px rgba(29, 29, 31, 0.08);
-  --shadow-lg: 0 22px 60px rgba(29, 29, 31, 0.1);
+  --shadow-sm: 0 4px 16px rgba(29, 29, 31, 0.06);
+  --shadow-md: 0 10px 28px rgba(29, 29, 31, 0.08);
+  --shadow-lg: 0 20px 52px rgba(29, 29, 31, 0.10);
   --shadow-xl: 0 30px 100px rgba(29, 29, 31, 0.14);
   --shadow-focus: 0 0 0 4px rgba(41, 151, 255, 0.12);
 
   /* Elevation tiers — one consistent step for resting / raised / floating */
   --elev-0: 0 1px 1px rgba(23, 23, 26, 0.03);
-  --elev-1: 0 2px 4px rgba(23, 23, 26, 0.04), 0 12px 28px -8px rgba(23, 23, 26, 0.1);
-  --elev-2: 0 4px 10px rgba(23, 23, 26, 0.06), 0 24px 60px -16px rgba(23, 23, 26, 0.16);
+  --elev-1: 0 2px 8px rgba(23, 23, 26, 0.05), 0 12px 28px -10px rgba(23, 23, 26, 0.10);
+  --elev-2: 0 4px 14px rgba(23, 23, 26, 0.06), 0 24px 56px -16px rgba(23, 23, 26, 0.16);
 
   /* Spotlight — the flagship + HUD surfaces get a faint accent halo */
   --shadow-spotlight: 0 0 0 1px rgba(0, 113, 227, 0.16), 0 28px 80px -18px rgba(0, 113, 227, 0.35);

@@ -11,6 +11,11 @@ html {
   html { scroll-behavior: auto; }
 }
 
+html {
+  scrollbar-gutter: stable;
+  overflow-x: clip;
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
@@ -19,10 +24,15 @@ body {
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overscroll-behavior-y: none;
 }
 
-body.no-scroll { overflow: hidden; }
+body.no-scroll {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 
 img, svg, video, canvas { display: block; max-width: 100%; }
 input, button, textarea, select { font: inherit; color: inherit; }
@@ -107,16 +117,16 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .section-head {
-  margin-bottom: clamp(24px, 3.5vw, 40px);
+  margin-bottom: clamp(28px, 3.6vw, 44px);
 }
 
 .section-head-inline {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 40px;
+  gap: 48px;
 }
-.section-head-inline .section-sub { margin: 0; max-width: 330px; }
+.section-head-inline .section-sub { margin: 0; max-width: 420px; }
 
 .eyebrow {
   display: block;
@@ -129,12 +139,14 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .section-title {
-  max-width: 760px;
+  max-width: 780px;
   font-size: var(--text-display-lg);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.08;
 }
 
 .section-sub {
-  margin-top: 16px;
+  margin-top: 14px;
   max-width: 620px;
   color: var(--color-text-muted);
   font-size: var(--text-body-lg);
