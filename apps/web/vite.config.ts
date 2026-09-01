@@ -27,7 +27,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          three: ["three", "@react-three/fiber", "@react-three/drei"],
           gsap: ["gsap"],
           admin: ["react-router-dom"],
         },
