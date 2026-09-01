@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
+import { useScrollLock } from "../../hooks/useScrollLock";
 import type { ChatReply } from "@hp/shared";
 
 interface Msg {
@@ -23,7 +24,10 @@ export function ChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const chatControllerRef = useRef<AbortController | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  useScrollLock(open);
 
   const openChat = useCallback(() => {
     previousFocusRef.current = document.activeElement as HTMLElement;
@@ -52,7 +56,6 @@ export function ChatWidget() {
 
   useEffect(() => {
     if (!open) return;
-    document.body.classList.add("no-scroll");
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -77,7 +80,6 @@ export function ChatWidget() {
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      document.body.classList.remove("no-scroll");
     };
   }, [closeChat, open]);
 
@@ -88,29 +90,60 @@ export function ChatWidget() {
   const send = async (text: string) => {
     const q = text.trim();
     if (!q || busy) return;
+    // Cancel any in-flight chat request to prevent stale overwrites.
+    chatControllerRef.current?.abort();
+    const controller = new AbortController();
+    chatControllerRef.current = controller;
     setMessages((m) => [...m, { role: "user", text: q }]);
     setInput("");
     setBusy(true);
     unlock("ai");
     try {
-      const reply = await api.chat(q);
-      setMessages((m) => [...m, { role: "ai", text: reply.answer, reply }]);
+      const reply = await api.chat(q, controller.signal);
+      if (!controller.signal.aborted) {
+        setMessages((m) => [...m, { role: "ai", text: reply.answer, reply }]);
+      }
     } catch {
-      setMessages((m) => [
-        ...m,
-        { role: "ai", text: "Something went wrong. Please try again.", retry: q },
-      ]);
+      if (!controller.signal.aborted) {
+        setMessages((m) => [
+          ...m,
+          { role: "ai", text: "Something went wrong. Please try again.", retry: q },
+        ]);
+      }
     } finally {
-      setBusy(false);
-      window.setTimeout(() => inputRef.current?.focus(), 50);
+      if (!controller.signal.aborted) {
+        setBusy(false);
+        window.setTimeout(() => inputRef.current?.focus(), 50);
+      }
     }
   };
 
+  useEffect(() => {
+    return () => {
+      chatControllerRef.current?.abort();
+    };
+  }, []);
+
   const handleLink = (href: string) => {
     closeChat();
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const scrollToId = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: prefersReduced ? "auto" : "smooth" });
     if (href.startsWith("/#")) {
       const id = href.slice(2);
-      window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 80);
+      if (location.pathname !== "/") {
+        navigate(`/#${id}`);
+        window.setTimeout(() => scrollToId(id), 220);
+      } else {
+        window.setTimeout(() => scrollToId(id), 80);
+      }
+    } else if (href.startsWith("#")) {
+      const id = href.slice(1);
+      if (location.pathname !== "/") {
+        navigate(`/#${id}`);
+        window.setTimeout(() => scrollToId(id), 220);
+      } else {
+        window.setTimeout(() => scrollToId(id), 80);
+      }
     } else if (href.startsWith("/")) {
       navigate(href);
     } else {

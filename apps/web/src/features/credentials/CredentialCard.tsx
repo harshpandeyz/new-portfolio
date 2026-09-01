@@ -15,17 +15,30 @@ export interface CredentialCardProps {
 export function CredentialCard({ certificate: c, index, onOpen }: CredentialCardProps) {
   const isImage = c.fileUrl && /\.(png|jpe?g|webp|avif|gif)$/i.test(c.fileUrl);
   const download = c.fileUrl ? resolveMediaUrl(c.fileUrl) : null;
+  const tierAttr = c.category.toLowerCase();
 
   return (
     <article
       className="vault-item"
       data-reveal
       data-reveal-delay={String((index % 6) * 0.04)}
+      data-tier={tierAttr}
     >
       <div className="certificate-preview" aria-hidden="true">
         {isImage
           ? <img src={download ?? ""} alt="" loading="lazy" />
-          : <span>{c.fileUrl ? "PDF" : "Details only"}</span>}
+          : c.fileUrl
+            ? (
+              <div className="doc-preview">
+                <span className="doc-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M10 13H8" /><path d="M16 17H8" /><path d="M13 17H8" /></svg>
+                </span>
+                <span className="doc-type">{label(c.category)} · PDF Document</span>
+                <span className="doc-lines" aria-hidden="true"><i /><i /><i /></span>
+                <span className="doc-title-slab">{c.title}</span>
+              </div>
+            )
+            : <span className="doc-type">Details only</span>}
       </div>
       <div className="vi-top">
         <span className="vi-cat">{label(c.category)}</span>

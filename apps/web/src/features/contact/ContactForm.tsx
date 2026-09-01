@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
@@ -13,6 +13,7 @@ export function ContactForm() {
   const [form, setForm] = useState(EMPTY);
   const [state, setState] = useState<"idle" | "busy" | "ok" | "err">("idle");
   const [message, setMessage] = useState("");
+  const submittingRef = useRef(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -23,6 +24,8 @@ export function ContactForm() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setMessage("");
     setFieldErrors({});
     const parsed = contactSchema.safeParse(form);
@@ -37,6 +40,7 @@ export function ContactForm() {
       setFieldErrors(errors);
       setState("err");
       setMessage("Please check your name, email, and message (at least 10 characters).");
+      submittingRef.current = false;
       return;
     }
     setState("busy");
@@ -50,6 +54,8 @@ export function ContactForm() {
     } catch (err) {
       setState("err");
       setMessage(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      submittingRef.current = false;
     }
   };
 

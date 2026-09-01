@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /** Effect that runs `handler` when the given key(s) are pressed. */
 export function useKeyboardShortcut(
@@ -7,15 +7,20 @@ export function useKeyboardShortcut(
   enabled = true,
   { preventDefault = true }: { preventDefault?: boolean } = {},
 ) {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+  const keysRef = useRef(keys);
+  keysRef.current = keys;
+
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (keys.includes(e.key) || keys.includes(e.code)) {
+      if (keysRef.current.includes(e.key) || keysRef.current.includes(e.code)) {
         if (preventDefault) e.preventDefault();
-        handler();
+        handlerRef.current();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [keys, handler, enabled, preventDefault]);
+  }, [enabled, preventDefault]);
 }

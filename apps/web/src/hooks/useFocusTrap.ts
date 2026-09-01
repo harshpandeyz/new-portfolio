@@ -23,12 +23,19 @@ export function useFocusTrap(
 
     const getFocusables = () =>
       Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
+        (el) =>
+          !el.hasAttribute("disabled") &&
+          el.getAttribute("aria-hidden") !== "true" &&
+          (el.offsetParent !== null || el === document.activeElement || el.getClientRects().length > 0),
       );
 
-    // Move focus into the container on open.
-    const first = getFocusables()[0];
-    first?.focus();
+    // Move focus into the container on open — defer one frame so the element
+    // is painted and focusable (required for mobile sheets that animate in).
+    const raf = window.requestAnimationFrame(() => {
+      const focusables = getFocusables();
+      const first = focusables[0];
+      first?.focus();
+    });
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -54,8 +61,16 @@ export function useFocusTrap(
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
+      window.cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus?.();
+      // Restore focus to the trigger if it is still connected; otherwise
+      // fall back to the previously focused element if still in the DOM.
+      const target = restoreTo ?? previouslyFocused;
+      if (target && target.isConnected) {
+        target.focus();
+      } else if (previouslyFocused && previouslyFocused.isConnected) {
+        previouslyFocused.focus();
+      }
     };
   }, [active, containerRef, onEscape, restoreTo]);
 }

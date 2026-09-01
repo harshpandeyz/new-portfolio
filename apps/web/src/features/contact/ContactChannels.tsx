@@ -41,20 +41,26 @@ export function ContactChannels({ onViewResume }: ContactChannelsProps) {
           key={c.key}
           className="contact-channel"
           href={c.href}
+          aria-label={`${c.label} — ${c.detail}`}
           {...(c.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
         >
-          <span className="cc-icon">{c.icon}</span>
-          <span className="cc-label">{c.label}</span>
-          <span className="cc-detail">{c.detail}</span>
-          <IconArrowRight className="cc-arrow" />
+          <span className="cc-icon" aria-hidden="true">{c.icon}</span>
+          <span className="cc-text">
+            <span className="cc-label">{c.label}</span>
+            <span className="cc-detail">{c.detail}</span>
+          </span>
+          <span className="cc-arrow" aria-hidden="true"><IconArrowRight /></span>
         </a>
       ))}
-      <button className="contact-channel" onClick={onViewResume}>
-        <span className="cc-icon"><IconDownload /></span>
-        <span className="cc-label">Résumé</span>
-        <span className="cc-detail">View / download</span>
-        <IconArrowRight className="cc-arrow" />
+      <button className="contact-channel" onClick={onViewResume} aria-label="View résumé — View / download">
+        <span className="cc-icon" aria-hidden="true"><IconDownload /></span>
+        <span className="cc-text">
+          <span className="cc-label">Résumé</span>
+          <span className="cc-detail">View / download</span>
+        </span>
+        <span className="cc-arrow" aria-hidden="true"><IconArrowRight /></span>
       </button>
+      <p className="cc-availability">Typically replies within a day · {profile?.availability ?? "Open to opportunities"}</p>
     </div>
   );
 }

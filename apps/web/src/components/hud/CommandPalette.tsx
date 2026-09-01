@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
 import React from "react";
 import { IconExternal, IconMenu, IconChevron, IconInfo, IconSearch, IconFilter, IconMail, IconGithub, IconLinkedIn, IconStar, IconCheck, IconClose, IconSpark } from "../../components/ui/icons";
+import { useScrollLock } from "../../hooks/useScrollLock";
 
 export type CommandIcon =
   | "work"
@@ -76,18 +77,20 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     );
   }, [commands, query]);
 
+  useScrollLock(open);
+
   useEffect(() => {
     if (open) {
       previousFocusRef.current = document.activeElement as HTMLElement;
       setQuery("");
       setActive(0);
       window.setTimeout(() => inputRef.current?.focus(), 30);
-      document.body.classList.add("no-scroll");
     } else {
-      document.body.classList.remove("no-scroll");
-      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
+      const target = previousFocusRef.current;
+      if (target && target.isConnected) {
+        window.setTimeout(() => target.focus(), 0);
+      }
     }
-    return () => document.body.classList.remove("no-scroll");
   }, [open]);
 
   const run = useCallback(

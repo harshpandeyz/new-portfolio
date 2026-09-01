@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveMediaUrl } from "../../lib/api";
 import { api } from "../../lib/api";
@@ -27,6 +27,16 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
   const url = useMemo(() => resolveMediaUrl(raw), [raw]);
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = "resume-dialog-title";
+  const [failed, setFailed] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setFailed(false);
+    setSlow(false);
+    const t = window.setTimeout(() => setSlow(true), 3000);
+    return () => window.clearTimeout(t);
+  }, [open, url]);
 
   const onDownload = useMemo(
     () => () => {
@@ -60,7 +70,30 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
       </header>
 
       <div className="resume-viewer-doc">
-        <iframe src={`${url}#toolbar=0`} title="Harsh Pandey résumé" loading="eager" sandbox="allow-same-origin allow-popups" />
+        {!failed && (
+          <iframe
+            src={`${url}#toolbar=0`}
+            title="Harsh Pandey résumé"
+            loading="eager"
+            onLoad={() => setSlow(false)}
+            onError={() => setFailed(true)}
+          />
+        )}
+        {failed ? (
+          <div className="resume-fallback" role="status">
+            <strong>Preview unavailable</strong>
+            <span>Your browser couldn’t render the PDF inline. Open it directly — the file itself is fine.</span>
+            <div className="resume-fallback-actions">
+              <a className="btn btn-sm btn-solid" href={url} target="_blank" rel="noopener noreferrer">Open in new tab</a>
+              <a className="btn btn-sm" href={url} download onClick={onDownload}>Download</a>
+            </div>
+          </div>
+        ) : slow ? (
+          <div className="resume-fallback resume-fallback--hint" role="status">
+            <span>Preview still loading? Open it directly.</span>
+            <a className="link-btn" href={url} target="_blank" rel="noopener noreferrer">Open in new tab <IconExternal /></a>
+          </div>
+        ) : null}
       </div>
 
       {/* Sticky action bar for mobile: download is always reachable. */}

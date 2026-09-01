@@ -27,7 +27,7 @@ export interface CredentialViewerProps {
 export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbors }: CredentialViewerProps) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [pdfSlow, setPdfSlow] = useState(false);
-  const [touchX, setTouchX] = useState<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isImage = useMemo(() => certificate?.fileUrl?.match(/\.(png|jpe?g|webp|avif|gif)$/i), [certificate]);
@@ -82,12 +82,22 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
 
       <div
         className="credential-viewer-frame"
-        onTouchStart={(e) => setTouchX(e.changedTouches[0]?.clientX ?? null)}
+        style={{ touchAction: "pan-y" }}
+        onTouchStart={(e) => {
+          const t = e.changedTouches[0];
+          if (!t) return;
+          touchStartRef.current = { x: t.clientX, y: t.clientY };
+        }}
         onTouchEnd={(e) => {
-          const end = e.changedTouches[0]?.clientX;
-          if (touchX === null || end === undefined || Math.abs(end - touchX) < 48) return;
-          onNavigate(end < touchX ? 1 : -1);
-          setTouchX(null);
+          const start = touchStartRef.current;
+          const t = e.changedTouches[0];
+          touchStartRef.current = null;
+          if (!start || !t) return;
+          const dx = t.clientX - start.x;
+          const dy = t.clientY - start.y;
+          // Only handle horizontal swipes that dominate vertical movement
+          if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+          onNavigate(dx < 0 ? 1 : -1);
         }}
       >
         {!url && (
