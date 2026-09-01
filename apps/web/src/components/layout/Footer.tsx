@@ -23,7 +23,8 @@ export function Footer({ onViewResume }: FooterProps) {
         <nav className="footer-nav" aria-label="Footer">
           <a href="/#work">Work</a>
           <a href="/#about">About</a>
-          <a href="/#journey">Journey</a>
+          <a href="/#journey">Education</a>
+          <a href="/#tech">Tech</a>
           <a href="/#credentials">Credentials</a>
           <a href="/#contact">Contact</a>
         </nav>

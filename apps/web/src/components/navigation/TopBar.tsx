@@ -48,6 +48,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
     <>
       <header className={`topbar${scrolled ? " scrolled" : ""}`}>
         <button className="brand" onClick={onLogoClick} aria-label="Harsh Pandey — back to home">
+          <span className="brand-mark" aria-hidden="true" />
           Harsh&nbsp;Pandey
         </button>
 

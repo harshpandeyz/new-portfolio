@@ -57,7 +57,6 @@ export function Dialog({
   return (
     <div
       className="dialog-overlay"
-      aria-hidden="true"
       onClick={onClose}
     >
       <div

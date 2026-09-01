@@ -37,6 +37,11 @@ export function bindReveals(scope: HTMLElement | Document, caps: EnvCapabilities
     });
     triggers.push(trigger);
   });
+  // Deferred positional refresh: elements can be added/keep shifting after
+  // this scan (async content), and refresh() also fires onEnter for anything
+  // already past its start — so an element never stays wedged at opacity 0
+  // purely because its crossing happened before the trigger existed.
+  requestAnimationFrame(() => ScrollTrigger.refresh());
   return triggers;
 }
 

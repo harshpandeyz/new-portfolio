@@ -1,5 +1,11 @@
-/** Shared section ids + section↔3D mode mapping for the home page. */
-export const SECTION_IDS = ["hero", "work", "about", "capabilities", "journey", "credentials", "contact", "exit"] as const;
+/**
+ * Shared section ids + section↔3D mode mapping for the home page.
+ *
+ * Resolved final IA (V3): Hero → About → Education/Journey → Projects →
+ * Tech Stack → Credentials → Contact. About sits immediately after Hero and
+ * the former "capabilities" skill wall is now the multi-domain Tech Stack.
+ */
+export const SECTION_IDS = ["hero", "about", "journey", "work", "tech", "credentials", "contact", "exit"] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
 
@@ -7,11 +13,8 @@ export type SectionId = (typeof SECTION_IDS)[number];
 export const NAV_LINKS: { label: string; id: SectionId }[] = [
   { label: "Work", id: "work" },
   { label: "About", id: "about" },
-  { label: "Journey", id: "journey" },
+  { label: "Education", id: "journey" },
+  { label: "Tech", id: "tech" },
   { label: "Credentials", id: "credentials" },
   { label: "Contact", id: "contact" },
-];
-
-export const CORE_MODE_BY_INDEX: ("hero" | "projects" | "core" | "credentials" | "contact" | "hero")[] = [
-  "hero", "projects", "core", "core", "hero", "credentials", "contact", "contact",
 ];

@@ -3,15 +3,14 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { DataProvider, useData } from "./lib/data";
 import { detectCapabilities, type EnvCapabilities } from "./lib/device";
-import { bindReveals, killTriggers, type ScrollTrigger } from "./lib/motion";
+import { bindReveals, killTriggers, ScrollTrigger } from "./lib/motion";
 import { unlock } from "./lib/achievements";
 import { api } from "./lib/api";
 import { applyMeta } from "./lib/seo";
 import { SEO } from "./app/constants";
-import type { CoreMode } from "./components/three/CoreScene";
 
 import { TopBar } from "./components/navigation/TopBar";
-import { CORE_MODE_BY_INDEX, SECTION_IDS, type SectionId } from "./components/navigation/nav";
+import { SECTION_IDS, type SectionId } from "./components/navigation/nav";
 import { Footer } from "./components/layout/Footer";
 import { ResumeViewer } from "./components/document/ResumeViewer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -21,14 +20,16 @@ import { AchievementToasts } from "./components/hud/AchievementToasts";
 import { PrivateAccess, useGlobalShortcuts } from "./components/hud/PrivateAccess";
 
 import { Hero } from "./features/home/Hero";
-import { Work } from "./features/home/Work";
 import { About } from "./features/home/About";
-import { Capabilities } from "./features/home/Capabilities";
 import { Journey } from "./features/home/Journey";
+import { Work } from "./features/home/Work";
+import { TechStack } from "./features/home/TechStack";
 import { Credentials } from "./features/home/Credentials";
 import { Contact } from "./features/contact/Contact";
 import { Closing } from "./features/home/Closing";
 import { ProjectCase } from "./features/projects/ProjectCase";
+import { ProjectArchive } from "./features/projects/ProjectArchive";
+import { CredentialArchive } from "./features/credentials/CredentialArchive";
 import { ChatWidget } from "./features/chat/ChatWidget";
 
 function Experience({ caps }: { caps: EnvCapabilities }) {
@@ -39,7 +40,6 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [privateOpen, setPrivateOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
-  const [coreMode, setCoreMode] = useState<CoreMode>("hero");
   const triggersRef = useRef<ScrollTrigger[]>([]);
   const recruiterMode = location.pathname === "/recruiter";
 
@@ -53,26 +53,111 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       applyMeta({ title: `${SEO.title.split(" | ")[0]} — Résumé`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education." });
     } else if (location.pathname.startsWith("/projects/")) {
       applyMeta({ title: "Project — Harsh Pandey", description: SEO.description });
+    } else if (location.pathname === "/projects") {
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Project archive`, description: "The full archive of Harsh Pandey's projects — flagship, selected work, experiments and internship builds." });
+    } else if (location.pathname === "/credentials") {
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Credential archive`, description: "The full credential archive for Harsh Pandey — certificates, assessments and major achievements." });
     } else {
       applyMeta({ title: SEO.title, description: SEO.description });
     }
   }, [location.pathname]);
 
-  // section → 3D core mode
-  useEffect(() => {
-    if (location.pathname !== "/") return;
-    setCoreMode(CORE_MODE_BY_INDEX[sectionIndex] ?? "hero");
-  }, [sectionIndex, location.pathname]);
-
-  // GSAP reveals after content loads (home only)
+  // GSAP reveals after content loads (home only). Re-binding on `loaded`
+  // snapshots final geometry, and ScrollTrigger is refreshed again once
+  // fonts/lazy-images settle so trigger positions track real layout — reveal
+  // state never depends on one fragile scroll-crossing happening at the exact
+  // moment a trigger was created (refresh() fires onEnter for anything already
+  // past its start).
   useEffect(() => {
     if (location.pathname !== "/") return;
     const t = window.setTimeout(() => {
       killTriggers(triggersRef.current);
       triggersRef.current = bindReveals(document, caps);
+      if (caps.reducedMotion) return;
+
+      const refresh = () => ScrollTrigger.refresh();
+      const onWindowLoad = () => refresh();
+      window.addEventListener("load", onWindowLoad, { once: true });
+      if (document.readyState === "complete") onWindowLoad();
+      void document.fonts.ready.then(refresh).catch(() => undefined);
+
+      const lazyImages = [...document.querySelectorAll<HTMLImageElement>("img[loading='lazy']")];
+      if (lazyImages.length > 0) {
+        let pending = lazyImages.length;
+        const onImageReady = () => {
+          pending -= 1;
+          if (pending === 0) refresh();
+        };
+        lazyImages.forEach((img) => {
+          if (img.complete) onImageReady();
+          else img.addEventListener("load", onImageReady, { once: true });
+        });
+      }
     }, loaded ? 60 : 600);
     return () => window.clearTimeout(t);
   }, [caps, loaded, location.pathname]);
+
+  // Shared deep links (/#work, /#credentials, …) must land on their section on
+  // a fresh load — not just when clicked in-app. Sections render after content
+  // loads; scrolling against pre-settle geometry makes the browser stop short,
+  // so wait for fonts to settle before computing the scroll target. In-app
+  // anchor jumps (footer etc.) are handled by the hashchange listener below.
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    if (!loaded) return;
+    const id = location.hash.replace(/^#/, "");
+    if (!id) return;
+
+    const handles: number[] = [];
+    const scrollToHash = () => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+    };
+
+    const settleAndScroll = () => {
+      if (document.fonts && document.fonts.status === "loading") {
+        void document.fonts.ready.then(() => window.setTimeout(scrollToHash, 120)).catch(scrollToHash);
+      } else {
+        scrollToHash();
+      }
+      // Smooth scrolling a tall page can land short when async content (lazy
+      // images, reveal tweens) shifts geometry mid-flight. Verify the section
+      // reached the viewport; re-scroll if not, then force an instant jump so
+      // shareable deep links always land on the section.
+      let attempts = 0;
+      const checker = window.setInterval(() => {
+        attempts += 1;
+        const el = document.getElementById(id);
+        if (!el) return window.clearInterval(checker);
+        if (Math.abs(el.getBoundingClientRect().top) <= 12) return window.clearInterval(checker);
+        if (attempts >= 3) {
+          window.clearInterval(checker);
+          el.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+          return;
+        }
+        scrollToHash();
+      }, 250);
+      handles.push(checker);
+    };
+
+    const t = window.setTimeout(settleAndScroll, 80);
+    return () => {
+      window.clearTimeout(t);
+      handles.forEach((h) => window.clearInterval(h));
+    };
+  }, [location.hash, loaded, location.pathname, caps.reducedMotion]);
+
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    const onHashChange = () => {
+      const id = location.hash.replace(/^#/, "");
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [location.pathname, caps.reducedMotion]);
 
   useEffect(() => () => killTriggers(triggersRef.current), []);
 
@@ -130,9 +215,12 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     return [
       { id: "work", label: "Go to Work", icon: "work" as const, action: go("work"), keywords: "projects systems work portfolio" },
       { id: "about", label: "Go to About", icon: "about" as const, action: go("about"), keywords: "identity about bio who" },
-      { id: "journey", label: "Go to Journey", icon: "journey" as const, action: go("journey"), keywords: "timeline education history experience" },
+      { id: "tech", label: "Go to Tech Stack", icon: "tech" as const, action: go("tech"), keywords: "skills technologies stack capabilities" },
+      { id: "journey", label: "Go to Education", icon: "journey" as const, action: go("journey"), keywords: "timeline education history milestones" },
       { id: "credentials", label: "Go to Credentials", icon: "credentials" as const, action: go("credentials"), keywords: "certificates credentials archive" },
       { id: "contact", label: "Go to Contact", icon: "contact" as const, action: go("contact"), keywords: "contact email message hire" },
+      { id: "project-archive", label: "Open project archive", icon: "projects" as const, hint: "ALL", action: () => navigate("/projects"), keywords: "projects archive all work explore" },
+      { id: "credential-archive", label: "Open credential archive", icon: "vault" as const, hint: "ALL", action: () => navigate("/credentials"), keywords: "certificates archive all credentials" },
       { id: "resume", label: "View résumé", icon: "resume" as const, hint: "PDF", action: openResume, keywords: "resume cv pdf view" },
       { id: "recruiter", label: "Recruiter view", icon: "recruiter" as const, hint: "FAST", action: () => navigate("/recruiter"), keywords: "recruiter quick summary hr" },
       { id: "github", label: "Open GitHub", icon: "github" as const, hint: "EXT", action: () => window.open("https://github.com/harshpandeyz", "_blank", "noopener"), keywords: "github code repos" },
@@ -156,17 +244,19 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
             path="/"
             element={
               <>
-                <Hero caps={caps} coreMode={coreMode} onViewResume={openResume} />
-                <Work />
+                <Hero caps={caps} onViewResume={openResume} />
                 <About />
-                <Capabilities />
                 <Journey />
+                <Work />
+                <TechStack />
                 <Credentials />
                 <Contact onViewResume={openResume} />
                 <Closing onViewResume={openResume} />
               </>
             }
           />
+          <Route path="/projects" element={<ProjectArchive />} />
+          <Route path="/credentials" element={<CredentialArchive />} />
           <Route path="/projects/:slug" element={<ProjectCase onViewResume={openResume} />} />
           <Route path="/recruiter" element={<RecruiterRoute onViewResume={openResume} />} />
           <Route path="*" element={<NotFound onHome={() => navigate("/")} />} />

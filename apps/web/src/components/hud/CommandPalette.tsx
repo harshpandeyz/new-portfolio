@@ -13,7 +13,10 @@ export type CommandIcon =
   | "github"
   | "linkedin"
   | "chat"
-  | "home";
+  | "home"
+  | "tech"
+  | "projects"
+  | "vault";
 
 export interface Command {
   id: string;
@@ -30,6 +33,9 @@ const iconMap: Record<CommandIcon, React.ComponentType> = {
   journey: IconFilter,
   credentials: IconStar,
   contact: IconMail,
+  tech: IconSpark,
+  projects: IconChevron,
+  vault: IconStar,
   resume: IconChevron,
   recruiter: IconChevron,
   github: IconGithub,
