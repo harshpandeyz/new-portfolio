@@ -107,7 +107,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .section-head {
-  margin-bottom: clamp(36px, 5vw, 64px);
+  margin-bottom: clamp(24px, 3.5vw, 40px);
 }
 
 .section-head-inline {
@@ -354,6 +354,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .checkbox input { accent-color: var(--color-accent); }
+
+/* Honeypot — invisible to humans, positioned off-screen for bots */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+  pointer-events: none;
+  tab-index: -1;
+}
 
 /* Scrollbar */
 * { scrollbar-width: thin; scrollbar-color: var(--color-text-faint) transparent; }

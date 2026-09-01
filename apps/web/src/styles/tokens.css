@@ -29,6 +29,42 @@
   --color-accent-hover-bg: rgba(0, 113, 227, 0.12);
   --color-accent-glow: rgba(0, 113, 227, 0.22);
 
+  /* Accent spectrum — support hues reserved for specific meaning.
+     --color-accent stays the identity/primary-action color; each support
+     hue carries a job: cyan = architecture/HUD, violet = creative work,
+     amber = experimental, mint = availability/success signal. */
+  --color-cyan: #1595c9;
+  --color-cyan-subtle: rgba(21, 149, 201, 0.1);
+  --color-violet: #7456e0;
+  --color-violet-subtle: rgba(116, 86, 224, 0.1);
+  --color-amber: #e7900d;
+  --color-amber-subtle: rgba(231, 144, 13, 0.13);
+  --color-mint: #1fa97f;
+  --color-mint-subtle: rgba(31, 169, 127, 0.12);
+
+  /* Ink ramp — a full-gradation text scale so muted/dim/faint read as one
+     intentional ramp instead of an afterthought. */
+  --ink-1: #1d1d1f;
+  --ink-2: #5f5f64;
+  --ink-3: #84848c;
+  --ink-4: #b2b2b9;
+
+  /* Surfaces — elevation via layering, not only shadows */
+  --surface-0: var(--color-bg);
+  --surface-1: var(--color-bg-elevated);
+  --surface-2: #ececef;
+  --surface-glass: rgba(255, 255, 255, 0.82);
+
+  /* Terminal signature — reserved for the closing band + HUD perimeters */
+  --surface-terminal: #16161a;
+  --surface-terminal-raised: #1e1e24;
+  --line-terminal: rgba(255, 255, 255, 0.09);
+  --ink-terminal: #ececef;
+  --ink-terminal-muted: #a0a0a8;
+
+  /* Hairline — the quiet default border for elevated surfaces */
+  --line-hair: rgba(23, 23, 26, 0.06);
+
   /* Semantic colors */
   --color-success: #34c759;
   --color-success-subtle: rgba(52, 199, 89, 0.1);
@@ -47,11 +83,28 @@
 
   /* Project tier colors */
   --color-tier-featured: var(--color-accent);
-  --color-tier-secondary: var(--color-info);
-  --color-tier-experiment: var(--color-success);
-  --color-tier-academic: var(--color-warning);
+  --color-tier-secondary: var(--color-cyan);
+  --color-tier-experiment: var(--color-amber);
+  --color-tier-academic: var(--color-violet);
   --color-tier-legacy: var(--color-text-dim);
   --color-tier-internship: var(--color-text-dim);
+
+  /* Sub-space (texture-shift) system — the "entered a dedicated space" mode
+     reused by every project case study and the credential archive. Distinct
+     but-on-brand: same type/spacing/button language, shifted surface + accent.
+     Set --subs-accent/bg on a .subspace root (see subspace.css variants + the
+     per-project data-tier accent). */
+  --subs-bg: #f8f6f2;
+  --subs-surface: #ffffff;
+  --subs-surface-2: #eef0ee;
+  --subs-ink: #211f1c;
+  --subs-ink-muted: #6b675f;
+  --subs-ink-dim: #8f8b83;
+  --subs-line: rgba(33, 31, 28, 0.12);
+  --subs-line-strong: rgba(33, 31, 28, 0.2);
+  --subs-accent: var(--color-accent);
+  --subs-accent-subtle: rgba(0, 113, 227, 0.08);
+  --subs-accent-strong: var(--color-accent);
 
   /* ═══════════════════════════════════════════════════════════════
      TYPOGRAPHY — Inter for UI, SF Mono for code
@@ -60,23 +113,33 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SF Mono", "Roboto Mono", ui-monospace, monospace;
 
-  /* Fluid type scale (clamp-based) */
-  --text-display-xl: clamp(56px, 10vw, 120px);   /* Hero name */
-  --text-display-lg: clamp(40px, 6vw, 72px);      /* Section titles */
-  --text-display-md: clamp(32px, 4.5vw, 54px);    /* Card titles, case study h1 */
-  --text-display-sm: clamp(24px, 3.5vw, 40px);    /* Sub-section titles */
+  /* Fluid type scale (clamp-based) — editorial, restrained, never poster-like.
+     The site reads like a well-set page, not a billboard. Project titles
+     never dominate the viewport. */
+  --text-display-xl: clamp(30px, 3.6vw, 46px);     /* Hero name */
+  --text-display-lg: clamp(24px, 2.8vw, 36px);     /* Section titles */
+  --text-display-md: clamp(20px, 2.2vw, 28px);     /* Card titles, case study h1 */
+  --text-display-sm: clamp(18px, 1.8vw, 24px);     /* Sub-section titles */
 
-  --text-heading-xl: clamp(28px, 4vw, 46px);      /* Identity h3 */
-  --text-heading-lg: 24px;                         /* Card h3 */
-  --text-heading-md: 20px;                         /* Section h3 */
-  --text-heading-sm: 17px;                         /* Small headings */
+  --text-heading-xl: clamp(19px, 2vw, 24px);       /* Identity h3 */
+  --text-heading-lg: 17px;                          /* Card h3 */
+  --text-heading-md: 15px;                          /* Section h3 */
+  --text-heading-sm: 14px;                          /* Small headings */
 
-  --text-body-lg: clamp(18px, 2.2vw, 22px);       /* Hero brief, lede */
-  --text-body: 16px;                               /* Default body */
-  --text-body-sm: 15px;                            /* Slightly smaller body */
-  --text-caption: 13px;                            /* Metadata, labels */
-  --text-caption-sm: 12px;                         /* Small metadata */
-  --text-micro: 11px;                              /* Timestamps, badges */
+  --text-body-lg: clamp(15px, 1.4vw, 17px);        /* Hero brief, lede */
+  --text-body: 15px;                                /* Default body */
+  --text-body-sm: 14px;                             /* Slightly smaller body */
+  --text-caption: 13px;                             /* Metadata, labels */
+  --text-caption-sm: 12px;                          /* Small metadata */
+  --text-micro: 11px;                               /* Timestamps, badges */
+
+  /* Card/section titles — a step between display-sm and heading-lg */
+  --text-title: clamp(18px, 1.8vw, 24px);
+
+  /* Mono ticker — indexes, section numbers, instrumentation */
+  --text-ticker: 12px;
+  --text-ticker-sm: 11px;
+  --tracking-ticker: 0.14em;
 
   /* Line heights */
   --leading-tight: 1.02;
@@ -119,12 +182,12 @@
   --space-32: 128px;
 
   /* Fluid section padding */
-  --space-section-y: clamp(64px, 9vw, 128px);
-  --space-section-y-sm: clamp(48px, 7vw, 96px);
+  --space-section-y: clamp(48px, 7vw, 96px);
+  --space-section-y-sm: clamp(36px, 5vw, 72px);
 
   /* Container */
-  --container-max: 1240px;
-  --container-gutter: clamp(22px, 5vw, 72px);
+  --container-max: 1120px;
+  --container-gutter: clamp(20px, 4vw, 60px);
 
   /* ═══════════════════════════════════════════════════════════════
      BORDER RADIUS — consistent scale
@@ -149,6 +212,14 @@
   --shadow-lg: 0 22px 60px rgba(29, 29, 31, 0.1);
   --shadow-xl: 0 30px 100px rgba(29, 29, 31, 0.14);
   --shadow-focus: 0 0 0 4px rgba(41, 151, 255, 0.12);
+
+  /* Elevation tiers — one consistent step for resting / raised / floating */
+  --elev-0: 0 1px 1px rgba(23, 23, 26, 0.03);
+  --elev-1: 0 2px 4px rgba(23, 23, 26, 0.04), 0 12px 28px -8px rgba(23, 23, 26, 0.1);
+  --elev-2: 0 4px 10px rgba(23, 23, 26, 0.06), 0 24px 60px -16px rgba(23, 23, 26, 0.16);
+
+  /* Spotlight — the flagship + HUD surfaces get a faint accent halo */
+  --shadow-spotlight: 0 0 0 1px rgba(0, 113, 227, 0.16), 0 28px 80px -18px rgba(0, 113, 227, 0.35);
 
   /* ═══════════════════════════════════════════════════════════════
      MOTION — refined, purposeful
@@ -228,10 +299,10 @@
   [data-level="exploring"] { --level-color: var(--color-level-exploring); }
   [data-level="experimental"] { --level-color: var(--color-level-experimental); }
 
-  .tier-featured { --tier-color: var(--color-tier-featured); }
-  .tier-secondary { --tier-color: var(--color-tier-secondary); }
-  .tier-experiment { --tier-color: var(--color-tier-experiment); }
-  .tier-academic { --tier-color: var(--color-tier-academic); }
-  .tier-legacy,
-  .tier-internship { --tier-color: var(--color-tier-legacy); }
+  .tier-featured, [data-tier="featured"] { --tier-color: var(--color-tier-featured); --tier-subtle: var(--color-accent-subtle); }
+  .tier-secondary, [data-tier="secondary"] { --tier-color: var(--color-tier-secondary); --tier-subtle: var(--color-cyan-subtle); }
+  .tier-experiment, [data-tier="experiment"] { --tier-color: var(--color-tier-experiment); --tier-subtle: var(--color-amber-subtle); }
+  .tier-academic, [data-tier="academic"] { --tier-color: var(--color-tier-academic); --tier-subtle: var(--color-violet-subtle); }
+  .tier-legacy, .tier-internship,
+  [data-tier="legacy"], [data-tier="internship"] { --tier-color: var(--color-tier-legacy); --tier-subtle: rgba(134, 134, 139, 0.16); }
 }
