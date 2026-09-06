@@ -26,7 +26,8 @@
     "db:up": "docker compose up -d db",
     "db:migrate": "npm run db:migrate --workspace @hp/api",
     "db:seed": "npm run db:seed --workspace @hp/api",
-    "admin:create": "node --import tsx scripts/admin-create.ts"
+    "admin:create": "node --import tsx scripts/admin-create.ts",
+    "admin:set-password": "node --import tsx scripts/admin-set-password.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",

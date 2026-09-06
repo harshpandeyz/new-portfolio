@@ -1,86 +1,132 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, resolveMediaUrl } from "../../lib/api";
 import type { MediaAsset } from "@hp/shared";
-import { ErrorNote } from "./fields";
+import { ConfirmDialog, EmptyState, ErrorState, PageHead, friendlyError, useToast } from "./ui";
+import { adminBus } from "./bus";
 
 export function MediaAdmin() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [toDelete, setToDelete] = useState<MediaAsset | null>(null);
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { push } = useToast();
 
-  const load = useCallback(() => {
-    api.admin.media().then((r) => setAssets(r.assets)).catch((e) => setError(e.message));
+  const load = async () => {
+    setError(null);
+    try {
+      const r = await api.admin.media();
+      setAssets(r.assets);
+    } catch (e) {
+      setError(friendlyError(e));
+    }
+  };
+
+  useEffect(() => {
+    void load();
   }, []);
 
-  useEffect(load, [load]);
+  // Command palette ("Upload media") opens the picker even from elsewhere.
+  useEffect(() => {
+    adminBus.onUploadRequest(() => fileRef.current?.click());
+    return () => adminBus.onUploadRequest(null);
+  }, []);
 
   const upload = async (file: File) => {
-    setError(null);
+    if (file.size > 25 * 1024 * 1024) {
+      push({ kind: "error", title: "File too large", desc: "Max 25MB." });
+      return;
+    }
     setProgress(0);
     try {
-      await api.admin.uploadMedia(file, setProgress);
-      load();
+      const asset = await api.admin.uploadMedia(file, setProgress);
+      push({ kind: "success", title: "Uploaded", desc: asset.filename });
+      void load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      push({ kind: "error", title: "Upload failed", desc: friendlyError(e) });
     } finally {
       setProgress(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
-  const remove = async (a: MediaAsset) => {
-    if (!window.confirm(`Delete ${a.filename}? References to it will break.`)) return;
-    await api.admin.deleteMedia(a.id).catch((e) => setError(e.message));
-    load();
+  const remove = async () => {
+    if (!toDelete) return;
+    setBusy(true);
+    try {
+      await api.admin.deleteMedia(toDelete.id);
+      push({ kind: "success", title: "Asset deleted" });
+      setToDelete(null);
+      void load();
+    } catch (e) {
+      push({ kind: "error", title: "Delete failed", desc: friendlyError(e) });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const copyUrl = (a: MediaAsset) => {
-    void navigator.clipboard.writeText(a.url);
-  };
+  const filtered = assets.filter((a) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return `${a.filename} ${a.kind} ${a.mimeType}`.toLowerCase().includes(q);
+  });
 
   return (
     <>
-      <div className="admin-head">
-        <h1>Media Library</h1>
-        <div className="actions">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf,video/mp4,video/webm"
-            style={{ display: "none" }}
-            onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
-          />
-          <button className="btn btn-sm btn-solid" onClick={() => fileRef.current?.click()}>
-            {progress !== null ? `UPLOADING ${progress}%` : "+ UPLOAD FILE"}
-          </button>
+      <PageHead
+        title="Media library"
+        desc={`${filtered.length} of ${assets.length} file${assets.length === 1 ? "" : "s"} · type- and signature-verified server-side.`}
+        actions={
+          <>
+            <input className="ctl-input ctl-search" placeholder="Search files…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search media" />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf,video/mp4,video/webm"
+              style={{ display: "none" }}
+              onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])}
+            />
+            <button className="ctl-btn ctl-btn--primary" onClick={() => fileRef.current?.click()} disabled={progress !== null}>
+              {progress !== null ? `Uploading ${progress}%` : "+ Upload"}
+            </button>
+          </>
+        }
+      />
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {filtered.length === 0 ? (
+        <EmptyState title="No media" desc="Upload images, PDFs, or video to reference from projects and certificates." />
+      ) : (
+        <div className="ctl-media-grid">
+          {filtered.map((a) => (
+            <div className="ctl-media-card" key={a.id}>
+              <div className="ctl-media-preview">
+                {a.kind === "image" ? (
+                  <img src={resolveMediaUrl(a.url)} alt={a.filename} loading="lazy" />
+                ) : (
+                  <span>{a.kind.toUpperCase()} · {(a.sizeBytes / 1024).toFixed(0)}KB</span>
+                )}
+              </div>
+              <div className="ctl-media-foot">
+                <span className="ctl-media-name" title={`${a.filename} · ${a.mimeType} · ${(a.sizeBytes / 1024).toFixed(1)}KB`}>{a.filename}</span>
+                <button className="ctl-mini-btn" onClick={() => navigator.clipboard.writeText(a.url).then(() => push({ kind: "success", title: "URL copied" })).catch(() => undefined)} title="Copy URL">Copy</button>
+                <button className="ctl-mini-btn danger" onClick={() => setToDelete(a)}>Delete</button>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
-      <ErrorNote error={error} />
-      <p className="mono mono-dim" style={{ marginBottom: 16, fontSize: 9.5 }}>
-        IMAGES · PDF · MP4/WEBM — VALIDATED BY TYPE AND SIZE SERVER-SIDE. COPY A URL INTO ANY PROJECT / CERTIFICATE FIELD.
-      </p>
-
-      <div className="media-grid">
-        {assets.map((a) => (
-          <div className="media-card" key={a.id}>
-            <div className="m-preview">
-              {a.kind === "image" ? (
-                <img src={resolveMediaUrl(a.url)} alt={a.filename} loading="lazy" />
-              ) : (
-                <span>{a.kind.toUpperCase()}</span>
-              )}
-            </div>
-            <div className="m-foot">
-              <span className="m-name" title={a.filename}>{a.filename}</span>
-              <button className="btn btn-sm btn-ghost" style={{ padding: "3px 7px" }} onClick={() => copyUrl(a)} title="Copy URL">⧉</button>
-              <button className="btn btn-sm btn-ghost btn-danger" style={{ padding: "3px 7px" }} onClick={() => remove(a)}>✕</button>
-            </div>
-          </div>
-        ))}
-        {assets.length === 0 && <span className="mono mono-dim">NO ASSETS UPLOADED YET</span>}
-      </div>
+      )}
+      <ConfirmDialog
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => void remove()}
+        title={`Delete ${toDelete?.filename}?`}
+        description="References to this file from projects or certificates will break."
+        confirmLabel="Delete asset"
+        busy={busy}
+      />
     </>
   );
 }

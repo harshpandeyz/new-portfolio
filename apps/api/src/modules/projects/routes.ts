@@ -3,8 +3,13 @@ import { Prisma } from "@prisma/client";
 import { projectInputSchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
-import { requireAdmin, requireCsrf } from "../auth/routes.js";
-import { audit, notFound, parseBody } from "../../utils/http.js";
+import { requireCsrf } from "../auth/routes.js";
+import { requirePermission } from "../auth/rbac.js";
+import { audit, clientIp, notFound, parseBody } from "../../utils/http.js";
+import { rateLimit } from "../../utils/rate-limit.js";
+import { HttpError } from "../../utils/http.js";
+
+const requireEditor = requirePermission("content:write");
 
 const PUBLIC_SELECT = {
   id: true,
@@ -69,30 +74,36 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ── admin ────────────────────────────────────────────────────
-  app.post("/", { preHandler: [requireAdmin, requireCsrf] }, async (req, reply) => {
+  app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
+    const ipLimit = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const input = parseBody(req, projectInputSchema);
     const exists = await prisma.project.findUnique({ where: { slug: input.slug } });
     if (exists) {
       return reply.code(409).send({ error: "CONFLICT", message: "A project with this slug already exists" });
     }
     const project = await prisma.project.create({ data: input });
-    await audit(req, "project.create", "project", project.id, { slug: project.slug });
+    await audit(req, "CONTENT_CREATED", "project", project.id, { slug: project.slug });
     reply.code(201);
     return { project };
   });
 
-  app.patch("/:id", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
+  app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
+    const ipLimit = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, projectInputSchema.partial());
     const project = await prisma.project.update({ where: { id }, data: input });
-    await audit(req, "project.update", "project", id, { slug: project.slug });
+    await audit(req, "CONTENT_UPDATED", "project", id, { slug: project.slug });
     return { project };
   });
 
-  app.delete("/:id", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
+  app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
+    const ipLimit = rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.project.delete({ where: { id } });
-    await audit(req, "project.delete", "project", id);
+    await audit(req, "CONTENT_DELETED", "project", id);
     return { ok: true };
   });
 }

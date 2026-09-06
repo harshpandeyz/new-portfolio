@@ -106,6 +106,10 @@ test.describe("public experience", () => {
     }));
     await page.locator("#cf-name").fill("E2E Recruiter");
     await page.locator("#cf-email").fill(`e2e-${Date.now()}@example.com`);
+    // Tagged so automated probes are recognizable (and hideable) in the admin
+    // inbox. NEVER point E2E_API_BASE_URL at production — E2E must run against
+    // a local or disposable test API only.
+    await page.locator("#cf-subject").fill("[E2E] automated test — safe to delete");
     await page.locator("#cf-message").fill("This is an automated end-to-end test message.");
     await page.locator(".contact-form button[type='submit']").click();
     await expect(page.locator(".form-status.err")).toContainText(/try again/i);

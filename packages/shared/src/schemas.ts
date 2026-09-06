@@ -39,7 +39,55 @@ export const certificateCategoryValues = [
 export const timelineTypeValues = [
   "education", "project", "certification", "experience", "competition", "milestone",
 ] as const;
-export const messageStatusValues = ["NEW", "READ", "REPLIED", "ARCHIVED"] as const;
+export const messageStatusValues = ["NEW", "READ", "REPLIED", "ARCHIVED", "SPAM"] as const;
+
+/** ── Security: password / 2FA / sessions ─────────────────────── */
+
+export const strongPasswordSchema = z
+  .string()
+  .min(12, "Password must be at least 12 characters")
+  .max(200)
+  .refine((v) => /[a-z]/.test(v), "Include a lowercase letter")
+  .refine((v) => /[A-Z]/.test(v), "Include an uppercase letter")
+  .refine((v) => /\d/.test(v), "Include a number")
+  .refine((v) => /[^a-zA-Z0-9]/.test(v), "Include a symbol");
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: strongPasswordSchema,
+});
+
+export const reauthSchema = z.object({
+  password: z.string().min(1).max(200),
+});
+
+export const twoFactorVerifySchema = z.object({
+  code: z.string().trim().min(6).max(32),
+  /** Pending challenge issued by password step when 2FA is enabled. */
+  challenge: z.string().min(10).max(500).optional(),
+});
+
+export const twoFactorSetupVerifySchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+
+export const messageBulkStatusSchema = z.object({
+  ids: z.array(z.string().min(1).max(64)).min(1).max(100),
+  status: z.enum(messageStatusValues),
+});
+
+export const messageBulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1).max(64)).min(1).max(100),
+});
+
+export const auditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  q: z.string().trim().max(160).optional(),
+  action: z.string().trim().max(80).optional(),
+  entity: z.string().trim().max(80).optional(),
+  sort: z.enum(["newest", "oldest"]).default("newest"),
+});
 
 const optionalText = z.string().trim().max(8000).optional().nullable();
 const urlish = z.string().trim().max(500).optional().nullable();

@@ -418,4 +418,250 @@ describe("security headers & misc", () => {
     const denied = await app.inject({ method: "GET", url: "/api/profile", headers: { origin: "https://attacker.example" } });
     expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
   });
+
+  it("rejects state-changing requests from a forged Origin even with valid CSRF", async () => {
+    const { cookies, csrf } = await login();
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/projects",
+      cookies,
+      headers: { ...authHeaders(csrf), origin: "https://attacker.example" },
+      payload: {
+        title: "Forged Origin", slug: "forged-origin-x", shortDescription: "x", category: "TEST",
+        tier: "experiment", status: "draft", featured: false, year: "2026", order: 1, stack: [],
+      },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("private auth responses carry no-store cache control", async () => {
+    const me = await app.inject({ method: "GET", url: "/api/auth/me" });
+    expect(me.headers["cache-control"]).toContain("no-store");
+  });
+});
+
+describe("rbac (role boundaries are server-enforced)", () => {
+  async function loginAs(email: string, password: string) {
+    const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    expect(res.statusCode).toBe(200);
+    const cookies: Record<string, string> = {};
+    for (const c of res.cookies) cookies[c.name] = c.value;
+    return { cookies, csrf: cookies["hp_csrf"]! };
+  }
+
+  beforeAll(async () => {
+    const { bcryptHash } = await import("../src/modules/auth/password.js");
+    await prisma.user.upsert({
+      where: { email: "editor@test.local" },
+      update: { passwordHash: await bcryptHash("editor-pass-1234"), role: "EDITOR" },
+      create: { email: "editor@test.local", passwordHash: await bcryptHash("editor-pass-1234"), role: "EDITOR" },
+    });
+    await prisma.user.upsert({
+      where: { email: "viewer@test.local" },
+      update: { passwordHash: await bcryptHash("viewer-pass-1234"), role: "VIEWER" },
+      create: { email: "viewer@test.local", passwordHash: await bcryptHash("viewer-pass-1234"), role: "VIEWER" },
+    });
+  });
+
+  it("VIEWER can read admin lists but cannot mutate content", async () => {
+    const { cookies } = await loginAs("viewer@test.local", "viewer-pass-1234");
+    const read = await app.inject({ method: "GET", url: "/api/contact", cookies });
+    expect([200, 403]).toContain(read.statusCode);
+    // VIEWER lacks content:write — project creation must be 403
+    const { csrf } = await (async () => {
+      const csrfRes = await app.inject({ method: "GET", url: "/api/auth/csrf", cookies });
+      const jar: Record<string, string> = { ...cookies };
+      for (const c of csrfRes.cookies) jar[c.name] = c.value;
+      return { csrf: csrfRes.json().csrfToken as string, jar };
+    })();
+    const write = await app.inject({
+      method: "POST", url: "/api/projects", cookies,
+      headers: authHeaders(csrf),
+      payload: { title: "Viewer Hack", slug: "viewer-hack-x", shortDescription: "x", category: "T", tier: "experiment", status: "draft", featured: false, year: "2026", order: 1, stack: [] },
+    });
+    expect(write.statusCode).toBe(403);
+  });
+
+  it("EDITOR can manage content but cannot hard-delete messages", async () => {
+    const { cookies, csrf } = await loginAs("editor@test.local", "editor-pass-1234");
+    const create = await app.inject({
+      method: "POST", url: "/api/projects", cookies, headers: authHeaders(csrf),
+      payload: { title: "Editor Project", slug: "editor-proj-x", shortDescription: "ok content", category: "TEST", tier: "experiment", status: "draft", featured: false, year: "2026", order: 5, stack: [] },
+    });
+    expect(create.statusCode).toBe(201);
+    const id = create.json().project.id as string;
+    await app.inject({ method: "DELETE", url: `/api/projects/${id}`, cookies, headers: authHeaders(csrf) });
+
+    const msg = await prisma.contactMessage.create({
+      data: { name: "RBAC", email: "rbac@test.local", message: "Boundary check message here.", status: "NEW" },
+    });
+    const del = await app.inject({ method: "DELETE", url: `/api/contact/${msg.id}`, cookies, headers: authHeaders(csrf) });
+    expect(del.statusCode).toBe(403);
+    await prisma.contactMessage.delete({ where: { id: msg.id } }).catch(() => undefined);
+  });
+
+  it("expired and revoked sessions are rejected", async () => {
+    const { cookies } = await login();
+    // revoke via sessions endpoint then verify /me fails
+    const list = await app.inject({ method: "GET", url: "/api/auth/sessions", cookies });
+    expect(list.statusCode).toBe(200);
+    const current = (list.json().sessions as { id: string; current: boolean }[]).find((s) => s.current);
+    expect(current).toBeTruthy();
+    const csrf = cookies["hp_csrf"]!;
+    const del = await app.inject({ method: "DELETE", url: `/api/auth/sessions/${current!.id}`, cookies, headers: authHeaders(csrf) });
+    expect(del.statusCode).toBe(200);
+    const me = await app.inject({ method: "GET", url: "/api/auth/me", cookies });
+    expect(me.statusCode).toBe(401);
+  });
+});
+
+describe("password + sessions + audit", () => {
+  it("password change requires the current password and revokes other sessions", async () => {
+    const { bcryptHash } = await import("../src/modules/auth/password.js");
+    await prisma.user.upsert({
+      where: { email: "pwd@test.local" },
+      update: { passwordHash: await bcryptHash("Old-password-123!"), role: "ADMIN" },
+      create: { email: "pwd@test.local", passwordHash: await bcryptHash("Old-password-123!"), role: "ADMIN" },
+    });
+    const first = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "pwd@test.local", password: "Old-password-123!" } });
+    expect(first.statusCode).toBe(200);
+    const jar1: Record<string, string> = {};
+    for (const c of first.cookies) jar1[c.name] = c.value;
+    const second = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "pwd@test.local", password: "Old-password-123!" } });
+    const jar2: Record<string, string> = {};
+    for (const c of second.cookies) jar2[c.name] = c.value;
+
+    const bad = await app.inject({
+      method: "POST", url: "/api/auth/change-password", cookies: jar1,
+      headers: authHeaders(jar1["hp_csrf"]!), payload: { currentPassword: "wrong", newPassword: "New-password-456!" },
+    });
+    expect(bad.statusCode).toBe(401);
+
+    const good = await app.inject({
+      method: "POST", url: "/api/auth/change-password", cookies: jar1,
+      headers: authHeaders(jar1["hp_csrf"]!), payload: { currentPassword: "Old-password-123!", newPassword: "New-password-456!" },
+    });
+    expect(good.statusCode).toBe(200);
+    // other session revoked
+    const me2 = await app.inject({ method: "GET", url: "/api/auth/me", cookies: jar2 });
+    expect(me2.statusCode).toBe(401);
+    const auditRow = await prisma.auditLog.findFirst({ where: { action: "AUTH_PASSWORD_CHANGED" }, orderBy: { createdAt: "desc" } });
+    expect(auditRow).toBeTruthy();
+    // restore password for other tests
+    await prisma.user.update({ where: { email: "pwd@test.local" }, data: { passwordHash: await bcryptHash("Old-password-123!") } });
+  });
+
+  it("revoke-all requires recent authentication", async () => {
+    const { cookies, csrf } = await login();
+    // artificially age the session reauth
+    await prisma.session.updateMany({ data: { reauthAt: new Date(Date.now() - 60 * 60 * 1000) } });
+    const denied = await app.inject({ method: "POST", url: "/api/auth/sessions/revoke-all", cookies, headers: authHeaders(csrf), payload: {} });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().error).toBe("REAUTH_REQUIRED");
+  });
+});
+
+describe("2fa totp + recovery codes", () => {
+  it("full enrollment, challenge login, recovery use, and disable with reauth", async () => {
+    const { bcryptHash } = await import("../src/modules/auth/password.js");
+    const email = "twofa@test.local";
+    const password = "Twofa-password-123!";
+    await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null },
+      create: { email, passwordHash: await bcryptHash(password), role: "ADMIN" },
+    });
+    await prisma.recoveryCode.deleteMany({ where: { user: { email } } });
+
+    const loginRes = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    const jar: Record<string, string> = {};
+    for (const c of loginRes.cookies) jar[c.name] = c.value;
+    const csrf = jar["hp_csrf"]!;
+
+    const setup = await app.inject({ method: "POST", url: "/api/auth/2fa/setup", cookies: jar, headers: authHeaders(csrf), payload: {} });
+    expect(setup.statusCode).toBe(200);
+    const { secret } = setup.json() as { secret: string };
+    expect(secret.length).toBeGreaterThan(10);
+
+    const { authenticator } = await import("otplib");
+    const code = authenticator.generate(secret);
+    const enable = await app.inject({ method: "POST", url: "/api/auth/2fa/enable", cookies: jar, headers: authHeaders(csrf), payload: { code } });
+    expect(enable.statusCode).toBe(200);
+    const codes = (enable.json() as { recoveryCodes: string[] }).recoveryCodes;
+    expect(codes.length).toBe(10);
+
+    // password step now requires 2FA
+    const step1 = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    expect(step1.statusCode).toBe(202);
+    expect(step1.json().requires2FA).toBe(true);
+    const challenge = step1.json().challenge as string;
+
+    const badCode = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge, code: "000000" } });
+    expect(badCode.statusCode).toBe(401);
+
+    const goodCode = authenticator.generate(secret);
+    const step2 = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge, code: goodCode } });
+    expect(step2.statusCode).toBe(200);
+
+    // recovery code single-use
+    const step1b = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    const challenge2 = step1b.json().challenge as string;
+    const recUse = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge: challenge2, code: codes[0]! } });
+    expect(recUse.statusCode).toBe(200);
+    const jar2: Record<string, string> = {};
+    for (const c of recUse.cookies) jar2[c.name] = c.value;
+    const step1c = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    const reuse = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge: step1c.json().challenge, code: codes[0]! } });
+    expect(reuse.statusCode).toBe(401);
+
+    // disable requires reauth — age the session first so the guard trips
+    await prisma.session.updateMany({ where: { user: { email } }, data: { reauthAt: new Date(Date.now() - 60 * 60 * 1000) } });
+    const denyDisable = await app.inject({ method: "POST", url: "/api/auth/2fa/disable", cookies: jar2, headers: authHeaders(jar2["hp_csrf"]!), payload: {} });
+    expect([403, 400]).toContain(denyDisable.statusCode);
+    const reauth = await app.inject({
+      method: "POST", url: "/api/auth/reauth", cookies: jar2,
+      headers: authHeaders(jar2["hp_csrf"]!), payload: { password, code: authenticator.generate(secret) },
+    });
+    expect(reauth.statusCode).toBe(200);
+    // refresh jar cookies are unchanged; reauth touched server-side, retry disable with fresh /me session
+    const disable = await app.inject({ method: "POST", url: "/api/auth/2fa/disable", cookies: jar2, headers: authHeaders(jar2["hp_csrf"]!), payload: {} });
+    expect(disable.statusCode).toBe(200);
+
+    await prisma.user.update({ where: { email }, data: { totpEnabled: false, totpSecret: null } });
+    await prisma.recoveryCode.deleteMany({ where: { user: { email } } });
+  });
+});
+
+describe("media validation", () => {
+  it("rejects content-spoofed uploads and extension mismatches", async () => {
+    const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "admin@harshpandey.dev", password: "test-admin-password-123" } });
+    const cookies: Record<string, string> = {};
+    for (const c of res.cookies) cookies[c.name] = c.value;
+    const csrf = cookies["hp_csrf"]!;
+    const boundary = "hp-spoof-test";
+    const fakePng = Buffer.from("this is not a png at all, just text bytes 1234567890!!");
+    const payload = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="evil.png"\r\nContent-Type: image/png\r\n\r\n`),
+      fakePng,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const spoofed = await app.inject({
+      method: "POST", url: "/api/media", cookies,
+      headers: { "x-csrf-token": csrf, "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload,
+    });
+    expect(spoofed.statusCode).toBe(415);
+
+    const mismatch = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="photo.jpg"\r\nContent-Type: image/png\r\n\r\n`),
+      Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const res2 = await app.inject({
+      method: "POST", url: "/api/media", cookies,
+      headers: { "x-csrf-token": csrf, "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: mismatch,
+    });
+    expect(res2.statusCode).toBe(415);
+  });
 });

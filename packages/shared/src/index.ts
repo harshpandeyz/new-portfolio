@@ -29,7 +29,41 @@ export type CertificateCategory =
   | "DATA"
   | "OTHER";
 export type TimelineType = "education" | "project" | "certification" | "experience" | "competition" | "milestone";
-export type MessageStatus = "NEW" | "READ" | "REPLIED" | "ARCHIVED";
+export type MessageStatus = "NEW" | "READ" | "REPLIED" | "ARCHIVED" | "SPAM";
+
+export type AdminRole = "ADMIN" | "EDITOR" | "VIEWER";
+
+export interface AdminSessionUser {
+  id: string;
+  email: string;
+  role: AdminRole;
+  displayName: string | null;
+  totpEnabled: boolean;
+}
+
+export interface ManagedSession {
+  id: string;
+  current: boolean;
+  ip: string | null;
+  userAgent: string | null;
+  device: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  revoked: boolean;
+}
+
+export interface SecurityOverview {
+  email: string;
+  role: AdminRole;
+  displayName: string | null;
+  passwordChangedAt: string | null;
+  totpEnabled: boolean;
+  totpEnabledAt: string | null;
+  recoveryCodesRemaining: number;
+  activeSessions: number;
+  lastLoginAt: string | null;
+}
 
 export interface SocialLink {
   id?: string;

@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { profileInputSchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
-import { requireAdmin, requireCsrf } from "../auth/routes.js";
+import { requireCsrf } from "../auth/routes.js";
+import { requirePermission } from "../auth/rbac.js";
 import { audit, parseBody } from "../../utils/http.js";
 
 async function getProfile() {
@@ -24,13 +25,15 @@ async function getProfile() {
   return profile;
 }
 
+const requireEditor = requirePermission("content:write");
+
 export async function profileRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async () => {
     const profile = await getProfile();
     return { profile };
   });
 
-  app.patch("/", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
+  app.patch("/", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
     const input = parseBody(req, profileInputSchema);
     const existing = await getProfile();
     const { socials, ...data } = input;
@@ -46,7 +49,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       },
       include: { socials: { orderBy: { order: "asc" } } },
     });
-    await audit(req, "profile.update", "profile", updated.id);
+    await audit(req, "CONTENT_UPDATED", "profile", updated.id);
     return { profile: updated };
   });
 }

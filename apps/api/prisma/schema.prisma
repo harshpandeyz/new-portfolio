@@ -12,17 +12,42 @@ datasource db {
 
 /// ── Identity / access ────────────────────────────────────────
 
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  role         String    @default("ADMIN")
-  displayName  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
+  id                  String         @id @default(cuid())
+  email               String         @unique
+  passwordHash        String
+  role                Role           @default(ADMIN)
+  displayName         String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  passwordChangedAt   DateTime?
+  totpSecret          String?
+  totpEnabled         Boolean        @default(false)
+  totpEnabledAt       DateTime?
+  failedLoginAttempts Int            @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  sessions            Session[]
+  recoveryCodes       RecoveryCode[]
 
   @@index([email])
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Session {
@@ -35,6 +60,8 @@ model Session {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
+  reauthAt   DateTime @default(now())
+  revokedAt  DateTime?
 
   @@index([userId])
   @@index([expiresAt])

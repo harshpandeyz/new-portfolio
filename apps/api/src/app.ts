@@ -40,12 +40,35 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: false, // API serves JSON + static uploads only
     crossOriginResourcePolicy: { policy: "cross-origin" }, // uploads are embedded by the web app
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    frameguard: { action: "deny" },
+    hsts: config.isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    noSniff: true,
+    permittedCrossDomainPolicies: { permittedPolicies: "none" },
   });
 
   await app.register(cors, {
     origin: config.corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "X-CSRF-Token"],
+    maxAge: 600,
+  });
+
+  // Private/admin API responses must never be cached by browsers or CDNs.
+  app.addHook("onSend", async (req, reply, payload) => {
+    const url = req.url;
+    if (
+      url.startsWith("/api/auth") ||
+      url.startsWith("/api/contact?") ||
+      url === "/api/contact" ||
+      url.startsWith("/api/stats") ||
+      url.startsWith("/api/media") ||
+      url.startsWith("/api/events/summary")
+    ) {
+      reply.header("cache-control", "no-store, no-cache, must-revalidate, private");
+      reply.header("pragma", "no-cache");
+    }
+    return payload;
   });
 
   await app.register(multipart, {

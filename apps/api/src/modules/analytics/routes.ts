@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
 import { prisma } from "../../db/prisma.js";
-import { requireAdmin } from "../auth/routes.js";
+import { requirePermission } from "../auth/rbac.js";
 import { clientIp, parseBody } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 
@@ -19,6 +19,8 @@ const eventSchema = z.object({
 });
 
 /** Privacy-conscious analytics: aggregate counters only, no fingerprinting, no PII. */
+const requireStatsRead = requirePermission("content:read");
+
 export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", async (req, reply) => {
     const limit = rateLimit(`events:${clientIp(req)}`, EVENTS_MAX, EVENTS_WINDOW_MS);
@@ -35,7 +37,7 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.get("/summary", { preHandler: [requireAdmin] }, async () => {
+  app.get("/summary", { preHandler: [requireStatsRead] }, async () => {
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const grouped = await prisma.analyticsEvent.groupBy({
       by: ["type"],

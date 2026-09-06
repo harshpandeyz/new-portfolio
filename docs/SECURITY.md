@@ -17,7 +17,17 @@
 - Cookie: `hp_session` — **HTTP-only**, `SameSite=None` + `Secure` in production (for credentialed requests from a separately hosted SPA), path-scoped, 7-day expiry
 - Sliding `last_seen_at` refresh; expired sessions purged hourly
 - Login responses are constant-shape (dummy bcrypt compare) to blunt user-enumeration timing
-- Login rate limit: 8 attempts / 15 min / IP → `429` + `Retry-After`
+- Login rate limit: 8 attempts / 15 min / IP **plus** 5 / 15 min / account → `429` + `Retry-After`;
+  uniform 350ms failure delay; 10+ failures lock the account for 15 min
+- Passwords: bcrypt (12 rounds); change requires the current password, enforces
+  12+ chars with mixed case/number/symbol, revokes other sessions
+- Optional TOTP 2FA (otplib, encrypted secrets, hashed single-use recovery codes);
+  password → challenge → TOTP/recovery → session; disable/regenerate/revoke-all
+  require step-up reauthentication (fresh within 10 min)
+- Sessions: opaque 256-bit tokens (SHA-256 only in DB), 7-day absolute expiry,
+  24h idle timeout, revocation list + purge, per-session device/IP/activity UI
+- RBAC: `ADMIN` (all) / `EDITOR` (content + triage) / `VIEWER` (read-only);
+  enforced per-route server-side via a permission matrix (`rbac.ts`)
 
 ## CSRF
 
@@ -39,7 +49,11 @@ messages, media, audit, analytics). There is no client-trusted role.
   (`@hp/shared`) → `400` with field-level issues
 - Body limit 2 MB JSON; uploads capped by `MAX_UPLOAD_MB` (streamed, then re-verified by size)
 - Upload allow-list: jpeg/png/webp/avif/gif/pdf/mp4/webm; filenames sanitized
-  (`[^a-zA-Z0-9._-]` stripped, length-capped) and re-issued server-side
+  (`[^a-zA-Z0-9._-]` stripped, length-capped) and re-issued server-side;
+  extension must match MIME **and** magic bytes are verified (never trust the
+  browser MIME); empty/oversized files rejected; safe path resolution
+- Contact inbox: statuses NEW/READ/REPLIED/ARCHIVED/SPAM, search/filter/sort/
+  pagination, bulk triage, message bodies rendered as plain text only
 - Contact form: honeypot field (silent `202` for bots), 5 msgs / 10 min / IP,
   3 msgs / hour / email, stored emails lowercased
 
@@ -47,7 +61,11 @@ messages, media, audit, analytics). There is no client-trusted role.
 
 - `@fastify/helmet`: `X-Content-Type-Options: nosniff`, strict `Referrer-Policy`,
   cross-origin resource policy for static uploads
-- CORS: explicit origin allow-list (from `APP_URL`), `credentials: true` — no wildcard
+- CORS: explicit origin allow-list (from `APP_URL`), `credentials: true` — no wildcard;
+  `X-CSRF-Token` allow-listed; state-changing requests also validate `Origin`
+- Private API responses (`/api/auth*`, admin lists, audit, media) send
+  `Cache-Control: no-store`; `/private/*` serves `noindex` + `no-store` headers
+  (Netlify) plus a runtime `robots` meta tag
 - `trustProxy` is configured as a **bounded hop count** (`TRUST_PROXY`, default `1`) so a
   direct client cannot spoof `X-Forwarded-For` to rotate its IP identity and bypass rate
   limits. Only the expected reverse-proxy hops are trusted; set `0`/`false` when the API is
@@ -57,7 +75,10 @@ messages, media, audit, analytics). There is no client-trusted role.
 
 | Surface | Limit |
 | --- | --- |
-| Login | 8 / 15 min / IP |
+| Login | 8 / 15 min / IP + 5 / 15 min / account |
+| 2FA verify | 8 / 10 min / user+IP |
+| Password / reauth | 5 / 15 min / user |
+| 2FA setup/regen | 3 / 15 min / user |
 | Contact | 5 / 10 min / IP (+3/h/email) |
 | Chat | 12 / min / IP |
 | Analytics events | 30 / min / IP |
@@ -67,14 +88,17 @@ Single-instance memory store; swap for Redis when scaling horizontally
 
 ## Audit & observability
 
-`audit_logs` records actor (operator email), action (`auth.login`,
-`project.create`, `contact.received`, `media.upload`, …), entity, IP and timestamp.
-Failed logins are audited too. Structured pino logging in production.
+`audit_logs` records actor (operator email), action (`AUTH_LOGIN_SUCCESS`,
+`AUTH_2FA_ENABLED`, `CONTENT_CREATED`, `MESSAGE_STATUS_CHANGED`,
+`MEDIA_UPLOADED`, …), entity, IP and timestamp. Metadata is sanitized —
+passwords, tokens, secrets, and recovery codes are never logged. Failed logins,
+reauth failures, and session revocations are audited too. Structured pino logging in production.
 
 ## Known limitations (honest)
 
 - Rate limiting and session store are in-process → run one API instance or add Redis
-- Uploads are content-type + size validated, not deep-scanned for malware
-- No 2FA on the operator account (add TOTP before exposing publicly on a shared host)
+- Uploads are signature + size validated, not deep-scanned for malware
+- TOTP secrets are AES-256-GCM encrypted at rest (key from SESSION_SECRET);
+  rotate SESSION_SECRET only with a re-enrollment plan (old secrets stop decrypting)
 - The chat honesty guard is heuristic (lexical); the strict no-hallucination system
   prompt + UNKNOWN fallback bound the failure mode, but no RAG system is perfect

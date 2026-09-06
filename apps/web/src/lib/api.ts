@@ -162,16 +162,34 @@ export const api = {
   contact: (input: { name: string; email: string; subject?: string; message: string; company?: string }) =>
     request<{ ok: boolean }>("/api/contact", { method: "POST", json: input }),
 
-  // auth
+  // auth (password step may return 202 + challenge when 2FA is enabled)
   login: (email: string, password: string) =>
-    request<{ ok: boolean; csrfToken: string; user: { email: string; role: string } }>("/api/auth/login", { method: "POST", json: { email, password } }),
-  me: () => request<{ user: { id: string; email: string; role: string; displayName: string | null } }>("/api/auth/me"),
+    request<{ ok: boolean; csrfToken?: string; requires2FA?: boolean; challenge?: string; user?: { email: string; role: string; totpEnabled?: boolean } }>("/api/auth/login", { method: "POST", json: { email, password } }),
+  login2fa: (challenge: string, code: string) =>
+    request<{ ok: boolean; csrfToken: string; user: { email: string; role: string } }>("/api/auth/login/2fa", { method: "POST", json: { challenge, code } }),
+  me: () => request<{ user: { id: string; email: string; role: string; displayName: string | null; totpEnabled: boolean } }>("/api/auth/me"),
   csrf: () => request<{ csrfToken: string }>("/api/auth/csrf"),
   logout: async () => {
     const result = await request<{ ok: boolean }>("/api/auth/logout", { method: "POST", json: {} });
     csrfToken = "";
     return result;
   },
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth/change-password", { method: "POST", json: { currentPassword, newPassword } }),
+  reauth: (password: string, code?: string) =>
+    request<{ ok: boolean; reauthAt: string }>("/api/auth/reauth", { method: "POST", json: { password, code } }),
+  sessions: () =>
+    request<{ sessions: { id: string; current: boolean; ip: string | null; userAgent: string | null; device: string; createdAt: string; lastSeenAt: string; expiresAt: string; revoked: boolean }[] }>("/api/auth/sessions"),
+  revokeSession: (id: string) => request<{ ok: boolean }>(`/api/auth/sessions/${id}`, { method: "DELETE" }),
+  revokeOtherSessions: () => request<{ ok: boolean }>("/api/auth/sessions/revoke-others", { method: "POST", json: {} }),
+  revokeAllSessions: () => request<{ ok: boolean }>("/api/auth/sessions/revoke-all", { method: "POST", json: {} }),
+  twofaStatus: () => request<{ enabled: boolean; enabledAt: string | null; recoveryRemaining: number }>("/api/auth/2fa/status"),
+  twofaSetup: () => request<{ secret: string; otpauthUrl: string; qrDataUrl: string | null }>("/api/auth/2fa/setup", { method: "POST", json: {} }),
+  twofaEnable: (code: string) => request<{ ok: boolean; recoveryCodes: string[] }>("/api/auth/2fa/enable", { method: "POST", json: { code } }),
+  twofaDisable: () => request<{ ok: boolean }>("/api/auth/2fa/disable", { method: "POST", json: {} }),
+  twofaRegenCodes: () => request<{ ok: boolean; recoveryCodes: string[] }>("/api/auth/2fa/recovery/regenerate", { method: "POST", json: {} }),
+  securityOverview: () =>
+    request<{ email: string; role: string; displayName: string | null; passwordChangedAt: string | null; totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number; activeSessions: number; lastLoginAt: string | null }>("/api/auth/security/overview"),
 
   // admin CRUD
   admin: {
@@ -204,9 +222,12 @@ export const api = {
     profile: () => request<{ profile: Profile }>("/api/profile"),
     updateProfile: (input: unknown) => request<{ profile: Profile }>("/api/profile", { method: "PATCH", json: input }),
 
-    messages: (params?: { status?: string; page?: number }) =>
-      request<{ messages: ContactMessage[]; total: number; unread: number }>(`/api/contact?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`),
+    messages: (params?: { status?: string; page?: number; q?: string; sort?: string }) =>
+      request<{ messages: ContactMessage[]; total: number; unread: number; page: number; pageSize: number }>(`/api/contact?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`),
+    message: (id: string) => request<{ message: ContactMessage }>(`/api/contact/${id}`),
     setMessageStatus: (id: string, status: string) => request(`/api/contact/${id}/status`, { method: "PATCH", json: { status } }),
+    bulkMessageStatus: (ids: string[], status: string) => request<{ ok: boolean; count: number }>("/api/contact/bulk/status", { method: "POST", json: { ids, status } }),
+    bulkMessageDelete: (ids: string[]) => request<{ ok: boolean; count: number }>("/api/contact/bulk/delete", { method: "POST", json: { ids } }),
     deleteMessage: (id: string) => request(`/api/contact/${id}`, { method: "DELETE" }),
 
     media: () => request<{ assets: MediaAsset[] }>("/api/media"),
@@ -236,7 +257,10 @@ export const api = {
     },
     deleteMedia: (id: string) => request(`/api/media/${id}`, { method: "DELETE" }),
 
-    audit: (page = 1) => request<{ logs: AuditLogEntry[]; total: number }>(`/api/stats/audit?page=${page}`),
+    audit: (params?: { page?: number; pageSize?: number; q?: string; action?: string; entity?: string; sort?: string }) =>
+      request<{ logs: AuditLogEntry[]; total: number; page: number; pageSize: number }>(`/api/stats/audit?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`),
+    securityEvents: () => request<{ logs: AuditLogEntry[] }>("/api/stats/security-events"),
+    overview: () => request<{ recentMessages: ContactMessage[]; recentAudit: AuditLogEntry[] }>("/api/stats/overview"),
     analytics: () => request<{ last30Days: { type: string; count: number }[]; daily: { day: string; count: number }[] }>("/api/events/summary"),
   },
 };

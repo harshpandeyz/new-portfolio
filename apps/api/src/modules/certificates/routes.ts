@@ -3,8 +3,14 @@ import { Prisma } from "@prisma/client";
 import { certificateInputSchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
-import { requireAdmin, requireCsrf } from "../auth/routes.js";
+import { requireCsrf } from "../auth/routes.js";
+import { requirePermission } from "../auth/rbac.js";
+import { clientIp } from "../../utils/http.js";
+import { rateLimit } from "../../utils/rate-limit.js";
+import { HttpError } from "../../utils/http.js";
 import { audit, notFound, parseBody } from "../../utils/http.js";
+
+const requireEditor = requirePermission("content:write");
 
 export async function certificateRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req) => {
@@ -42,6 +48,8 @@ export async function certificateRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/:id", async (req) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const certificate = await prisma.certificate.findUnique({ where: { id } });
     if (!certificate) notFound("Certificate");
@@ -51,26 +59,32 @@ export async function certificateRoutes(app: FastifyInstance): Promise<void> {
     return { certificate };
   });
 
-  app.post("/", { preHandler: [requireAdmin, requireCsrf] }, async (req, reply) => {
+  app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const input = parseBody(req, certificateInputSchema);
     const certificate = await prisma.certificate.create({ data: input });
-    await audit(req, "certificate.create", "certificate", certificate.id, { title: certificate.title });
+    await audit(req, "CONTENT_CREATED", "certificate", certificate.id, { title: certificate.title });
     reply.code(201);
     return { certificate };
   });
 
-  app.patch("/:id", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
+  app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, certificateInputSchema.partial());
     const certificate = await prisma.certificate.update({ where: { id }, data: input });
-    await audit(req, "certificate.update", "certificate", id, { title: certificate.title });
+    await audit(req, "CONTENT_UPDATED", "certificate", id, { title: certificate.title });
     return { certificate };
   });
 
-  app.delete("/:id", { preHandler: [requireAdmin, requireCsrf] }, async (req) => {
+  app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.certificate.delete({ where: { id } });
-    await audit(req, "certificate.delete", "certificate", id);
+    await audit(req, "CONTENT_DELETED", "certificate", id);
     return { ok: true };
   });
 }
