@@ -8,7 +8,7 @@ import type { Project } from "@hp/shared";
  * Do NOT duplicate this in FlagshipProject.tsx / ProjectCase.tsx.
  */
 
-export const FLAGSHIP_SLUG = "intelligent-surveillance-system";
+export const FLAGSHIP_SLUG = "intelligent-mob-surveillance-system";
 
 export interface GalleryImage {
   src: string;
@@ -70,12 +70,24 @@ export interface FlowStage {
 export function flagshipFlow(project: Project): FlowStage[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
-      { icon: "camera", label: "Input", sub: "RTSP · webcam · upload" },
-      { icon: "brain", label: "Detect", sub: "YOLOv8n · tracking" },
-      { icon: "alert", label: "Event", sub: "fight · mob · surge" },
-      { icon: "evidence", label: "Evidence", sub: "clip · AES-GCM · SHA-256" },
-      { icon: "ledger", label: "Ledger", sub: "hash chain · custody" },
-      { icon: "attest", label: "Attest", sub: "OpenTimestamps · bundle" },
+      { icon: "camera", label: "Capture", sub: "CCTV feed" },
+      { icon: "brain", label: "Detect", sub: "YOLOv8 + OpenCV" },
+      { icon: "alert", label: "Event", sub: "mob detection" },
+      { icon: "evidence", label: "Seal", sub: "AES-256 · SHA-256" },
+      { icon: "ledger", label: "Chain", sub: "Ethereum anchoring" },
+      { icon: "attest", label: "Attest", sub: "Solidity contract" },
+    ];
+  }
+  if (project.slug === "orchestraai") {
+    return [
+      { icon: "user", label: "Task", sub: "user input" },
+      { icon: "brain", label: "Context", sub: "build context" },
+      { icon: "api", label: "Route", sub: "model routing" },
+      { icon: "api", label: "Provider", sub: "OpenRouter/OpenAI" },
+      { icon: "brain", label: "Tools", sub: "tool execution" },
+      { icon: "ledger", label: "Memory", sub: "cache/telemetry" },
+      { icon: "chat", label: "SSE", sub: "stream output" },
+      { icon: "brain", label: "Re-evaluate", sub: "complete" },
     ];
   }
   if (project.dataFlow.length > 0) {
@@ -91,12 +103,24 @@ export function flagshipFlow(project: Project): FlowStage[] {
 export function caseFlowStages(project: Project): { label: string; sub: string; hint: string }[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
-      { label: "Capture", sub: "RTSP · webcam · upload", hint: "input" },
-      { label: "Detect", sub: "YOLOv8n · centroid / IoU", hint: "ai" },
-      { label: "Classify", sub: "fight · mob · surge", hint: "event" },
-      { label: "Seal", sub: "clip · AES-GCM · SHA-256", hint: "evidence" },
-      { label: "Chain", sub: "append-only hash ledger", hint: "ledger" },
-      { label: "Anchor", sub: "OpenTimestamps → bundle", hint: "attest" },
+      { label: "Capture", sub: "CCTV feed", hint: "input" },
+      { label: "Detect", sub: "YOLOv8 + OpenCV", hint: "ai" },
+      { label: "Classify", sub: "mob event", hint: "event" },
+      { label: "Seal", sub: "AES-256 · SHA-256", hint: "evidence" },
+      { label: "Chain", sub: "Ethereum log", hint: "ledger" },
+      { label: "Attest", sub: "Solidity contract", hint: "attest" },
+    ];
+  }
+  if (project.slug === "orchestraai") {
+    return [
+      { label: "Task", sub: "user task", hint: "input" },
+      { label: "Context", sub: "build context", hint: "context" },
+      { label: "Route", sub: "model routing", hint: "ai" },
+      { label: "Provider", sub: "OpenRouter/OpenAI/Anthropic", hint: "provider" },
+      { label: "Tools", sub: "tool execution", hint: "tools" },
+      { label: "Memory", sub: "cache/telemetry", hint: "memory" },
+      { label: "SSE", sub: "stream output", hint: "stream" },
+      { label: "Re-evaluate", sub: "complete", hint: "complete" },
     ];
   }
   return project.dataFlow.slice(0, 6).map((s) => {
@@ -133,6 +157,13 @@ export const SECONDARY_VISUALS: Record<string, SecondaryStage[]> = {
     { label: "RAG", sub: "grounded LLM", icon: "brain" },
     { label: "Answer", sub: "SSE stream", icon: "chat" },
   ],
+  skillmatch: [
+    { label: "User", sub: "skills", icon: "user" },
+    { label: "Role", sub: "target", icon: "auth" },
+    { label: "Score", sub: "match", icon: "brain" },
+    { label: "Path", sub: "learning", icon: "api" },
+    { label: "Admin", sub: "CRUD", icon: "web" },
+  ],
   studentlink: [
     { label: "User", sub: "sign-up", icon: "user" },
     { label: "Auth", sub: "JWT · Security", icon: "auth" },
@@ -148,6 +179,24 @@ export function secondaryVisual(slug: string): SecondaryStage[] | null {
 
 // ── Compact homepage facts (fewer, tighter) ────────────────
 export function flagshipCompactFacts(project: Project): { k: string; v: string }[] {
+  if (project.slug === FLAGSHIP_SLUG) {
+    return [
+      { k: "AI", v: "YOLOv8 + OpenCV" },
+      { k: "Backend", v: "FastAPI" },
+      { k: "Data", v: "MongoDB" },
+      { k: "Security", v: "AES-256 · SHA-256" },
+      { k: "Chain", v: "Ethereum" },
+    ];
+  }
+  if (project.slug === "orchestraai") {
+    return [
+      { k: "Runtime", v: "Node.js / TypeScript" },
+      { k: "Store", v: "PostgreSQL" },
+      { k: "Cache", v: "Redis" },
+      { k: "Deploy", v: "Docker" },
+      { k: "Stream", v: "SSE" },
+    ];
+  }
   return [
     { k: "AI", v: "YOLOv8n" },
     { k: "Backend", v: "FastAPI" },
@@ -169,13 +218,25 @@ export interface SystemMapNode {
 export function systemMap(project: Project): SystemMapNode[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
-      { icon: "camera", title: "Input", detail: "RTSP · webcam · upload" },
-      { icon: "brain", title: "YOLOv8n", detail: "detection · tracking" },
-      { icon: "alert", title: "Event", detail: "fight · mob · surge" },
-      { icon: "evidence", title: "Evidence", detail: "clip · metadata" },
-      { icon: "shield", title: "Integrity", detail: "AES-GCM · SHA-256" },
-      { icon: "ledger", title: "Ledger", detail: "hash chain · custody" },
-      { icon: "attest", title: "Attest", detail: "OpenTimestamps" },
+      { icon: "camera", title: "Capture", detail: "CCTV feed" },
+      { icon: "brain", title: "Detect", detail: "YOLOv8 + OpenCV" },
+      { icon: "alert", title: "Event", detail: "mob detection" },
+      { icon: "evidence", title: "Seal", detail: "AES-256 · SHA-256" },
+      { icon: "shield", title: "Integrity", detail: "hashing" },
+      { icon: "ledger", title: "Chain", detail: "Ethereum log" },
+      { icon: "attest", title: "Attest", detail: "Solidity contract" },
+    ];
+  }
+  if (project.slug === "orchestraai") {
+    return [
+      { icon: "user", title: "Task", detail: "user task" },
+      { icon: "brain", title: "Context", detail: "build context" },
+      { icon: "api", title: "Routing", detail: "model router" },
+      { icon: "api", title: "Provider", detail: "OpenRouter/OpenAI" },
+      { icon: "brain", title: "Tools", detail: "tool execution" },
+      { icon: "ledger", title: "Memory", detail: "cache/telemetry" },
+      { icon: "chat", title: "SSE", detail: "stream output" },
+      { icon: "brain", title: "Re-evaluate", detail: "complete" },
     ];
   }
   if (project.slug === "quantummind") {
