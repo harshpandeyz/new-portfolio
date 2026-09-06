@@ -9,11 +9,11 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "db:migrate": "node --env-file=../../.env ../../node_modules/.bin/prisma migrate deploy",
-    "db:migrate:dev": "node --env-file=../../.env ../../node_modules/.bin/prisma migrate dev",
-    "db:generate": "node --env-file=../../.env ../../node_modules/.bin/prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "node --env-file=../../.env ../../node_modules/.bin/prisma studio",
+    "db:studio": "prisma studio",
     "test": "TEST_MODE=1 vitest run --config tests/vitest.config.ts"
   },
   "prisma": {
