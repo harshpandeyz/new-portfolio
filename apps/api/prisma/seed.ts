@@ -155,7 +155,7 @@ const PROJECTS = [
     status: "complete",
     featured: true,
     year: "2024—2025",
-    order: 6,
+    order: 1,
     problem:
       "During mob gatherings, manual monitoring fails at scale and recorded evidence is vulnerable to tampering challenges in legal contexts.",
     solution:
@@ -182,6 +182,42 @@ const PROJECTS = [
     githubUrl: "https://github.com/harshpandeyz/Intelligent-Mob-Surveillance-System",
   },
   {
+    slug: "orchestraai",
+    title: "OrchestraAI",
+    codename: "Adaptive Agent Runtime",
+    shortDescription: "Adaptive agent runtime for model routing, tool execution, memory, telemetry and streamed task execution.",
+    longDescription:
+      "OrchestraAI is an intelligent control plane for AI agents that dynamically orchestrates models, context, memory, tools, and runtime resources to optimize quality, cost, latency, and reliability. The runtime implements user task → context → model routing → provider call → tool execution → memory/cache/telemetry → SSE → reevaluate → complete.",
+    category: "AI / AGENT ORCHESTRATION / RUNTIME",
+    tier: "featured",
+    status: "active",
+    featured: true,
+    year: "2025—2026",
+    order: 2,
+    problem: "Agent runtimes often lock into a single model or tool chain, leading to cost, latency, or quality mismatches as tasks evolve.",
+    solution:
+      "A control plane that continuously evaluates model health, context limits, budget, and latency; routes between providers, compresses context, caches responses, and recovers via versioned checkpoints with idempotent tool execution.",
+    architecture:
+      "Node.js/TypeScript backend API with Postgres authoritative store and Redis for locks/queues, isolated sandbox worker for customer code execution, and a React console streaming via SSE. Model registry + router, context manager, memory manager, cache manager, tool registry/executor, decision engine, policy engine, checkpoint manager.",
+    decisions: [
+      "BYOK model — tenants supply provider keys, never stored long-term without encryption",
+      "Structured decisions, no free-text chain-of-thought",
+      "Switching cost aware routing with hysteresis to prevent oscillation",
+      "Checkpointed recovery with idempotency for safe retries",
+      "Event-bus with replay, gap detection, and canonical naming enforced by tests",
+    ],
+    challenges: "Balancing model switching cost with quality gains, ensuring safe resume after restarts without re-running destructive tools, and enforcing SSRF-safe network egress for custom tools.",
+    results: "Production-grade runtime with real provider integration, streaming SSE, durable persistence, BYOK auth, and comprehensive test suite covering recovery, economics, and failover.",
+    securityNotes: "BYOK encryption at rest · SSRF-protected fetch_url · isolated sandbox worker · checkpoint integrity sealing · auth fails closed in production",
+    dataFlow: [
+      "User task → context build → model routing → provider call",
+      "Tool execution → memory/cache/telemetry update → SSE stream",
+      "Re-evaluate → complete or optimize",
+    ],
+    stack: ["TypeScript", "Node.js", "PostgreSQL", "Redis", "Docker", "React", "SSE", "OpenRouter", "OpenAI", "Anthropic"],
+    githubUrl: "https://github.com/harshpandeyz/OrchestraAI",
+  },
+  {
     slug: "quantummind",
     title: "QuantumMind",
     codename: "AI Research Intelligence Platform",
@@ -189,11 +225,11 @@ const PROJECTS = [
     longDescription:
       "An AI-assisted research platform that answers questions grounded in stored documents using retrieval-augmented generation. Users upload research PDFs, search them semantically, chat with multi-turn conversations streamed token-by-token over Server-Sent Events, and can submit quantum-circuit images for vision-model analysis. An analytics dashboard tracks usage.",
     category: "AI / RAG / SEARCH / MULTIMODAL",
-    tier: "featured",
+    tier: "secondary",
     status: "complete",
-    featured: true,
+    featured: false,
     year: "2025—2026",
-    order: 2,
+    order: 3,
     problem: "LLMs answer confidently but hallucinate; research questions demand grounded, source-linked answers over private document sets.",
     solution:
       "Documents are chunked, embedded with sentence-transformers and indexed in FAISS. At query time the AI service retrieves the most similar chunks and grounds the LLM answer (Groq / OpenAI / Sarvam providers) in them — the model elaborates, the vector store cites.",
@@ -225,9 +261,9 @@ const PROJECTS = [
     longDescription:
       "A full-stack application that suggests what a learner should study next based on the skills they already have and the role they target. Learners register, declare known skills and a goal role, and receive ranked recommendations; admins manage the skill catalogue through protected CRUD endpoints.",
     category: "FULL-STACK / RECOMMENDATION / BACKEND",
-    tier: "featured",
+    tier: "secondary",
     status: "complete",
-    featured: true,
+    featured: false,
     year: "2025",
     order: 4,
     problem: "Learners drown in unordered course catalogues; what to learn next should be computed from what they already know.",
