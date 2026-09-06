@@ -5,3 +5,5 @@
 @import "./sections.css";
 @import "./subspace.css";
 @import "./admin.css";
+@import "../features/projects/showcase.css";
+@import "../features/case/case.css";
