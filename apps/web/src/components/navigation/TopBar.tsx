@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useScrollLock } from "../../hooks/useScrollLock";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { Button } from "../ui/Button";
 import { IconMenu, IconClose } from "../ui/icons";
 import { NAV_LINKS, type SectionId } from "./nav";
@@ -16,9 +17,7 @@ export interface TopBarProps {
   onOpenPalette: () => void;
 }
 
-function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+const isMac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform ?? "");
 
 export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onAskHarsh, onOpenPalette }: TopBarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,14 +25,22 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
   const triggerRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const reducedMotion = useReducedMotion();
 
   const closeMenu = useCallback(() => setMobileOpen(false), []);
   useFocusTrap(sheetRef, mobileOpen, closeMenu);
   useScrollLock(mobileOpen);
 
+  // Restore focus to the menu trigger when the sheet closes (not on mount).
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !mobileOpen) triggerRef.current?.focus();
+    wasOpen.current = mobileOpen;
+  }, [mobileOpen]);
+
   const scrollToId = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth" });
-  }, []);
+    document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+  }, [reducedMotion]);
 
   const navigateToSection = useCallback((id: SectionId) => {
     setMobileOpen(false);
@@ -61,7 +68,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
               key={link.id}
               href={`/#${link.id}`}
               className={activeSection === link.id ? "active" : ""}
-              aria-current={activeSection === link.id ? "true" : undefined}
+              aria-current={activeSection === link.id ? "page" : undefined}
               onClick={(e) => {
                 e.preventDefault();
                 navigateToSection(link.id);
@@ -97,7 +104,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
           </button>
           <nav className="nav-sheet-list" aria-label="Mobile navigation">
             {NAV_LINKS.map((link) => (
-              <a key={link.id} href={`/#${link.id}`} className="nav-sheet-item" onClick={(e) => { e.preventDefault(); navigateToSection(link.id); }}>
+              <a key={link.id} href={`/#${link.id}`} className={`nav-sheet-item${activeSection === link.id ? " active" : ""}`} aria-current={activeSection === link.id ? "page" : undefined} onClick={(e) => { e.preventDefault(); navigateToSection(link.id); }}>
                 {link.label}
               </a>
             ))}
@@ -108,7 +115,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
               Ask Harsh
             </button>
           </nav>
-          <span className="nav-sheet-command">Press <kbd>⌘K</kbd> for more</span>
+          <span className="nav-sheet-command">Press <kbd>{isMac ? "⌘K" : "Ctrl+K"}</kbd> for more</span>
         </div>
       )}
     </>

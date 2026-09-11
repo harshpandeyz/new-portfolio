@@ -36,11 +36,24 @@ export function Button({
 }: ButtonProps) {
   const cls = classNameFor(variant, size, className);
   if (href) {
+    const disabled = Boolean(rest.disabled);
+    const safeRel = target === "_blank" ? (rel ?? "noopener noreferrer") : rel;
+    const { onClick, disabled: _disabled, ...anchorRest } = rest as React.AnchorHTMLAttributes<HTMLAnchorElement> & { disabled?: boolean };
     return (
-      <a href={href} target={target} rel={rel} download={download} className={cls}>
+      <a
+        href={disabled ? undefined : href}
+        target={target}
+        rel={safeRel}
+        download={download}
+        className={cls}
+        aria-disabled={disabled || undefined}
+        onClick={disabled ? (e) => e.preventDefault() : onClick}
+        {...anchorRest}
+      >
         {children}
       </a>
     );
   }
-  return <button type="button" className={cls} {...rest}>{children}</button>;
+  const { type = "button", ...btnRest } = rest;
+  return <button type={type} className={cls} {...btnRest}>{children}</button>;
 }

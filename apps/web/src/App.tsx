@@ -33,7 +33,7 @@ import { CredentialArchive } from "./features/credentials/CredentialArchive";
 import { ChatWidget } from "./features/chat/ChatWidget";
 
 function Experience({ caps }: { caps: EnvCapabilities }) {
-  const { loaded, error, refresh } = useData();
+  const { loaded, error, refresh, publicSettings } = useData();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -53,15 +53,15 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   useEffect(() => {
     // Page-specific metadata (defaults for the home shell).
     if (location.pathname === "/recruiter") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Résumé`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education." });
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Résumé`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education.", url: `${SEO.siteUrl}/recruiter` });
     } else if (location.pathname.startsWith("/projects/")) {
-      applyMeta({ title: "Project — Harsh Pandey", description: SEO.description });
+      applyMeta({ title: "Project — Harsh Pandey", description: SEO.description, url: `${SEO.siteUrl}${location.pathname}` });
     } else if (location.pathname === "/projects") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Project archive`, description: "The full archive of Harsh Pandey's projects — flagship, selected work, experiments and internship builds." });
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Project archive`, description: "The full archive of Harsh Pandey's projects — flagship, selected work, experiments and internship builds.", url: `${SEO.siteUrl}/projects` });
     } else if (location.pathname === "/credentials") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Credential archive`, description: "The full credential archive for Harsh Pandey — certificates, assessments and major achievements." });
+      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Credential archive`, description: "The full credential archive for Harsh Pandey — certificates, assessments and major achievements.", url: `${SEO.siteUrl}/credentials` });
     } else {
-      applyMeta({ title: SEO.title, description: SEO.description });
+      applyMeta({ title: SEO.title, description: SEO.description, url: SEO.siteUrl });
     }
   }, [location.pathname]);
 
@@ -111,6 +111,10 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       // Clean up any lazy-image listeners from a previous timer fire.
       imageCleanupsRef.current.forEach((fn) => fn());
       imageCleanupsRef.current = [];
+      // Tear down home ScrollTriggers on re-run/unmount so they never leak
+      // onto archive/case routes.
+      killTriggers(triggersRef.current);
+      triggersRef.current = [];
     };
   }, [caps, loaded, location.pathname]);
 
@@ -195,16 +199,22 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     window.dispatchEvent(new CustomEvent("hp:open-chat"));
   }, []);
 
-  // triple-click logo easter egg → minimal mode (visual only)
+  // five-click logo easter egg → minimal mode (visual only, resets after 2s)
   const logoClicks = useRef(0);
+  const logoTimer = useRef<number | null>(null);
   const onLogoClick = useCallback(() => {
     logoClicks.current += 1;
+    if (logoTimer.current) window.clearTimeout(logoTimer.current);
+    logoTimer.current = window.setTimeout(() => {
+      logoClicks.current = 0;
+    }, 2000);
     if (logoClicks.current === 1) {
       navigate("/");
       window.scrollTo({ top: 0, behavior: caps.reducedMotion ? "auto" : "smooth" });
     }
     if (logoClicks.current >= 5) {
       logoClicks.current = 0;
+      if (logoTimer.current) window.clearTimeout(logoTimer.current);
       document.documentElement.classList.toggle("minimal-mode");
       window.dispatchEvent(new CustomEvent("hp:toast", { detail: { title: "INTERFACE MODE", desc: "Minimal mode toggled." } }));
     }
@@ -251,10 +261,16 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
 
   return (
     <ErrorBoundary>
-      {!recruiterMode && <a href="#main" className="skip-link">SKIP TO CONTENT</a>}
+      <a href="#main" className="skip-link">SKIP TO CONTENT</a>
       {!recruiterMode && <div className="bg-layers" aria-hidden="true"><div className="bg-ambient" /></div>}
       {!recruiterMode && <TopBar scrolled={scrolled} onLogoClick={onLogoClick} activeSection={activeSection} onViewResume={openResume} onAskHarsh={openChat} onOpenPalette={() => setPaletteOpen(true)} />}
-      {!recruiterMode && (error && <div className="data-notice" role="status">Some content is temporarily unavailable. <button onClick={() => void refresh()}>Try again</button></div>)}
+      {!recruiterMode && publicSettings?.maintenanceMode && (
+        <div className="maintenance-notice" role="status" aria-live="polite">
+          <span className="maintenance-notice__dot" aria-hidden="true" />
+          <span>Maintenance window · content may be changing.</span>
+        </div>
+      )}
+      {!recruiterMode && (error && <div className={`data-notice${publicSettings?.maintenanceMode ? " data-notice--below-maintenance" : ""}`} role="status">Some content is temporarily unavailable. <button onClick={() => void refresh()}>Try again</button></div>)}
       <main id="main">
         <Routes>
           <Route
@@ -316,12 +332,14 @@ function RecruiterRoute({ onViewResume }: { onViewResume: () => void }) {
 export default function App() {
   const [caps] = useState<EnvCapabilities>(() => detectCapabilities());
   return (
-    <DataProvider>
-      <Routes>
-        <Route path="/private/*" element={<AdminRoute />} />
-        <Route path="*" element={<Experience caps={caps} />} />
-      </Routes>
-    </DataProvider>
+    <ErrorBoundary>
+      <DataProvider>
+        <Routes>
+          <Route path="/private/*" element={<AdminRoute />} />
+          <Route path="*" element={<Experience caps={caps} />} />
+        </Routes>
+      </DataProvider>
+    </ErrorBoundary>
   );
 }
 

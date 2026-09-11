@@ -6,7 +6,11 @@ const listeners = new Set<(unlocked: string[]) => void>();
 function read(): string[] {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const valid = new Set(ACHIEVEMENTS.map((a) => a.id));
+    return parsed.filter((v): v is string => typeof v === "string" && valid.has(v));
   } catch {
     return [];
   }

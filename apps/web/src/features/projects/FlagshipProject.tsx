@@ -24,7 +24,7 @@ function FlowIcon({ kind }: { kind: string }) {
   }
 }
 
-function MobVisual({ project }: { project: Project }) {
+function CctvVisual({ project }: { project: Project }) {
   const strips = FLAGSHIP_GALLERY.slice(1);
   return (
     <>
@@ -32,14 +32,9 @@ function MobVisual({ project }: { project: Project }) {
         <img className="sw-photo" src={FLAGSHIP_HERO.src} alt={FLAGSHIP_HERO.alt} loading="eager" width={1200} height={675} decoding="async" fetchPriority="high" />
         <div className="sw-scrim" aria-hidden="true" />
         <div className="sw-hud" aria-hidden="true">
-          <span className="sw-rec"><i />REC</span>
-          <span className="sw-sys">CCTV-X · OPS-01 · YOLOv8</span>
-          <span className="sw-live">LIVE</span>
+          <span className="sw-sys">CCTV-X · SECURITY OPS · YOLOv8n</span>
         </div>
-        <div className="sw-detect sw-detect--a" aria-hidden="true"><span>MOB · 0.87</span></div>
-        <div className="sw-detect sw-detect--b" aria-hidden="true"><span>TRACK · 04</span></div>
-        <div className="sw-seal" aria-hidden="true">◆ SEALED · ETH-ANCHORED</div>
-        <div className="sw-cap"><span className="sw-k">{FLAGSHIP_HERO.role}</span><span className="sw-t">{FLAGSHIP_HERO.caption} — real product screen</span></div>
+        <div className="sw-cap"><span className="sw-k">{FLAGSHIP_HERO.role}</span><span className="sw-t">{FLAGSHIP_HERO.caption} — repository screen</span></div>
       </div>
       <div className="sw-film" aria-label="More real screens from the system">
         {strips.map((s) => (
@@ -106,19 +101,19 @@ function OrchestraVisual() {
 }
 
 const POSE: Record<string, string> = {
-  "intelligent-mob-surveillance-system": "Real-time mob detection wired to tamper-proof evidence — encrypted, hashed, anchored on-chain.",
+  "intelligent-surveillance-system": "Real-time detection and investigation tooling wired to tamper-evident evidence — encrypted, hashed, ledgered and externally timestamped.",
   orchestraai: "A control plane that routes every task to the right model, tool and memory — then streams it live.",
 };
 
 export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
-  const isMob = project.slug === FLAGSHIP_SLUG;
-  const num = isMob ? "01" : "02";
+  const isCctv = project.slug === FLAGSHIP_SLUG;
+  const num = isCctv ? "01" : "02";
   const flow = flagshipFlow(project);
   const pose = POSE[project.slug] ?? project.shortDescription;
 
   return (
     <article className="sw-flag" data-reveal aria-label={`${project.title} — flagship project`}>
-      {isMob ? <MobVisual project={project} /> : <OrchestraVisual />}
+      {isCctv ? <CctvVisual project={project} /> : <OrchestraVisual />}
       <div className="sw-body">
         <div className="sw-meta">
           <span className="sw-num">{num}</span>
@@ -134,7 +129,7 @@ export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
         </div>
         {flow.length > 0 && (
           <div className="sw-arch">
-            <div className="sw-arch-k"><span>{isMob ? "Detection → evidence pipeline" : "Runtime execution loop"}</span><em>{String(flow.length).padStart(2, "0")} stages</em></div>
+            <div className="sw-arch-k"><span>{isCctv ? "Detection → evidence pipeline" : "Runtime execution loop"}</span><em>{String(flow.length).padStart(2, "0")} stages</em></div>
             <div className="sw-pipe" role="img" aria-label={`System flow: ${flow.map((n) => n.label).join(" → ")}`}>
               {flow.map((n, i) => (
                 <div key={n.label} style={{ display: "contents" }}>
@@ -146,7 +141,7 @@ export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
           </div>
         )}
         <div className="sw-cta">
-          <button className="btn btn-solid" onClick={() => onOpen(project.slug)} aria-label={`Read case study: ${project.title}`}>
+          <button type="button" className="btn btn-solid" onClick={() => onOpen(project.slug)} aria-label={`Read case study: ${project.title}`}>
             Case Study <IconArrowRight />
           </button>
           {project.githubUrl && (

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Certificate } from "@hp/shared";
 import { resolveMediaUrl } from "../../lib/api";
 
@@ -13,9 +14,11 @@ export interface CredentialCardProps {
 
 /** Credential card: title, issuer, date, category — with labelled actions. */
 export function CredentialCard({ certificate: c, index, onOpen }: CredentialCardProps) {
-  const isImage = c.fileUrl && /\.(png|jpe?g|webp|avif|gif)$/i.test(c.fileUrl);
+  const [imgBroken, setImgBroken] = useState(false);
+  const rawPath = c.fileUrl?.split(/[?#]/)[0] ?? "";
+  const isImage = Boolean(c.fileUrl) && /\.(png|jpe?g|webp|avif|gif)$/i.test(rawPath);
   const download = c.fileUrl ? resolveMediaUrl(c.fileUrl) : null;
-  const tierAttr = c.category.toLowerCase();
+  const tierAttr = c.category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
   return (
     <article
@@ -25,8 +28,8 @@ export function CredentialCard({ certificate: c, index, onOpen }: CredentialCard
       data-tier={tierAttr}
     >
       <div className="certificate-preview" aria-hidden="true">
-        {isImage
-          ? <img src={download ?? ""} alt="" loading="lazy" />
+        {isImage && !imgBroken
+          ? <img src={download ?? ""} alt="" loading="lazy" onError={() => setImgBroken(true)} />
           : c.fileUrl
             ? (
               <div className="doc-preview">
@@ -51,7 +54,7 @@ export function CredentialCard({ certificate: c, index, onOpen }: CredentialCard
         {c.credentialId && <span>ID · {c.credentialId}</span>}
       </div>
       <div className="vi-actions">
-        <button className="btn btn-sm btn-solid vault-open" onClick={(e) => onOpen(c, e.currentTarget)}>View details</button>
+        <button type="button" className="btn btn-sm btn-solid vault-open" onClick={(e) => onOpen(c, e.currentTarget)}>View details</button>
         {download && (
           <a className="vault-dl btn btn-sm" href={download} target="_blank" rel="noopener noreferrer" download>
             {isImage ? "Image" : "PDF"}

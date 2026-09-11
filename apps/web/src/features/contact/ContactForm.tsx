@@ -81,6 +81,13 @@ export function ContactForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submittingRef.current) return;
+    // Honeypot: bots fill the hidden field — pretend success without a request.
+    if (form.company.trim()) {
+      setState("ok");
+      setMessage("");
+      setForm(EMPTY);
+      return;
+    }
     submittingRef.current = true;
     setMessage("");
     setFieldErrors({});
@@ -97,6 +104,9 @@ export function ContactForm() {
       setState("err");
       setMessage("Please check your name, email, and message (at least 10 characters).");
       submittingRef.current = false;
+      // Move focus to the first invalid field for keyboard/screen-reader users.
+      const first = errors.name ? "cf-name" : errors.email ? "cf-email" : errors.message ? "cf-message" : null;
+      if (first) window.setTimeout(() => document.getElementById(first)?.focus(), 30);
       return;
     }
     setState("busy");

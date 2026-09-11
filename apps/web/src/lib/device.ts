@@ -23,7 +23,9 @@ export function detectCapabilities(): EnvCapabilities {
     webgl = false;
   }
 
-  const lowPower = (cores <= 4 && mobile) || cores <= 2 || (navigator as { deviceMemory?: number }).deviceMemory === undefined && mobile;
+  const deviceMemory = (navigator as { deviceMemory?: number }).deviceMemory;
+  const lowPower =
+    (cores <= 4 && mobile) || cores <= 2 || (deviceMemory === undefined && mobile);
 
   let tier: Tier = "high";
   if (!webgl || reducedMotion) tier = "low";

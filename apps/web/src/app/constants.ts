@@ -72,7 +72,10 @@ export const WHATSAPP_HREF = PROFILE.whatsappNumber
 export const WHATSAPP_CONFIGURED = PROFILE.whatsappNumber != null && PROFILE.whatsappNumber !== "";
 
 export const SEO = {
-  siteUrl: "https://harshporfolio.netlify.app",
+  // Deployed origin is intentionally overridable: the canonical Netlify
+  // hostname contains a historical spelling, so keep the fallback stable and
+  // override per-deploy via VITE_SITE_URL instead of renaming blindly.
+  siteUrl: (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, "") ?? "https://harshporfolio.netlify.app",
   title: "Harsh Pandey — Software Engineer | Backend · AI · Full Stack",
   description:
     "Harsh Pandey is a software engineer in Pune, India building backend systems, applied AI products and thoughtful full-stack experiences. Explore selected work, capabilities, credentials and an AI assistant.",

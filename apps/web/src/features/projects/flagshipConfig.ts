@@ -8,7 +8,10 @@ import type { Project } from "@hp/shared";
  * Do NOT duplicate this in FlagshipProject.tsx / ProjectCase.tsx.
  */
 
-export const FLAGSHIP_SLUG = "intelligent-mob-surveillance-system";
+// CCTV-X is the evolved flagship repository. The older
+// intelligent-mob-surveillance-system remains in the archive as a separate
+// project and must never inherit CCTV-X's screenshots or architecture claims.
+export const FLAGSHIP_SLUG = "intelligent-surveillance-system";
 
 export interface GalleryImage {
   src: string;
@@ -70,12 +73,12 @@ export interface FlowStage {
 export function flagshipFlow(project: Project): FlowStage[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
-      { icon: "camera", label: "Capture", sub: "CCTV feed" },
-      { icon: "brain", label: "Detect", sub: "YOLOv8 + OpenCV" },
-      { icon: "alert", label: "Event", sub: "mob detection" },
-      { icon: "evidence", label: "Seal", sub: "AES-256 · SHA-256" },
-      { icon: "ledger", label: "Chain", sub: "Ethereum anchoring" },
-      { icon: "attest", label: "Attest", sub: "Solidity contract" },
+      { icon: "camera", label: "Capture", sub: "RTSP · webcam · upload" },
+      { icon: "brain", label: "Detect", sub: "YOLOv8n · tracking" },
+      { icon: "alert", label: "Event", sub: "escalation ladder" },
+      { icon: "evidence", label: "Seal", sub: "AES-GCM · SHA-256" },
+      { icon: "ledger", label: "Ledger", sub: "append-only hashes" },
+      { icon: "attest", label: "Attest", sub: "OpenTimestamps · Bitcoin" },
     ];
   }
   if (project.slug === "orchestraai") {
@@ -103,12 +106,12 @@ export function flagshipFlow(project: Project): FlowStage[] {
 export function caseFlowStages(project: Project): { label: string; sub: string; hint: string }[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
-      { label: "Capture", sub: "CCTV feed", hint: "input" },
-      { label: "Detect", sub: "YOLOv8 + OpenCV", hint: "ai" },
-      { label: "Classify", sub: "mob event", hint: "event" },
-      { label: "Seal", sub: "AES-256 · SHA-256", hint: "evidence" },
-      { label: "Chain", sub: "Ethereum log", hint: "ledger" },
-      { label: "Attest", sub: "Solidity contract", hint: "attest" },
+      { label: "Capture", sub: "RTSP · webcam · upload", hint: "input" },
+      { label: "Detect", sub: "YOLOv8n · tracking", hint: "ai" },
+      { label: "Classify", sub: "possible → confirmed", hint: "event" },
+      { label: "Seal", sub: "AES-GCM · SHA-256", hint: "evidence" },
+      { label: "Ledger", sub: "append-only hash chain", hint: "ledger" },
+      { label: "Attest", sub: "OpenTimestamps · Bitcoin", hint: "attest" },
     ];
   }
   if (project.slug === "orchestraai") {
@@ -130,12 +133,20 @@ export function caseFlowStages(project: Project): { label: string; sub: string; 
 }
 
 export function flagshipFacts(project: Project): { k: string; v: string }[] {
+  if (project.slug === FLAGSHIP_SLUG) {
+    return [
+      { k: "Role", v: "Full-stack · AI pipeline · evidence chain" },
+      { k: "Stack", v: project.stack.slice(0, 5).join(" · ") || "—" },
+      { k: "AI", v: "YOLOv8n · OpenCV · tracking" },
+      { k: "Store", v: "MongoDB · AES-GCM · SHA-256" },
+      { k: "Deploy", v: "Docker Compose · Caddy · HTTPS" },
+    ];
+  }
   return [
-    { k: "Role", v: "Full-stack · AI pipeline · evidence chain" },
-    { k: "Stack", v: project.stack.slice(0, 5).join(" · ") },
-    { k: "AI", v: "YOLOv8n · OpenCV · tracking" },
-    { k: "Store", v: "MongoDB · AES-GCM · SHA-256" },
-    { k: "Deploy", v: "Docker Compose · Caddy · HTTPS" },
+    { k: "Role", v: project.category || "Build" },
+    { k: "Stack", v: project.stack.slice(0, 5).join(" · ") || "—" },
+    { k: "Year", v: project.year || "—" },
+    { k: "Status", v: project.status || "—" },
   ];
 }
 
@@ -185,7 +196,7 @@ export function flagshipCompactFacts(project: Project): { k: string; v: string }
       { k: "Backend", v: "FastAPI" },
       { k: "Data", v: "MongoDB" },
       { k: "Security", v: "AES-256 · SHA-256" },
-      { k: "Chain", v: "Ethereum" },
+      { k: "Attestation", v: "OpenTimestamps · Bitcoin" },
     ];
   }
   if (project.slug === "orchestraai") {
@@ -197,12 +208,11 @@ export function flagshipCompactFacts(project: Project): { k: string; v: string }
       { k: "Stream", v: "SSE" },
     ];
   }
+  const stack = project.stack.slice(0, 3).join(" · ");
   return [
-    { k: "AI", v: "YOLOv8n" },
-    { k: "Backend", v: "FastAPI" },
-    { k: "Data", v: "MongoDB" },
-    { k: "Security", v: "AES-GCM · SHA-256" },
-    { k: "Deploy", v: "Docker · Caddy" },
+    { k: "Stack", v: stack || "—" },
+    { k: "Year", v: project.year || "—" },
+    { k: "Status", v: project.status || "—" },
   ];
 }
 
@@ -223,8 +233,8 @@ export function systemMap(project: Project): SystemMapNode[] {
       { icon: "alert", title: "Event", detail: "mob detection" },
       { icon: "evidence", title: "Seal", detail: "AES-256 · SHA-256" },
       { icon: "shield", title: "Integrity", detail: "hashing" },
-      { icon: "ledger", title: "Chain", detail: "Ethereum log" },
-      { icon: "attest", title: "Attest", detail: "Solidity contract" },
+      { icon: "ledger", title: "Ledger", detail: "append-only hash chain" },
+      { icon: "attest", title: "Attest", detail: "OpenTimestamps · Bitcoin" },
     ];
   }
   if (project.slug === "orchestraai") {

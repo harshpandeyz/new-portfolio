@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Certificate } from "@hp/shared";
 import { resolveMediaUrl } from "../../lib/api";
 import { Dialog } from "../../components/ui/Dialog";
+import { Button } from "../../components/ui/Button";
 import { IconButton } from "../../components/ui/IconButton";
 import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import { IconDownload, IconExternal, IconClose, IconArrowLeft, IconArrowRight } from "../../components/ui/icons";
@@ -30,9 +31,13 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isImage = useMemo(() => certificate?.fileUrl?.match(/\.(png|jpe?g|webp|avif|gif)$/i), [certificate]);
+  const isImage = useMemo(() => {
+    const raw = certificate?.fileUrl?.split(/[?#]/)[0] ?? "";
+    return /\.(png|jpe?g|webp|avif|gif)$/i.test(raw);
+  }, [certificate]);
   const url = certificate?.fileUrl ? resolveMediaUrl(certificate.fileUrl) : null;
-  const isPdf = Boolean(url) && !isImage;
+  const ext = (certificate?.fileUrl?.split(/[?#]/)[0]?.split(".").pop() ?? "").toLowerCase();
+  const isPdf = Boolean(url) && ext === "pdf";
 
   const clearSlowTimer = () => {
     if (slowTimer.current) {
@@ -92,7 +97,7 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
           const start = touchStartRef.current;
           const t = e.changedTouches[0];
           touchStartRef.current = null;
-          if (!start || !t) return;
+          if (!start || !t || !hasNeighbors) return;
           const dx = t.clientX - start.x;
           const dy = t.clientY - start.y;
           // Only handle horizontal swipes that dominate vertical movement
@@ -116,7 +121,7 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
           <div className="cert-viewer-fallback">
             <strong>Preview unavailable.</strong>
             <span>This image could not be loaded right now.</span>
-            <IconButton label="Retry loading credential" onClick={() => setState("loading")}>Retry</IconButton>
+            <Button size="sm" onClick={() => setState("loading")}>Retry</Button>
           </div>
         )}
         {url && isImage && state !== "error" && (
@@ -128,6 +133,7 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
               src={`${url}#toolbar=0`}
               title={`${certificate.title} certificate`}
               onLoad={handlePdfLoad}
+              sandbox="allow-same-origin allow-scripts"
             />
             {pdfSlow && (
               <div className="cert-viewer-fallback cert-viewer-pdf-hint" role="status">
@@ -136,6 +142,12 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
               </div>
             )}
           </>
+        )}
+        {url && !isImage && !isPdf && (
+          <div className="cert-viewer-fallback">
+            <strong>Preview unavailable for this file type.</strong>
+            <a className="link-btn" href={url} target="_blank" rel="noopener noreferrer">Open document <IconExternal /></a>
+          </div>
         )}
       </div>
 

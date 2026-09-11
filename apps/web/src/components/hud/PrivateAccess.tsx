@@ -12,6 +12,8 @@ interface PrivateAccessProps {
 export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [challenge, setChallenge] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -22,6 +24,8 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement;
     setError(null);
+    setChallenge(null);
+    setCode("");
     document.body.classList.add("no-scroll");
     window.setTimeout(() => document.getElementById("pa-email")?.focus(), 40);
     const onKeyDown = (event: KeyboardEvent) => {
@@ -60,12 +64,24 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
     setBusy(true);
     setError(null);
     try {
-      await api.login(email, password);
+      if (challenge) {
+        await api.login2fa(challenge, code.trim());
+        unlock("operator");
+        onClose();
+        navigate("/private");
+        return;
+      }
+      const res = await api.login(email, password);
+      if (res.requires2FA && res.challenge) {
+        setChallenge(res.challenge);
+        window.setTimeout(() => document.getElementById("pa-code")?.focus(), 40);
+        return;
+      }
       unlock("operator");
       onClose();
       navigate("/private");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Access denied");
+      setError("Access denied. Check your credentials and try again.");
     } finally {
       setBusy(false);
     }
@@ -78,17 +94,27 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
         <h3>Private access</h3>
         <p className="sub">Sign in to manage portfolio content.</p>
         <form className="private-form" onSubmit={submit}>
-          <div className="field">
-            <label htmlFor="pa-email">Email</label>
-            <input id="pa-email" className="input" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="pa-password">Password</label>
-            <input id="pa-password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          {error && <div className="private-error" role="alert">⛔ {error}</div>}
+          {!challenge ? (
+            <>
+              <div className="field">
+                <label htmlFor="pa-email">Email</label>
+                <input id="pa-email" className="input" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="pa-password">Password</label>
+                <input id="pa-password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+            </>
+          ) : (
+            <div className="field">
+              <label htmlFor="pa-code">Two-factor code</label>
+              <input id="pa-code" className="input" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="6-digit code or recovery code" />
+              <p className="sub">Two-factor authentication is enabled. Enter your authenticator code.</p>
+            </div>
+          )}
+          {error && <div className="private-error" role="alert">{error}</div>}
           <button className="btn btn-solid" type="submit" disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? "Signing in…" : challenge ? "Verify" : "Sign in"}
           </button>
         </form>
         <p className="private-note">

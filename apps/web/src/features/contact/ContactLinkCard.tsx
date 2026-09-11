@@ -25,7 +25,7 @@ export interface ContactLinkCardProps {
 
 function EmailVisual() {
   return (
-    <svg viewBox="0 0 124 76" role="presentation">
+    <svg viewBox="0 0 124 76" aria-hidden="true">
       <path
         className="clc-draw"
         d="M6 62 C 26 58, 30 44, 18 40 C 8 37, 10 50, 30 48 C 62 45, 66 30, 96 22"
@@ -49,7 +49,7 @@ function EmailVisual() {
 
 function LinkedInVisual() {
   return (
-    <svg viewBox="0 0 124 76" role="presentation">
+    <svg viewBox="0 0 124 76" aria-hidden="true">
       <g stroke="var(--color-accent)" strokeOpacity="0.3" strokeWidth="1.2">
         <line x1="62" y1="26" x2="30" y2="50" />
         <line x1="62" y1="26" x2="94" y2="48" />
@@ -78,7 +78,7 @@ function LinkedInVisual() {
 
 function GitHubVisual() {
   return (
-    <svg viewBox="0 0 124 76" role="presentation">
+    <svg viewBox="0 0 124 76" aria-hidden="true">
       <g className="clc-codewin">
         <rect x="34" y="8" width="78" height="56" rx="8" fill="#eef4fe" stroke="#c3d8fa" strokeWidth="1.2" />
         <rect x="34" y="8" width="78" height="16" rx="8" fill="#dce9fd" />
@@ -101,7 +101,7 @@ function GitHubVisual() {
 
 function ResumeVisual() {
   return (
-    <svg viewBox="0 0 124 76" role="presentation">
+    <svg viewBox="0 0 124 76" aria-hidden="true">
       <g className="clc-sheet-back" transform="rotate(8 88 38)">
         <rect x="66" y="10" width="44" height="56" rx="6" fill="#dce9fd" stroke="#b9d2f8" strokeWidth="1.2" />
       </g>

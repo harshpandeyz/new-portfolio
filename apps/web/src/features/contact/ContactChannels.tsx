@@ -22,10 +22,18 @@ interface CardDef {
 
 /** Display form of a URL: host + path without protocol, www or trailing slash. */
 function displayUrl(url: string): string {
-  return url
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .replace(/\/$/, "");
+  try {
+    const u = new URL(url);
+    const host = u.host.toLowerCase().replace(/^www\./i, "");
+    const path = u.pathname.replace(/\/$/, "");
+    return `${host}${path === "/" ? "" : path}`;
+  } catch {
+    return url
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split(/[?#]/)[0]!
+      .replace(/\/$/, "");
+  }
 }
 
 /** Direct contact channels — every destination is real data, never invented. */

@@ -1,6 +1,7 @@
 import type { Project } from "@hp/shared";
 import { formatTaxonomy } from "../../lib/format";
-import { IconArrowRight } from "../../components/ui/icons";
+import { secondaryVisual } from "./flagshipConfig";
+import { IconArrowRight, IconExternal } from "../../components/ui/icons";
 
 interface ProjectCardProps {
   project: Project;
@@ -44,11 +45,12 @@ const MINI: Record<string, { label: string; sub: string; icon: string; core?: bo
   ],
 };
 
-export function ProjectCard({ project, index, onOpen }: ProjectCardProps) {
-  const stages = MINI[project.slug] ?? null;
+export function ProjectCard({ project, index, onOpen, compact }: ProjectCardProps) {
+  const fallback = secondaryVisual(project.slug)?.map((s) => ({ label: s.label, sub: s.sub, icon: s.icon, core: false })) ?? null;
+  const stages = (MINI[project.slug] ?? fallback) as { label: string; sub: string; icon: string; core?: boolean }[] | null;
   const flowLabel = stages ? stages.map((s) => s.label).join(" → ") : null;
   return (
-    <article className="sw-sec" data-reveal data-reveal-delay={String((index % 3) * 0.08)} aria-label={`${project.title} — selected work`}>
+    <article className={`sw-sec${compact ? " sw-compact" : ""}`} data-reveal data-reveal-delay={String((index % 3) * 0.08)} aria-label={`${project.title} — selected work`}>
       <div className="sw-mini" role={flowLabel ? "img" : undefined} aria-label={flowLabel ? `Mini system diagram: ${flowLabel}` : undefined}>
         <div className="sw-mini-k"><span>SYSTEM MAP</span><span>{String(flowLabel ? stages!.length : 0).padStart(2, "0")} STAGES</span></div>
         {stages ? (
@@ -74,10 +76,10 @@ export function ProjectCard({ project, index, onOpen }: ProjectCardProps) {
           </div>
         )}
         <div className="sw-sec-actions">
-          <button className="sw-link" onClick={() => onOpen(project.slug)} aria-label={`Open case study: ${project.title}`} style={{ padding: 0 }}>
+          <button type="button" className="sw-link" onClick={() => onOpen(project.slug)} aria-label={`Open case study: ${project.title}`} style={{ padding: 0 }}>
             Case Study <IconArrowRight />
           </button>
-          {project.githubUrl && (<a className="sw-ghlink" href={project.githubUrl} target="_blank" rel="noopener noreferrer" aria-label={`View source for ${project.title} on GitHub`}>GitHub ↗</a>)}
+          {project.githubUrl && (<a className="sw-ghlink" href={project.githubUrl} target="_blank" rel="noopener noreferrer" aria-label={`View source for ${project.title} on GitHub`}>GitHub <IconExternal /></a>)}
         </div>
       </div>
     </article>

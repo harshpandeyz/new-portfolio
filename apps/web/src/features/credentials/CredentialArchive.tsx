@@ -16,32 +16,49 @@ const labelFor = (value: string) => (value === "ALL" ? "All" : value.charAt(0) +
 export function CredentialArchive() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("ALL");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Certificate[]>([]);
   const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(24);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [viewer, setViewer] = useState<Certificate | null>(null);
 
   useEffect(() => {
-    let live = true;
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, debouncedSearch]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setError(false);
     api
-      .certificates({ category: filter, search, page })
-      .then((r) => { if (!live) return; setItems(r.certificates); setTotal(r.total); })
-      .catch(() => { if (live) { setItems([]); setError(true); } })
-      .finally(() => live && setLoading(false));
-    return () => { live = false; };
-  }, [filter, search, page, retryKey]);
+      .certificates({ category: filter === "ALL" ? undefined : filter, search: debouncedSearch || undefined, page }, controller.signal)
+      .then((r) => { setItems(r.certificates); setTotal(r.total); setPageSize(r.pageSize ?? 24); })
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setItems([]);
+        setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [filter, debouncedSearch, page, retryKey]);
 
   const displayList = useMemo(
     () => [...items].sort((a, b) => (Number(b.featured) - Number(a.featured)) || a.order - b.order),
     [items],
   );
 
-  const pages = Math.max(1, Math.ceil(total / 24));
+  const pages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
 
   const openViewer = (c: Certificate) => {
     setViewer(c);
@@ -58,7 +75,7 @@ export function CredentialArchive() {
 
   return (
     <div className="subspace">
-      <main className="credentials-page" aria-label="Credential archive">
+      <div className="credentials-page" aria-label="Credential archive">
         <div className="container">
           <header className="vault-hero">
             <p className="archive-kicker"><Link to="/#credentials" className="archive-back">← Back to selected credentials</Link></p>
@@ -96,25 +113,24 @@ export function CredentialArchive() {
 
           <div className="vault-grid">
             {loading && <EmptyState>Loading credentials…</EmptyState>}
-            {!loading && displayList.map((c, i) => (
+            {!loading && error && <ErrorState message="Credentials couldn't load." onRetry={() => setRetryKey((k) => k + 1)} />}
+            {!loading && !error && displayList.map((c, i) => (
               <CredentialCard key={c.id} certificate={c} index={i} onOpen={(cert) => openViewer(cert)} />
             ))}
-            {!loading && displayList.length === 0 && (
-              <EmptyState>
-                {error ? <ErrorState message="Credentials couldn't load." onRetry={() => setRetryKey((k) => k + 1)} /> : "No credentials match this search."}
-              </EmptyState>
+            {!loading && !error && displayList.length === 0 && (
+              <EmptyState>No credentials match this search.</EmptyState>
             )}
           </div>
 
           {!loading && pages > 1 && (
             <div className="vault-pagination" aria-label="Credential pages">
-              <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</Button>
+              <Button size="sm" disabled={page <= 1} onClick={() => { setPage((p) => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>← Prev</Button>
               <span className="mono mono-dim">{page} / {pages}</span>
-              <Button size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next →</Button>
+              <Button size="sm" disabled={page >= pages} onClick={() => { setPage((p) => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Next →</Button>
             </div>
           )}
         </div>
-      </main>
+      </div>
 
       <CredentialViewer certificate={viewer} onClose={() => setViewer(null)} onNavigate={navigateViewer} hasNeighbors={displayList.length > 1} />
     </div>

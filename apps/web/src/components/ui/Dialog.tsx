@@ -38,18 +38,13 @@ export function Dialog({
   useFocusTrap(panelRef, open, onClose);
   useScrollLock(open);
 
+  // useFocusTrap already moves focus into the panel on open. Only honor an
+  // explicit initialFocusRef here to avoid a focus race.
   useEffect(() => {
     if (!open) return;
     if (initialFocusRef?.current) {
       initialFocusRef.current.focus();
-      return;
     }
-    const panel = panelRef.current;
-    if (!panel) return;
-    const focusables = panel.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    focusables[0]?.focus();
   }, [open, initialFocusRef]);
 
   if (!open) return null;

@@ -75,6 +75,7 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
             src={`${url}#toolbar=0`}
             title="Harsh Pandey résumé"
             loading="eager"
+            sandbox="allow-same-origin"
             onLoad={() => setSlow(false)}
             onError={() => setFailed(true)}
           />

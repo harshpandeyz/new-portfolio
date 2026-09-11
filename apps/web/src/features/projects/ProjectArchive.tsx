@@ -56,7 +56,7 @@ export function ProjectArchive() {
     return [...projects]
       .sort((a, b) => a.order - b.order)
       .filter((p) => matchesDomain(p, domain))
-      .filter((p) => !q || [p.title, p.category, p.stack.join(" "), p.shortDescription].some((field) => field.toLowerCase().includes(q)));
+      .filter((p) => !q || [p.title, p.category, p.stack.join(" "), p.shortDescription, p.longDescription ?? "", p.year].some((field) => field.toLowerCase().includes(q)));
   }, [projects, domain, query]);
 
   const open = (slug: string) => {
@@ -66,7 +66,7 @@ export function ProjectArchive() {
   };
 
   return (
-    <main className="archive-page subspace" data-tier="featured" aria-label="Project archive">
+    <div className="archive-page subspace" data-tier="featured" aria-label="Project archive">
       <div className="container">
         <header className="archive-hero">
           <p className="archive-kicker">
@@ -144,6 +144,6 @@ export function ProjectArchive() {
           <EmptyState>Projects are loading…</EmptyState>
         )}
       </div>
-    </main>
+    </div>
   );
 }

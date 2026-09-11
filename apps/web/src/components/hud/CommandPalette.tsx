@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
 import React from "react";
-import { IconExternal, IconMenu, IconChevron, IconInfo, IconSearch, IconFilter, IconMail, IconGithub, IconLinkedIn, IconStar, IconCheck, IconClose, IconSpark } from "../../components/ui/icons";
+import { IconSearch, IconFilter, IconMail, IconGithub, IconLinkedIn, IconStar, IconChevron, IconInfo, IconSpark } from "../../components/ui/icons";
 import { useScrollLock } from "../../hooks/useScrollLock";
 
 export type CommandIcon =
@@ -51,8 +51,7 @@ function renderIcon(icon: CommandIcon | React.ComponentType) {
     if (!mapped) return <IconSearch />;
     return React.createElement(mapped);
   }
-  if (typeof icon === "function") return null;
-  return <IconSearch />;
+  return React.createElement(icon as React.ComponentType);
 }
 
 interface CommandPaletteProps {
@@ -102,6 +101,10 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     },
     [filtered, onClose],
   );
+
+  useEffect(() => {
+    setActive((a) => Math.min(a, Math.max(0, filtered.length - 1)));
+  }, [filtered.length]);
 
   useEffect(() => {
     if (!open) return;

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Profile, Project, Certificate, Skill, Education, TimelineItem, SystemStats } from "@hp/shared";
+import type { Profile, Project, Certificate, Skill, Education, TimelineItem, SiteSettings } from "@hp/shared";
 
 import { api } from "./api";
 
@@ -8,18 +8,19 @@ interface DataState {
   projects: Project[];
   certificates: Certificate[];
   certTotal: number;
+  certPageSize: number;
   skills: Skill[];
   education: Education[];
   timeline: TimelineItem[];
-  stats: SystemStats | null;
+  publicSettings: Pick<SiteSettings, "chatEnabled" | "contactEnabled" | "maintenanceMode"> | null;
   loaded: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 }
 
 const DataContext = createContext<DataState>({
-  profile: null, projects: [], certificates: [], certTotal: 0, skills: [],
-  education: [], timeline: [], stats: null, loaded: false, error: null,
+  profile: null, projects: [], certificates: [], certTotal: 0, certPageSize: 24, skills: [],
+  education: [], timeline: [], publicSettings: null, loaded: false, error: null,
   refresh: async () => undefined,
 });
 
@@ -35,9 +36,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [education, setEducation] = useState<Education[]>([]);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
-  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [publicSettings, setPublicSettings] = useState<DataState["publicSettings"]>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [certPageSize, setCertPageSize] = useState(24);
 
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -72,6 +74,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       api.skills(signal),
       api.education(signal),
       api.timeline(signal),
+      api.publicSettings(signal),
     ]);
 
     if (signal.aborted) return;
@@ -83,9 +86,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     setCertificates(deferredValue<{ certificates: Certificate[] }>(0)?.certificates ?? []);
     setCertTotal(deferredValue<{ total: number }>(0)?.total ?? 0);
+    setCertPageSize(deferredValue<{ pageSize: number }>(0)?.pageSize ?? 24);
     setSkills(deferredValue<{ skills: Skill[] }>(1)?.skills ?? []);
     setEducation(deferredValue<{ items: Education[] }>(2)?.items ?? []);
     setTimeline(deferredValue<{ items: TimelineItem[] }>(3)?.items ?? []);
+    setPublicSettings(deferredValue<{ settings: DataState["publicSettings"] }>(4)?.settings ?? null);
     setError(
       [...critical, ...deferred].some((r) => r.status === "rejected")
         ? "Some content is temporarily unavailable."
@@ -102,10 +107,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<DataState>(
     () => ({
-      profile, projects, certificates, certTotal, skills,
-      education, timeline, stats, loaded, error, refresh: load,
+      profile, projects, certificates, certTotal, certPageSize, skills,
+      education, timeline, publicSettings, loaded, error, refresh: load,
     }),
-    [profile, projects, certificates, certTotal, skills, education, timeline, stats, loaded, error, load],
+    [profile, projects, certificates, certTotal, certPageSize, skills, education, timeline, publicSettings, loaded, error, load],
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

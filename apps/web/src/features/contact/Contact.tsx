@@ -1,6 +1,7 @@
 import { ContactChannels } from "./ContactChannels";
 import { ContactForm } from "./ContactForm";
 import { IconArrowRight } from "../../components/ui/icons";
+import { useData } from "../../lib/data";
 
 export interface ContactProps {
   onViewResume: () => void;
@@ -13,6 +14,7 @@ export interface ContactProps {
  * child components — this file only owns layout.
  */
 export function Contact({ onViewResume }: ContactProps) {
+  const { publicSettings } = useData();
   return (
     <section className="section contact-section" id="contact" aria-label="Contact">
       <div className="container contact-container">
@@ -42,7 +44,7 @@ export function Contact({ onViewResume }: ContactProps) {
               <span className="eyebrow">Send a message</span>
               <p>Share a bit about what you have in mind. The more context, the better.</p>
             </div>
-            <ContactForm />
+            {publicSettings?.contactEnabled === false ? <p className="contact-unavailable" role="status">The contact form is temporarily unavailable. Please use one of the direct channels instead.</p> : <ContactForm />}
           </div>
         </div>
 
@@ -62,7 +64,16 @@ export function Contact({ onViewResume }: ContactProps) {
             <i />
             <i />
           </span>
-          <a className="contact-foot-link" href="#contact" aria-label="Back to the top of the contact section">
+          <a
+            className="contact-foot-link"
+            href="#main"
+            aria-label="Back to the top of the page"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("main")?.scrollIntoView({ behavior: "smooth" });
+              window.history.replaceState(null, "", "#contact");
+            }}
+          >
             Let&rsquo;s connect <IconArrowRight />
           </a>
         </div>

@@ -2,24 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
+import { applyMeta } from "../../lib/seo";
+import { SEO } from "../../app/constants";
 import { formatTaxonomy } from "../../lib/format";
 import type { Project } from "@hp/shared";
 import { unlock } from "../../lib/achievements";
 import { useData } from "../../lib/data";
 import { Button } from "../../components/ui/Button";
 import { IconArrowLeft, IconArrowRight, IconExternal } from "../../components/ui/icons";
-import { MobStory, OrchestraStory, QuantumStory, SkillStory } from "../case/stories";
+import { CctvStory, OrchestraStory, QuantumStory, SkillStory } from "../case/stories";
+import { Canvas, PipeFlow, SecurityStrip } from "../case/visuals";
 
 interface ProjectCaseProps {
   onViewResume: () => void;
 }
-
-const STORY_INDEX: Record<string, string> = {
-  "intelligent-mob-surveillance-system": "01",
-  orchestraai: "02",
-  quantummind: "03",
-  skillmatch: "04",
-};
 
 function GenericStory({ project }: { project: Project }) {
   return (
@@ -43,10 +39,21 @@ function GenericStory({ project }: { project: Project }) {
       {project.dataFlow.length > 0 && (
         <section className="cs-sec" aria-label="End to end flow">
           <h2 className="cs-sec-title">End-to-end flow</h2>
+          <Canvas kicker="IMPLEMENTED FLOW" right={`${project.dataFlow.length} stages`} caption="The sequence is taken from the project record; details are intentionally omitted when the repository does not document them.">
+            <PipeFlow nodes={project.dataFlow.slice(0, 8).map((step, index) => {
+              const [label, sub] = step.split("→");
+              return { label: label?.trim() || `Stage ${index + 1}`, sub: sub?.trim() || "recorded stage", icon: ["camera", "brain", "api", "database", "evidence", "ledger", "attest", "web"][index] };
+            })} />
+          </Canvas>
           <ol className="cs-journey" style={{ marginTop: 16 }}>
-            {project.dataFlow.map((s, i) => (
-              <li key={i} className="cs-jstep"><span className="jn">{String(i + 1).padStart(2, "0")}</span><div><b>{s.split("→")[0]?.trim()}</b><p>{s.split("→")[1]?.trim()}</p></div></li>
-            ))}
+            {project.dataFlow.map((s, i) => {
+              const [head, tail] = s.split("→");
+              const label = head?.trim() || `Stage ${i + 1}`;
+              const sub = tail?.trim();
+              return (
+                <li key={i} className="cs-jstep"><span className="jn">{String(i + 1).padStart(2, "0")}</span><div><b>{label}</b>{sub ? <p>{sub}</p> : null}</div></li>
+              );
+            })}
           </ol>
         </section>
       )}
@@ -65,6 +72,18 @@ function GenericStory({ project }: { project: Project }) {
           <div className="cs-prose" style={{ maxWidth: 680 }}><h3>Result</h3><p>{project.results}</p></div>
         </section>
       )}
+      {(project.challenges || project.securityNotes) && (
+        <section className="cs-sec" aria-label="Limitations and security">
+          <div className="cs-split">
+            {project.challenges && <div className="cs-prose"><h3>Limitations / challenge</h3><p>{project.challenges}</p></div>}
+            {project.securityNotes && <div className="cs-prose"><h3>Security posture</h3><SecurityStrip items={project.securityNotes.split(" · ")} /></div>}
+          </div>
+        </section>
+      )}
+      <section className="cs-sec" aria-label="Technology used">
+        <h2 className="cs-sec-title">Technology used</h2>
+        <div className="cs-secgrid">{project.stack.map((technology) => <span className="cs-secbadge" key={technology}>{technology}</span>)}</div>
+      </section>
     </>
   );
 }
@@ -78,6 +97,14 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
 
   useEffect(() => {
     let live = true;
+    if (!slug) {
+      setProject(null);
+      setNotFound(true);
+      setLoading(false);
+      return () => {
+        live = false;
+      };
+    }
     const cached = projects.find((p) => p.slug === slug);
     if (cached) {
       setProject(cached);
@@ -88,7 +115,7 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
       setNotFound(false);
       setLoading(true);
       api
-        .project(slug ?? "")
+        .project(slug)
         .then((r) => {
           if (!live) return;
           setProject(r.project);
@@ -105,21 +132,27 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   useEffect(() => {
     window.scrollTo({ top: 0 });
     if (project) {
-      document.title = `${project.title} — Harsh Pandey`;
+      applyMeta({
+        title: `${project.title} — Harsh Pandey`,
+        description: project.shortDescription,
+        url: `${SEO.siteUrl}/projects/${project.slug}`,
+        image: project.heroImage ?? undefined,
+      });
       unlock("explorer");
       void api.track("project_view", project.slug);
     }
     return () => {
-      document.title = "Harsh Pandey — Software Engineer";
+      applyMeta({ title: SEO.title, description: SEO.description, url: SEO.siteUrl, image: undefined });
     };
   }, [project]);
 
-  const { prev, next } = useMemo(() => {
+  const { prev, next, orderedProjects } = useMemo(() => {
     const ordered = [...projects].sort((a, b) => a.order - b.order);
     const idx = project ? ordered.findIndex((p) => p.id === project.id) : -1;
     return {
-      prev: idx > 0 ? ordered[idx - 1] : null,
-      next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null,
+      orderedProjects: ordered,
+      prev: idx > 0 ? ordered[idx - 1] ?? null : null,
+      next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] ?? null : null,
     };
   }, [projects, project]);
 
@@ -144,8 +177,10 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
     );
   }
 
-  const storyNo = STORY_INDEX[project.slug];
-  const storyLabel = storyNo ? `CASE ${storyNo} / 04` : "CASE STUDY";
+  const storyNo = orderedProjects.findIndex((item) => item.id === project.id) + 1;
+  const storyLabel = storyNo > 0
+    ? `CASE ${String(storyNo).padStart(2, "0")} / ${String(orderedProjects.length).padStart(2, "0")}`
+    : "CASE STUDY";
 
   return (
     <div className="subspace" data-tier={project.tier}>
@@ -176,11 +211,11 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
           </div>
         </header>
 
-        {project.slug === "intelligent-mob-surveillance-system" && <MobStory project={project} />}
+        {project.slug === "intelligent-surveillance-system" && <CctvStory project={project} />}
         {project.slug === "orchestraai" && <OrchestraStory project={project} />}
         {project.slug === "quantummind" && <QuantumStory project={project} />}
         {project.slug === "skillmatch" && <SkillStory project={project} />}
-        {!["intelligent-mob-surveillance-system", "orchestraai", "quantummind", "skillmatch"].includes(project.slug) && <GenericStory project={project} />}
+        {!["intelligent-surveillance-system", "orchestraai", "quantummind", "skillmatch"].includes(project.slug) && <GenericStory project={project} />}
 
         <section className="cs-sec" aria-label="Project links">
           <div className="cs-links">

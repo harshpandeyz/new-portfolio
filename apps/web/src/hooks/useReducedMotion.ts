@@ -1,13 +1,17 @@
 import { useSyncExternalStore } from "react";
 
+const QUERY = "(prefers-reduced-motion: reduce)";
+
 function subscribe(callback: () => void) {
-  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+  const mq = window.matchMedia(QUERY);
   mq.addEventListener("change", callback);
   return () => mq.removeEventListener("change", callback);
 }
 
 function getSnapshot() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia(QUERY).matches;
 }
 
 function getServerSnapshot() {
