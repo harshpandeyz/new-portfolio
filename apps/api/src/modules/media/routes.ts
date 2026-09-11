@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 
 import type { FastifyInstance } from "fastify";
+import type { MultipartFile } from "@fastify/multipart";
 
 import { config } from "../../config.js";
 import { prisma } from "../../db/prisma.js";
@@ -90,6 +91,78 @@ function resolveSafe(base: string, name: string): string {
   return resolved;
 }
 
+type MediaKind = "image" | "document" | "video";
+
+interface StoredUpload {
+  filename: string;
+  storedName: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  kind: MediaKind;
+  title: string | null;
+}
+
+async function storeIncomingFile(file: MultipartFile): Promise<StoredUpload> {
+  if (!ALLOWED_MIME.has(file.mimetype)) {
+    throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", `File type ${file.mimetype} is not allowed`);
+  }
+  const originalExt = (file.filename.split(".").pop() ?? "").toLowerCase();
+  const expectedExt = EXT_BY_MIME[file.mimetype];
+  const extAllows = new Set([expectedExt, ...(expectedExt === "jpg" ? ["jpeg"] : [])]);
+  if (originalExt && !extAllows.has(originalExt)) {
+    throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "File extension does not match file type");
+  }
+
+  const ext = EXT_BY_MIME[file.mimetype] ?? "bin";
+  const safeOriginal = sanitizeFilename(file.filename.replace(/\.[^.]*$/, ""));
+  const storedName = `${Date.now()}-${randomBytes(8).toString("hex")}-${safeOriginal || "asset"}.${ext}`;
+  const kindDir = path.join(config.uploadDir, "media");
+  await mkdir(kindDir, { recursive: true });
+  const dest = resolveSafe(kindDir, storedName);
+  const chunks: Buffer[] = [];
+  let headLen = 0;
+  const { Transform } = await import("node:stream");
+  const sniffer = new Transform({
+    transform(chunk: Buffer, _enc, cb) {
+      if (headLen < 16) {
+        const need = 16 - headLen;
+        chunks.push(chunk.subarray(0, need));
+        headLen += Math.min(need, chunk.length);
+      }
+      cb(null, chunk);
+    },
+  });
+
+  let committed = false;
+  try {
+    await pipeline(file.file, sniffer, createWriteStream(dest));
+    const stat = await import("node:fs/promises").then((fs) => fs.stat(dest));
+    const sizeBytes = stat.size;
+    const head = Buffer.concat(chunks);
+    if (sizeBytes > config.maxUploadMb * 1024 * 1024) {
+      throw new HttpError(413, "PAYLOAD_TOO_LARGE", `File exceeds the ${config.maxUploadMb}MB limit`);
+    }
+    if (sizeBytes === 0) throw new HttpError(400, "EMPTY_FILE", "Uploaded file is empty");
+    if (!sniffMime(head, file.mimetype)) {
+      throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "File content does not match its declared type");
+    }
+
+    committed = true;
+    return {
+      filename: sanitizeFilename(file.filename),
+      storedName,
+      url: `/static/media/${storedName}`,
+      mimeType: file.mimetype,
+      sizeBytes,
+      kind: file.mimetype.startsWith("image/") ? "image" : file.mimetype === "application/pdf" ? "document" : "video",
+      title: (file.fields.title as { value?: string } | undefined)?.value?.toString().replace(/[\r\n]+/g, " ").slice(0, 160) ?? null,
+    };
+  } finally {
+    if (!committed) await unlink(dest).catch(() => undefined);
+  }
+}
+
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/",
@@ -105,81 +178,57 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       }
       const file = await req.file();
       if (!file) throw new HttpError(400, "NO_FILE", "Multipart file field is required");
-
-      if (!ALLOWED_MIME.has(file.mimetype)) {
-        throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", `File type ${file.mimetype} is not allowed`);
-      }
-      // Extension must agree with the declared MIME (blocks extension spoofing).
-      const originalExt = (file.filename.split(".").pop() ?? "").toLowerCase();
-      const expectedExt = EXT_BY_MIME[file.mimetype];
-      const extAllows = new Set([expectedExt, ...(expectedExt === "jpg" ? ["jpeg"] : [])]);
-      if (originalExt && !extAllows.has(originalExt)) {
-        throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "File extension does not match file type");
-      }
-
-      const ext = EXT_BY_MIME[file.mimetype] ?? "bin";
-      const safeOriginal = sanitizeFilename(file.filename.replace(/\.[^.]*$/, ""));
-      const storedName = `${Date.now()}-${randomBytes(8).toString("hex")}-${safeOriginal || "asset"}.${ext}`;
-      const kindDir = path.join(config.uploadDir, "media");
-      await mkdir(kindDir, { recursive: true });
-      const dest = resolveSafe(kindDir, storedName);
-
-      // Stream to disk while capturing the head for signature verification.
-      const chunks: Buffer[] = [];
-      let headLen = 0;
-      const { Transform } = await import("node:stream");
-      const sniffer = new Transform({
-        transform(chunk: Buffer, _enc, cb) {
-          if (headLen < 16) {
-            const need = 16 - headLen;
-            chunks.push(chunk.subarray(0, need));
-            headLen += Math.min(need, chunk.length);
-          }
-          cb(null, chunk);
-        },
-      });
-      await pipeline(file.file, sniffer, createWriteStream(dest));
-      const head = Buffer.concat(chunks);
-
-      const stat = await import("node:fs/promises").then((fs) => fs.stat(dest));
-      const sizeBytes = stat.size;
-
-      if (sizeBytes > config.maxUploadMb * 1024 * 1024) {
-        await unlink(dest).catch(() => undefined);
-        throw new HttpError(413, "PAYLOAD_TOO_LARGE", `File exceeds the ${config.maxUploadMb}MB limit`);
-      }
-      if (sizeBytes === 0) {
-        await unlink(dest).catch(() => undefined);
-        throw new HttpError(400, "EMPTY_FILE", "Uploaded file is empty");
-      }
-      if (!sniffMime(head, file.mimetype)) {
-        await unlink(dest).catch(() => undefined);
-        throw new HttpError(415, "UNSUPPORTED_MEDIA_TYPE", "File content does not match its declared type");
-      }
-
-      const url = `/static/media/${storedName}`;
-      const asset = await prisma.mediaAsset.create({
-        data: {
-          filename: sanitizeFilename(file.filename),
-          storedName,
-          url,
-          mimeType: file.mimetype,
-          sizeBytes,
-          kind: file.mimetype.startsWith("image/") ? "image" : file.mimetype === "application/pdf" ? "document" : "video",
-          title: (file.fields.title as { value?: string } | undefined)?.value?.toString().slice(0, 160) ?? null,
-        },
-      });
-
-      await audit(req, "MEDIA_UPLOADED", "media", asset.id, { filename: asset.filename, sizeBytes });
+      const stored = await storeIncomingFile(file);
+      const asset = await prisma.mediaAsset.create({ data: stored });
+      await audit(req, "MEDIA_UPLOADED", "media", asset.id, { filename: asset.filename, sizeBytes: asset.sizeBytes });
       reply.code(201);
-      return { asset };
+      return { asset: { ...asset, referenced: false } };
     },
   );
 
+  app.post("/:id/replace", { preHandler: [requireMediaWrite, requireCsrf] }, async (req, reply) => {
+    const ip = clientIp(req);
+    const limit = rateLimit(`media:${ip}`, 20, 10 * 60 * 1000);
+    if (!limit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many uploads. Try again later.");
+    const { id } = req.params as { id: string };
+    if (!/^[a-z0-9_-]{5,64}$/i.test(id)) throw new HttpError(400, "BAD_REQUEST", "Invalid asset id");
+    const existing = await prisma.mediaAsset.findUnique({ where: { id } });
+    if (!existing) throw new HttpError(404, "NOT_FOUND", "Asset not found");
+    const file = await req.file();
+    if (!file) throw new HttpError(400, "NO_FILE", "Multipart file field is required");
+
+    const stored = await storeIncomingFile(file);
+    try {
+      const asset = await prisma.mediaAsset.update({ where: { id }, data: stored });
+      await unlink(resolveSafe(path.join(config.uploadDir, "media"), existing.storedName)).catch(() => undefined);
+      await audit(req, "MEDIA_REPLACED", "media", id, { filename: asset.filename, sizeBytes: asset.sizeBytes });
+      return { asset: { ...asset, referenced: false } };
+    } catch (error) {
+      await unlink(resolveSafe(path.join(config.uploadDir, "media"), stored.storedName)).catch(() => undefined);
+      throw error;
+    }
+  });
+
   app.get("/", { preHandler: [requireMediaRead] }, async (_req, reply) => {
     noStore(reply);
-    const assets = await prisma.mediaAsset.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
-    return { assets };
+    const [assets, projects, certificates, profile] = await Promise.all([
+      prisma.mediaAsset.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
+      prisma.project.findMany({ select: { heroImage: true, gallery: true } }),
+      prisma.certificate.findMany({ select: { fileUrl: true, credentialUrl: true } }),
+      prisma.profile.findFirst({ select: { avatarUrl: true, resumeUrl: true } }),
+    ]);
+    const references = [
+      ...projects.flatMap((project) => [project.heroImage, ...project.gallery]),
+      ...certificates.flatMap((certificate) => [certificate.fileUrl, certificate.credentialUrl]),
+      profile?.avatarUrl,
+      profile?.resumeUrl,
+    ].filter((value): value is string => Boolean(value));
+    return {
+      assets: assets.map((asset) => ({
+        ...asset,
+        referenced: references.some((reference) => reference === asset.url || reference.endsWith(asset.storedName)),
+      })),
+    };
   });
 
   app.delete("/:id", { preHandler: [requireMediaWrite, requireCsrf] }, async (req) => {
@@ -190,8 +239,8 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     if (!/^[a-z0-9_-]{5,64}$/i.test(id)) throw new HttpError(400, "BAD_REQUEST", "Invalid asset id");
     const asset = await prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new HttpError(404, "NOT_FOUND", "Asset not found");
-    await unlink(resolveSafe(path.join(config.uploadDir, "media"), asset.storedName)).catch(() => undefined);
     await prisma.mediaAsset.delete({ where: { id } });
+    await unlink(resolveSafe(path.join(config.uploadDir, "media"), asset.storedName)).catch(() => undefined);
     await audit(req, "MEDIA_DELETED", "media", id, { filename: asset.filename });
     return { ok: true };
   });

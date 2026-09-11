@@ -24,6 +24,7 @@ import { mediaRoutes } from "./modules/media/routes.js";
 import { analyticsRoutes } from "./modules/analytics/routes.js";
 import { githubRoutes } from "./modules/github/routes.js";
 import { statsRoutes } from "./modules/stats/routes.js";
+import { settingsRoutes } from "./modules/settings/routes.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -59,10 +60,13 @@ export async function buildApp(): Promise<FastifyInstance> {
     const url = req.url;
     if (
       url.startsWith("/api/auth") ||
-      url.startsWith("/api/contact?") ||
-      url === "/api/contact" ||
+      url.startsWith("/api/contact") ||
       url.startsWith("/api/stats") ||
       url.startsWith("/api/media") ||
+      url.startsWith("/api/settings") ||
+      url.startsWith("/api/chat") ||
+      url.startsWith("/api/github") ||
+      url.startsWith("/api/profile") ||
       url.startsWith("/api/events/summary")
     ) {
       reply.header("cache-control", "no-store, no-cache, must-revalidate, private");
@@ -106,6 +110,21 @@ export async function buildApp(): Promise<FastifyInstance> {
       reply.code(error.statusCode).send({ error: "BAD_REQUEST", message: error.message });
       return;
     }
+    // Prisma errors should never become opaque 500s for ordinary client
+    // mistakes. Keep database details out of the response, but preserve the
+    // correct HTTP semantics for missing records and uniqueness conflicts.
+    if (error.code === "P2025") {
+      reply.code(404).send({ error: "NOT_FOUND", message: "The requested record was not found" });
+      return;
+    }
+    if (error.code === "P2002") {
+      reply.code(409).send({ error: "CONFLICT", message: "A record with those values already exists" });
+      return;
+    }
+    if (error.code === "P2003") {
+      reply.code(409).send({ error: "CONFLICT", message: "The record is still referenced by other data" });
+      return;
+    }
     app.log.error(error);
     reply.code(500).send({ error: "INTERNAL", message: "Internal system error" });
   });
@@ -119,6 +138,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     void import("./modules/auth/session.js").then((m) => m.purgeExpiredSessions()).catch(() => undefined);
   }, 60 * 60 * 1000);
   purgeTimer.unref?.();
+  app.addHook("onClose", async () => {
+    clearInterval(purgeTimer);
+  });
 
   // ── routes ───────────────────────────────────────────────────
   app.get("/api/health", async () => {
@@ -139,6 +161,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(analyticsRoutes, { prefix: "/api/events" });
   await app.register(githubRoutes, { prefix: "/api/github" });
   await app.register(statsRoutes, { prefix: "/api/stats" });
+  await app.register(settingsRoutes, { prefix: "/api/settings" });
 
   // admin bootstrap helper (used by scripts/admin-create.ts via direct import too)
   app.decorate("requireAdmin", requireAdmin);

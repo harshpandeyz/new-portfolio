@@ -41,13 +41,30 @@ function parseTrustProxy(raw: string | undefined): boolean | number | string[] {
 
 const rawSessionSecret = required("SESSION_SECRET", isTest ? "test-only-session-secret-not-for-prod" : undefined);
 
-// Reject placeholder secrets in production
-if (!isTest && process.env.NODE_ENV === "production" && /^(generate|change-me|test-only)/i.test(rawSessionSecret)) {
-  throw new Error("SESSION_SECRET must be a strong random value in production. Generate one with: openssl rand -hex 32");
+// Reject placeholder or weak secrets in production. 32 bytes hex = 64 chars.
+if (!isTest && process.env.NODE_ENV === "production") {
+  if (/^(generate|change-me|test-only)/i.test(rawSessionSecret) || rawSessionSecret.length < 32) {
+    throw new Error("SESSION_SECRET must be a strong random value in production. Generate one with: openssl rand -hex 32");
+  }
+}
+
+function safeNumber(raw: string | undefined, fallback: number, min?: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  if (min !== undefined && n < min) return fallback;
+  return n;
+}
+
+function normalizeOriginList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
 }
 
 export const config = {
-  port: Number(process.env.API_PORT ?? 4000),
+  port: safeNumber(process.env.API_PORT, 4000, 1),
   appUrl: process.env.APP_URL ?? "http://localhost:5173",
   isProd: process.env.NODE_ENV === "production",
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
@@ -56,7 +73,7 @@ export const config = {
   // resolved relative to the API package root in both source and compiled
   // layouts, regardless of the process CWD
   uploadDir: path.resolve(apiRoot, process.env.UPLOAD_DIR ?? "uploads"),
-  maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 25),
+  maxUploadMb: safeNumber(process.env.MAX_UPLOAD_MB, 25, 1),
   storageDriver: process.env.STORAGE_DRIVER ?? "local",
   llm: {
     provider: (process.env.LLM_PROVIDER ?? "none").toLowerCase(),
@@ -66,19 +83,22 @@ export const config = {
   },
   smtp: {
     host: process.env.SMTP_HOST ?? "",
-    port: Number(process.env.SMTP_PORT ?? 587),
+    port: safeNumber(process.env.SMTP_PORT, 587, 1),
     user: process.env.SMTP_USER ?? "",
     password: process.env.SMTP_PASSWORD ?? "",
     notifyEmail: process.env.CONTACT_NOTIFY_EMAIL ?? "",
+    replyFromName: process.env.REPLY_FROM_NAME ?? "Harsh Pandey",
   },
   githubToken: process.env.GITHUB_TOKEN ?? "",
-  corsOrigins: (process.env.APP_URL ?? "http://localhost:5173")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+  corsOrigins: normalizeOriginList(process.env.APP_URL ?? "http://localhost:5173"),
 } as const;
 
 export const COOKIE_NAMES = {
   session: "hp_session",
   csrf: "hp_csrf",
 } as const;
+
+/** True when the server can actually send mail (notifications + replies). */
+export function isSmtpConfigured(): boolean {
+  return Boolean(config.smtp.host && config.smtp.user && config.smtp.password);
+}

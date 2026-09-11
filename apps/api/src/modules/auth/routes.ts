@@ -74,6 +74,9 @@ export { requireAdminRole, normalizeRole };
 export { bcryptHash };
 
 // ── login challenge (password step -> 2FA step), stateless HMAC ──
+// Challenges are single-use: consumed nonces are remembered until expiry
+// so a captured challenge+code cannot mint a second session in the TOTP window.
+const consumedChallenges = new Map<string, number>();
 
 function signChallenge(payload: string): string {
   return createHmac("sha256", config.sessionSecret).update(`login-challenge:${payload}`).digest("hex");
@@ -94,12 +97,26 @@ function verifyLoginChallenge(challenge: string): string | null {
   if (userId.length > 64 || nonce.length !== 32) return null;
   const expires = Number(expiresRaw);
   if (!Number.isFinite(expires) || expires < Date.now()) return null;
+  if (consumedChallenges.has(nonce)) return null;
   const payload = `${userId}.${expires}.${nonce}`;
   const expected = signChallenge(payload);
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   return userId;
+}
+
+function consumeLoginChallenge(challenge: string): void {
+  const nonce = challenge.split(".")[2];
+  if (!nonce) return;
+  consumedChallenges.set(nonce, Date.now() + 5 * 60 * 1000);
+  // opportunistic cleanup
+  if (consumedChallenges.size > 1000) {
+    const now = Date.now();
+    for (const [k, exp] of consumedChallenges) {
+      if (exp < now) consumedChallenges.delete(k);
+    }
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -199,8 +216,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const normalized = code.trim().toUpperCase();
       for (const rc of user.recoveryCodes) {
         if (!rc.usedAt && verifyRecoveryCodeHash(normalized, rc.codeHash)) {
-          ok = true;
-          usedRecoveryId = rc.id;
+          // Conditional claim — concurrent uses of the same code: only one wins.
+          const claimed = await prisma.recoveryCode
+            .updateMany({ where: { id: rc.id, usedAt: null }, data: { usedAt: new Date() } })
+            .catch(() => ({ count: 0 }));
+          if (claimed.count > 0) {
+            ok = true;
+            usedRecoveryId = rc.id;
+          }
           break;
         }
       }
@@ -210,8 +233,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       await audit(req, "AUTH_LOGIN_FAILURE", "user", user.id, { reason: "2fa" });
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
+    consumeLoginChallenge(challenge);
     if (usedRecoveryId) {
-      await prisma.recoveryCode.update({ where: { id: usedRecoveryId }, data: { usedAt: new Date() } }).catch(() => undefined);
       await audit(req, "AUTH_RECOVERY_CODE_USED", "user", user.id);
     }
     const csrfToken = await createSession(user.id, req, reply);
@@ -316,10 +339,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const code = typeof body.code === "string" ? body.code : "";
       const secret = db.totpSecret ? decryptSecret(db.totpSecret) : null;
       let ok = secret ? verifyTotp(code, secret) : false;
+      let usedRecoveryId: string | null = null;
       if (!ok) {
         for (const rc of db.recoveryCodes) {
           if (!rc.usedAt && verifyRecoveryCodeHash(code.trim().toUpperCase(), rc.codeHash)) {
-            ok = true;
+            const claimed = await prisma.recoveryCode
+              .updateMany({ where: { id: rc.id, usedAt: null }, data: { usedAt: new Date() } })
+              .catch(() => ({ count: 0 }));
+            if (claimed.count > 0) {
+              ok = true;
+              usedRecoveryId = rc.id;
+            }
             break;
           }
         }
@@ -328,6 +358,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         await sleep(350);
         await audit(req, "AUTH_REAUTH_FAILURE", "user", u.id, { reason: "2fa" });
         throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+      }
+      if (usedRecoveryId) {
+        await audit(req, "AUTH_RECOVERY_CODE_USED", "user", u.id);
       }
     }
     await touchReauth(u.sessionId);
@@ -411,6 +444,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/2fa/setup", { preHandler: [requireAuth, requireCsrf] }, async (req, reply) => {
     const u = req.admin!;
+    if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
+      throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
+    }
     const limit = rateLimit(`2fa-setup:${u.id}`, 3, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
@@ -429,6 +465,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/2fa/enable", { preHandler: [requireAuth, requireCsrf] }, async (req, reply) => {
     const u = req.admin!;
+    if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
+      throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
+    }
     const limit = rateLimit(`2fa-enable:${u.id}`, 5, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);

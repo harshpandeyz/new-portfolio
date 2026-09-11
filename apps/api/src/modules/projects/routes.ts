@@ -1,13 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
-import { projectInputSchema } from "@hp/shared";
+import { projectInputSchema, projectQuerySchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
-import { requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, notFound, parseBody } from "../../utils/http.js";
+import { hasPermission, requirePermission } from "../auth/rbac.js";
+import { resolveSessionUser } from "../auth/session.js";
+import { audit, clientIp, notFound, parseBody, parseQuery } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
+import { invalidateKnowledge } from "../chat/knowledge.js";
 
 const requireEditor = requirePermission("content:write");
 
@@ -30,7 +32,6 @@ const PUBLIC_SELECT = {
   decisions: true,
   challenges: true,
   results: true,
-  securityNotes: true,
   dataFlow: true,
   stack: true,
   githubUrl: true,
@@ -43,28 +44,34 @@ const PUBLIC_SELECT = {
 
 export async function projectRoutes(app: FastifyInstance): Promise<void> {
   // ── public ───────────────────────────────────────────────────
+  // Authenticated content readers (admin) get the full record including
+  // securityNotes; anonymous callers get the public projection only.
   app.get("/", async (req) => {
-    const { tier, featured } = req.query as { tier?: string; featured?: string };
+    const { tier, featured } = parseQuery(req, projectQuerySchema);
     const where: Prisma.ProjectWhereInput = {
       status: { not: "draft" },
       ...(tier ? { tier } : {}),
       ...(featured === "true" ? { featured: true } : {}),
     };
+    const viewer = await resolveSessionUser(req).catch(() => null);
+    const isStaff = viewer ? hasPermission(viewer.role, "content:read") : false;
     const projects = await prisma.project.findMany({
       where,
       orderBy: [{ featured: "desc" }, { order: "asc" }, { updatedAt: "desc" }],
-      select: PUBLIC_SELECT,
+      ...(isStaff ? {} : { select: PUBLIC_SELECT }),
     });
     return { projects };
   });
 
   app.get("/:slug", async (req) => {
     const { slug } = req.params as { slug: string };
+    const viewer = await resolveSessionUser(req).catch(() => null);
+    const isStaff = viewer ? hasPermission(viewer.role, "content:read") : false;
     const project = await prisma.project.findFirst({
       where: { slug, status: { not: "draft" } },
-      select: PUBLIC_SELECT,
+      ...(isStaff ? {} : { select: PUBLIC_SELECT }),
     });
-    if (!project) notFound("Project");
+    if (!project) throw notFound("Project");
 
     void prisma.analyticsEvent
       .create({ data: { type: "project_view", ref: slug } })
@@ -84,6 +91,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     }
     const project = await prisma.project.create({ data: input });
     await audit(req, "CONTENT_CREATED", "project", project.id, { slug: project.slug });
+    invalidateKnowledge();
     reply.code(201);
     return { project };
   });
@@ -95,6 +103,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const input = parseBody(req, projectInputSchema.partial());
     const project = await prisma.project.update({ where: { id }, data: input });
     await audit(req, "CONTENT_UPDATED", "project", id, { slug: project.slug });
+    invalidateKnowledge();
     return { project };
   });
 
@@ -104,6 +113,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     await prisma.project.delete({ where: { id } });
     await audit(req, "CONTENT_DELETED", "project", id);
+    invalidateKnowledge();
     return { ok: true };
   });
 }

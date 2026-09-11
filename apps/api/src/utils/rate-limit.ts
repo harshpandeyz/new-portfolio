@@ -10,6 +10,7 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
+const MAX_BUCKETS = 5000;
 
 let lastSweep = Date.now();
 
@@ -18,6 +19,16 @@ function sweep(now: number) {
   lastSweep = now;
   for (const [key, bucket] of buckets) {
     if (bucket.resetAt <= now) buckets.delete(key);
+  }
+  // Bound memory under key-enumeration attacks (e.g. random login emails):
+  // evict oldest entries first when still over capacity.
+  if (buckets.size > MAX_BUCKETS) {
+    const overflow = buckets.size - MAX_BUCKETS;
+    let i = 0;
+    for (const key of buckets.keys()) {
+      if (i++ >= overflow) break;
+      buckets.delete(key);
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import { prisma } from "../../db/prisma.js";
 import { requirePermission } from "../auth/rbac.js";
 import { clientIp, parseBody } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
+import { getSiteSettings } from "../settings/store.js";
 
 const EVENTS_WINDOW_MS = 60 * 1000;
 const EVENTS_MAX = 30;
@@ -13,7 +14,7 @@ const eventSchema = z.object({
   type: z.enum(["page_view", "project_view", "certificate_view", "chat_query", "contact_submit", "resume_download", "recruiter_view"]),
   ref: z.string().trim().max(200).optional(),
   meta: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .record(z.string().max(60), z.union([z.string().max(500), z.number(), z.boolean()]))
     .refine((m) => Object.keys(m).length <= 10, "meta accepts at most 10 keys")
     .optional(),
 });
@@ -23,6 +24,9 @@ const requireStatsRead = requirePermission("content:read");
 
 export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", async (req, reply) => {
+    if (!(await getSiteSettings()).analyticsEnabled) {
+      return reply.code(202).send({ ok: true, disabled: true });
+    }
     const limit = rateLimit(`events:${clientIp(req)}`, EVENTS_MAX, EVENTS_WINDOW_MS);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);

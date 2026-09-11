@@ -22,7 +22,7 @@ model User {
   id                  String         @id @default(cuid())
   email               String         @unique
   passwordHash        String
-  role                Role           @default(ADMIN)
+  role                Role           @default(VIEWER)
   displayName         String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
@@ -210,9 +210,26 @@ model ContactMessage {
   ip        String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  repliedAt DateTime?
+  replies   MessageReply[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([email, createdAt])
+}
+
+model MessageReply {
+  id        String         @id @default(cuid())
+  messageId String
+  message   ContactMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  to        String
+  subject   String
+  body      String
+  sentBy    String?
+  sentAt    DateTime       @default(now())
+
+  @@index([messageId])
+  @@index([sentAt])
 }
 
 model MediaAsset {

@@ -119,10 +119,12 @@ export async function resolveSessionUser(req: FastifyRequest): Promise<Authentic
     return null;
   }
 
-  // sliding activity refresh (fire-and-forget, throttled by write cost)
-  void prisma.session
-    .update({ where: { id: session.id }, data: { lastSeenAt: new Date() } })
-    .catch(() => undefined);
+  // sliding activity refresh (fire-and-forget, throttled to 5m to avoid a DB write per request)
+  if (now - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
+    void prisma.session
+      .update({ where: { id: session.id }, data: { lastSeenAt: new Date() } })
+      .catch(() => undefined);
+  }
 
   return {
     id: session.user.id,
@@ -150,8 +152,9 @@ export async function destroySession(req: FastifyRequest, reply: FastifyReply): 
   if (token && token.length === 64) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } }).catch(() => undefined);
   }
-  reply.clearCookie(COOKIE_NAMES.session, { path: "/" });
-  reply.clearCookie(COOKIE_NAMES.csrf, { path: "/" });
+  const clearOpts = { path: "/", sameSite: config.isProd ? ("none" as const) : ("lax" as const), secure: config.isProd } as const;
+  reply.clearCookie(COOKIE_NAMES.session, clearOpts);
+  reply.clearCookie(COOKIE_NAMES.csrf, clearOpts);
 }
 
 export function describeDevice(userAgent: string | null): string {

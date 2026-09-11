@@ -50,8 +50,7 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/audit", { preHandler: [requireAuditRead] }, async (req, reply) => {
     noStore(reply);
-    const parsed = auditQuerySchema.safeParse(req.query);
-    const q = parsed.success ? parsed.data : { page: 1, pageSize: 50, sort: "newest" as const };
+    const q = parseQuery(req, auditQuerySchema);
     const where: Prisma.AuditLogWhereInput = {};
     if (q.q) {
       where.OR = [
@@ -80,12 +79,15 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
     const actions = [
       "AUTH_LOGIN_SUCCESS",
       "AUTH_LOGIN_FAILURE",
+      "AUTH_LOGIN_2FA_REQUIRED",
       "AUTH_LOGOUT",
       "AUTH_SESSION_CREATED",
       "AUTH_SESSION_REVOKED",
       "AUTH_PASSWORD_CHANGED",
+      "AUTH_2FA_SETUP_STARTED",
       "AUTH_2FA_ENABLED",
       "AUTH_2FA_DISABLED",
+      "AUTH_RECOVERY_CODE_USED",
       "AUTH_RECOVERY_CODES_REGENERATED",
       "AUTH_REAUTH_SUCCESS",
       "AUTH_REAUTH_FAILURE",

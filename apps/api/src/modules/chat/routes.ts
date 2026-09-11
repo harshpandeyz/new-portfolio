@@ -5,12 +5,16 @@ import { prisma } from "../../db/prisma.js";
 import { clientIp, parseBody } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { answerQuestion } from "./engine.js";
+import { getSiteSettings } from "../settings/store.js";
 
 const CHAT_WINDOW_MS = 60 * 1000;
 const CHAT_MAX = 12;
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", async (req, reply) => {
+    if (!(await getSiteSettings()).chatEnabled) {
+      return reply.code(503).send({ error: "CHAT_DISABLED", message: "The portfolio assistant is temporarily unavailable." });
+    }
     const limit = rateLimit(`chat:${clientIp(req)}`, CHAT_MAX, CHAT_WINDOW_MS);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
@@ -30,7 +34,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     return reply_;
   });
 
-  app.get("/suggestions", async () => {
+  app.get("/suggestions", async (req, reply) => {
+    const limit = rateLimit(`chat-sug:${clientIp(req)}`, 30, 60 * 1000);
+    if (!limit.allowed) {
+      reply.header("retry-after", limit.retryAfterSeconds);
+      return reply.code(429).send({ error: "RATE_LIMITED", message: "Too many requests. Try again shortly." });
+    }
+    if (!(await getSiteSettings()).chatEnabled) return reply.code(503).send({ error: "CHAT_DISABLED", message: "The portfolio assistant is temporarily unavailable." });
     return {
       suggestions: [
         "Who is Harsh?",
