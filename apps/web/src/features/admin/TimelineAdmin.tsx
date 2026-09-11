@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { TimelineItem } from "@hp/shared";
-import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, friendlyError, usePersistentState, useToast } from "./ui";
+import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchInput, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 
 const EMPTY: Partial<TimelineItem> = {
   date: "", endDate: "", title: "", organization: "", description: "",
@@ -132,7 +132,7 @@ export function TimelineAdmin() {
   return (
     <>
       <PageHead title="Timeline" desc={`${filtered.length} of ${items.length} entr${items.length === 1 ? "y" : "ies"} · shown chronologically publicly.`}
-        actions={<><input className="ctl-input ctl-search" placeholder="Search entries…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search timeline" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New entry</button></>} />
+        actions={<><SearchInput value={query} onChange={setQuery} label="Search timeline" placeholder="Search entries…" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New entry</button></>} />
       <div className="ctl-toolbar">
         <select className="ctl-select" value={type} onChange={(e) => setType(e.target.value)} style={{ width: "auto" }} aria-label="Filter by type">
           {["ALL", "education", "project", "certification", "experience", "competition", "milestone"].map((t) => (<option key={t} value={t}>{t === "ALL" ? "All types" : t}</option>))}
@@ -147,7 +147,7 @@ export function TimelineAdmin() {
         )}
       </div>
       {error && <ErrorState message={error} onRetry={() => void load()} />}
-      {loading ? <div className="ctl-card"><p style={{ color: "#8a93a3" }}>Loading…</p></div>
+      {loading && items.length === 0 ? <SkeletonList rows={5} />
         : filtered.length === 0 ? <EmptyState
             title={query ? `No results for “${query}”` : "No entries"}
             desc={query ? "Try a different search, or clear filters." : "Add milestones, education, or experience."}

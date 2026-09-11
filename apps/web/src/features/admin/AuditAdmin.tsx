@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../../lib/api";
 import type { AuditLogEntry } from "@hp/shared";
-import { EmptyState, ErrorState, PageHead, Pagination, friendlyError, formatTimeAgo, usePersistentState } from "./ui";
+import { EmptyState, ErrorState, PageHead, Pagination, SearchInput, friendlyError, formatTimeAgo, usePersistentState } from "./ui";
 
 const ACTION_OPTIONS = [
   "AUTH_LOGIN_SUCCESS", "AUTH_LOGIN_FAILURE", "AUTH_LOGOUT",
@@ -70,7 +70,7 @@ export function AuditAdmin() {
         desc="Immutable security trail. Entries cannot be edited or deleted from this UI."
         actions={
           <>
-            <input className="ctl-input ctl-search" placeholder="Search action, actor, entity…" value={q} onChange={(e) => setQuery(e.target.value)} aria-label="Search audit log" />
+            <SearchInput value={q} onChange={setQuery} label="Search audit log" placeholder="Search action, actor, entity…" />
             <select className="ctl-select" value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")} style={{ width: "auto" }} aria-label="Sort audit log">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>

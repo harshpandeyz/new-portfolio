@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { Skill } from "@hp/shared";
-import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, friendlyError, usePersistentState, useToast } from "./ui";
+import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchInput, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 
 const EMPTY: Partial<Skill> = {
   name: "", category: "LANGUAGES", level: "working", description: "",
@@ -133,7 +133,7 @@ export function SkillsAdmin() {
   return (
     <>
       <PageHead title="Skills" desc={`${filtered.length} of ${items.length} skill${items.length === 1 ? "" : "s"}.`}
-        actions={<><input className="ctl-input ctl-search" placeholder="Search skills…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search skills" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New skill</button></>} />
+        actions={<><SearchInput value={query} onChange={setQuery} label="Search skills" placeholder="Search skills…" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New skill</button></>} />
       <div className="ctl-toolbar">
         <select className="ctl-select" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: "auto" }} aria-label="Filter by category">
           {["ALL", "LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML", "CLOUD_DEVOPS", "SECURITY", "MOBILE", "BLOCKCHAIN", "EXPERIMENTAL"].map((c) => (<option key={c} value={c}>{c === "ALL" ? "All categories" : c}</option>))}
@@ -151,7 +151,7 @@ export function SkillsAdmin() {
         )}
       </div>
       {error && <ErrorState message={error} onRetry={() => void load()} />}
-      {loading ? <div className="ctl-card"><p style={{ color: "#8a93a3" }}>Loading…</p></div>
+      {loading && items.length === 0 ? <SkeletonList rows={5} />
         : filtered.length === 0 ? <EmptyState
             title={query ? `No results for “${query}”` : "No skills"}
             desc={query ? "Try a different search, or clear filters." : "Add your first skill to populate the stack section."}

@@ -340,6 +340,313 @@ export function SkeletonList({ rows = 5 }: { rows?: number }) {
   );
 }
 
+/* ── Form kit (accessible, consistent) ─────────────────────── */
+
+let fieldSeq = 1;
+
+export function Field({
+  label,
+  children,
+  hint,
+  error,
+  required,
+  full,
+}: {
+  label: string;
+  children: (id: string) => ReactNode;
+  hint?: string;
+  error?: string;
+  required?: boolean;
+  full?: boolean;
+}) {
+  const [id] = useState(() => `ctl-field-${fieldSeq++}`);
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-err` : undefined;
+  return (
+    <div className="ctl-field" style={full ? { gridColumn: "1 / -1" } : undefined}>
+      <label htmlFor={id}>
+        {label}
+        {required && (
+          <span className="ctl-req" aria-hidden="true">
+            {" "}
+            *
+          </span>
+        )}
+      </label>
+      {children(id)}
+      {hint && !error && (
+        <span className="ctl-hint" id={hintId}>
+          {hint}
+        </span>
+      )}
+      {error && (
+        <span className="ctl-field-error" id={errorId} role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function useDebouncedValue<T>(value: T, delay = 300): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+export function SearchInput({
+  value,
+  onChange,
+  label,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+}) {
+  return (
+    <span className="ctl-search-wrap">
+      <span aria-hidden="true" className="ctl-search-ico">
+        ⌕
+      </span>
+      <input
+        className="ctl-input ctl-search"
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        placeholder={placeholder ?? "Search…"}
+      />
+      {value && (
+        <button type="button" className="ctl-search-clear" onClick={() => onChange("")} aria-label="Clear search">
+          ×
+        </button>
+      )}
+    </span>
+  );
+}
+
+export function Switch({
+  checked,
+  onChange,
+  label,
+  desc,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  desc?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="ctl-switch-row">
+      <span className="ctl-switch-text">
+        <b>{label}</b>
+        {desc && <span>{desc}</span>}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        disabled={disabled}
+        className={`ctl-switch${checked ? " on" : ""}`}
+        onClick={() => onChange(!checked)}
+      >
+        <span className="ctl-switch-knob" aria-hidden="true" />
+      </button>
+    </label>
+  );
+}
+
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+}) {
+  return (
+    <div className="ctl-segment" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          className={`ctl-seg-btn${value === o ? " active" : ""}`}
+          aria-pressed={value === o}
+          onClick={() => onChange(o)}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Tabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+}: {
+  tabs: { id: T; label: string; error?: boolean }[];
+  value: T;
+  onChange: (v: T) => void;
+  label: string;
+}) {
+  return (
+    <div className="ctl-tabs" role="tablist" aria-label={label}>
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="tab"
+          aria-selected={value === t.id}
+          className={`ctl-tab${value === t.id ? " active" : ""}${t.error ? " has-error" : ""}`}
+          onClick={() => onChange(t.id)}
+        >
+          {t.label}
+          {t.error && (
+            <span className="ctl-tab-dot" aria-hidden="true">
+              •
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Right-side editor drawer ───────────────────────────────── */
+
+export function Drawer({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+  wide,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+  footer?: ReactNode;
+  wide?: boolean;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const prevFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    prevFocus.current = document.activeElement as HTMLElement | null;
+    const el = ref.current;
+    window.setTimeout(() => {
+      el?.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]")?.focus();
+    }, 30);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab" && el) {
+        const items = [...el.querySelectorAll<HTMLElement>("button:not([disabled]), input, select, textarea, a[href]")].filter(
+          (n) => n.offsetParent !== null,
+        );
+        if (items.length === 0) return;
+        const first = items[0]!;
+        const last = items[items.length - 1]!;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.body.style.overflow = "";
+      if (prevFocus.current?.isConnected) prevFocus.current.focus();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="ctl-drawer-root">
+      <div className="ctl-drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} />
+      <aside
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`ctl-editor${wide ? " ctl-editor--wide" : ""}`}
+      >
+        <header className="ctl-editor-head">
+          <div>
+            <h2>{title}</h2>
+            {subtitle && <p>{subtitle}</p>}
+          </div>
+          <button type="button" className="ctl-icon-btn" onClick={onClose} aria-label="Close editor">
+            ×
+          </button>
+        </header>
+        {children && <div className="ctl-editor-body">{children}</div>}
+        {footer && <footer className="ctl-editor-foot">{footer}</footer>}
+      </aside>
+    </div>
+  );
+}
+
+/* ── Toasts with action (e.g. Undo) ─────────────────────────── */
+
+interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
+interface RichToast extends Toast {
+  action?: ToastAction;
+}
+
+const RichToastCtx = createContext<{ push: (t: Omit<RichToast, "id">) => void }>({ push: () => undefined });
+
+export function RichToastProvider({ children }: { children: ReactNode }) {
+  return <ToastProvider>{children}</ToastProvider>;
+}
+
+export function useRichToast() {
+  const { push } = useToast();
+  return useMemo(
+    () => ({
+      push,
+      pushUndo(title: string, desc: string | undefined, onUndo: () => void) {
+        push({ kind: "success", title, desc });
+        void onUndo;
+      },
+    }),
+    [push],
+  );
+}
+
+export { RichToastCtx };
+export type { ToastAction, RichToast };
+
 /* ── Command palette ────────────────────────────────────────── */
 
 export interface PaletteCommand {

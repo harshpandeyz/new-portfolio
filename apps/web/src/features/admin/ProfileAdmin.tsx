@@ -26,8 +26,10 @@ export function ProfileAdmin() {
   const [draftNotice, setDraftNotice] = useState(false);
   const { push } = useToast();
 
-  useEffect(() => {
-    api.admin.profile().then((r) => {
+  const load = async () => {
+    setError(null);
+    try {
+      const r = await api.admin.profile();
       const draft = readDraft();
       if (draft && JSON.stringify(draft) !== JSON.stringify(r.profile)) {
         setProfile(draft);
@@ -35,7 +37,13 @@ export function ProfileAdmin() {
       } else {
         setProfile(r.profile);
       }
-    }).catch((e) => setError(friendlyError(e)));
+    } catch (e) {
+      setError(friendlyError(e));
+    }
+  };
+
+  useEffect(() => {
+    void load();
   }, []);
 
   // Autosave draft locally (never touches the server until Save).
@@ -51,7 +59,7 @@ export function ProfileAdmin() {
     return () => window.clearTimeout(t);
   }, [profile]);
 
-  if (error && !profile) return (<><PageHead title="Profile" desc="Public identity, bio, and links." /><ErrorState message={error} onRetry={() => window.location.reload()} /></>);
+  if (error && !profile) return (<><PageHead title="Profile" desc="Public identity, bio, and links." /><ErrorState message={error} onRetry={() => void load()} /></>);
 
   if (!profile) return (<><PageHead title="Profile" desc="Public identity, bio, and links." /><div className="ctl-card"><p style={{ color: "#8a93a3" }}>Loading profile…</p></div></>);
 
@@ -96,8 +104,8 @@ export function ProfileAdmin() {
       {error && <ErrorState message={error} onRetry={() => void save()} />}
       {draftNotice && (
         <div className="ctl-draft" role="status">
-          <span>Unsaved draft restored from this browser. Save to publish it, or reload to discard.</span>
-          <button className="ctl-mini-btn" onClick={() => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } window.location.reload(); }}>Discard draft</button>
+          <span>Unsaved draft restored from this browser. Save to publish it, or discard to reload the server version.</span>
+          <button className="ctl-mini-btn" onClick={() => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } setDraftNotice(false); void load(); }}>Discard draft</button>
         </div>
       )}
       <div className="ctl-editor">
