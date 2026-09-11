@@ -1,7 +1,10 @@
 import type {
   Profile, Project, Certificate, Skill, Education, TimelineItem,
-  SystemStats, ChatReply, GithubOverview, AuditLogEntry, ContactMessage, MediaAsset,
+  SystemStats, ChatReply, GithubOverview, AuditLogEntry, ContactMessage, MediaAsset, SiteSettings,
+  MessageReply, MessageStatus,
 } from "@hp/shared";
+
+export type { MessageReply };
 
 // Keep same-origin as the default, while allowing the static site and API to
 // live on separate production origins without changing the API surface.
@@ -13,7 +16,13 @@ const CHAT_TIMEOUT = 60_000;
 /** Resolve frontend-owned and API-owned media from one place. */
 export function resolveMediaUrl(url?: string | null, apiOrigin = BASE): string {
   if (!url) return "";
-  if (/^(?:[a-z]+:|data:|blob:)/i.test(url)) return url;
+  if (/^(?:javascript|vbscript):/i.test(url) || url.startsWith("//")) return "";
+  // Block executable data: URLs (SVG/HTML can carry script). Only allow
+  // raster/bitmap image data URLs; everything else must be http(s)/blob/site-relative.
+  if (/^data:/i.test(url)) {
+    return /^data:image\/(png|jpe?g|gif|webp|avif);base64,/i.test(url) ? url : "";
+  }
+  if (/^(?:https?:|blob:)/i.test(url)) return url;
   const path = url.startsWith("/") ? url : `/${url}`;
   return path.startsWith("/api/") || path.startsWith("/static/") ? `${apiOrigin.replace(/\/$/, "")}${path}` : path;
 }
@@ -100,7 +109,6 @@ async function request<T>(path: string, init?: RequestInitWithJson): Promise<T> 
       signal: internalSignal,
     });
   } catch (err) {
-    if (timer !== undefined) clearTimeout(timer);
     if (internalSignal.aborted && !callerSignal?.aborted) {
       throw new ApiError(0, "TIMEOUT", "Request timed out. Please try again.");
     }
@@ -127,20 +135,52 @@ async function request<T>(path: string, init?: RequestInitWithJson): Promise<T> 
   return data as T;
 }
 
+function uploadMediaRequest(path: string, file: File, onProgress?: (pct: number) => void): Promise<MediaAsset> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", file);
+    xhr.open("POST", `${BASE}${path}`);
+    xhr.withCredentials = true;
+    const token = getCsrfToken();
+    if (token) xhr.setRequestHeader("x-csrf-token", token);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (typeof data.csrfToken === "string") csrfToken = data.csrfToken;
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data.asset);
+        else reject(new ApiError(xhr.status, data.error, data.message));
+      } catch {
+        reject(new ApiError(xhr.status, "PARSE", "Unexpected response"));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError(0, "NETWORK", "Upload failed"));
+    xhr.send(form);
+  });
+}
+
+function queryString(params: Record<string, string | undefined>): string {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== "") as [string, string][],
+  ).toString();
+  return qs ? `?${qs}` : "";
+}
+
 export const api = {
   // public
   profile: (signal?: AbortSignal) =>
-    request<{ profile: Profile }>("/api/profile", { signal }),
+    request<{ profile: Profile | null }>("/api/profile", { signal }),
   projects: (params?: { tier?: string; featured?: boolean }, signal?: AbortSignal) =>
     request<{ projects: Project[] }>(
-      `/api/projects?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`,
+      `/api/projects${queryString({ tier: params?.tier, featured: params?.featured === undefined ? undefined : String(params.featured) })}`,
       { signal },
     ),
   project: (slug: string, signal?: AbortSignal) =>
     request<{ project: Project }>(`/api/projects/${slug}`, { signal }),
   certificates: (params?: { category?: string; search?: string; page?: number }, signal?: AbortSignal) =>
-    request<{ certificates: Certificate[]; total: number; page: number }>(
-      `/api/certificates?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`,
+    request<{ certificates: Certificate[]; total: number; page: number; pageSize: number }>(
+      `/api/certificates${queryString({ category: params?.category, search: params?.search, page: params?.page === undefined ? undefined : String(params.page) })}`,
       { signal },
     ),
   skills: (signal?: AbortSignal) =>
@@ -149,6 +189,8 @@ export const api = {
     request<{ items: Education[] }>("/api/education", { signal }),
   timeline: (signal?: AbortSignal) =>
     request<{ items: TimelineItem[] }>("/api/timeline", { signal }),
+  publicSettings: (signal?: AbortSignal) =>
+    request<{ settings: Pick<SiteSettings, "chatEnabled" | "contactEnabled" | "maintenanceMode"> }>("/api/settings/public", { signal }),
   stats: (signal?: AbortSignal) =>
     request<SystemStats>("/api/stats", { signal }),
   chat: (message: string, signal?: AbortSignal) =>
@@ -199,7 +241,9 @@ export const api = {
     deleteProject: (id: string) => request(`/api/projects/${id}`, { method: "DELETE" }),
 
     certificates: (params?: { search?: string; category?: string; page?: number }) =>
-      request<{ certificates: Certificate[]; total: number }>(`/api/certificates?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`),
+      request<{ certificates: Certificate[]; total: number }>(
+        `/api/certificates${queryString({ search: params?.search, category: params?.category, page: params?.page === undefined ? undefined : String(params.page) })}`,
+      ),
     createCertificate: (input: unknown) => request<{ certificate: Certificate }>("/api/certificates", { method: "POST", json: input }),
     updateCertificate: (id: string, input: unknown) => request<{ certificate: Certificate }>(`/api/certificates/${id}`, { method: "PATCH", json: input }),
     deleteCertificate: (id: string) => request(`/api/certificates/${id}`, { method: "DELETE" }),
@@ -219,46 +263,32 @@ export const api = {
     updateEducation: (id: string, input: unknown) => request<{ item: Education }>(`/api/education/${id}`, { method: "PATCH", json: input }),
     deleteEducation: (id: string) => request(`/api/education/${id}`, { method: "DELETE" }),
 
-    profile: () => request<{ profile: Profile }>("/api/profile"),
+    profile: () => request<{ profile: Profile | null }>("/api/profile"),
     updateProfile: (input: unknown) => request<{ profile: Profile }>("/api/profile", { method: "PATCH", json: input }),
+    settings: () => request<{ settings: SiteSettings }>("/api/settings"),
+    updateSettings: (input: SiteSettings) => request<{ settings: SiteSettings }>("/api/settings", { method: "PATCH", json: input }),
 
     messages: (params?: { status?: string; page?: number; q?: string; sort?: string }) =>
-      request<{ messages: ContactMessage[]; total: number; unread: number; page: number; pageSize: number }>(`/api/contact?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`),
+      request<{ messages: ContactMessage[]; total: number; unread: number; page: number; pageSize: number }>(
+        `/api/contact${queryString({ status: params?.status, page: params?.page === undefined ? undefined : String(params.page), q: params?.q, sort: params?.sort })}`,
+      ),
     message: (id: string) => request<{ message: ContactMessage }>(`/api/contact/${id}`),
-    setMessageStatus: (id: string, status: string) => request(`/api/contact/${id}/status`, { method: "PATCH", json: { status } }),
-    bulkMessageStatus: (ids: string[], status: string) => request<{ ok: boolean; count: number }>("/api/contact/bulk/status", { method: "POST", json: { ids, status } }),
+    replyToMessage: (id: string, input: { subject?: string; body: string }) =>
+      request<{ message: ContactMessage; reply: MessageReply }>(`/api/contact/${id}/reply`, { method: "POST", json: input, timeout: 30_000 }),
+    setMessageStatus: (id: string, status: MessageStatus) => request(`/api/contact/${id}/status`, { method: "PATCH", json: { status } }),
+    bulkMessageStatus: (ids: string[], status: MessageStatus) => request<{ ok: boolean; count: number }>("/api/contact/bulk/status", { method: "POST", json: { ids, status } }),
     bulkMessageDelete: (ids: string[]) => request<{ ok: boolean; count: number }>("/api/contact/bulk/delete", { method: "POST", json: { ids } }),
     deleteMessage: (id: string) => request(`/api/contact/${id}`, { method: "DELETE" }),
 
     media: () => request<{ assets: MediaAsset[] }>("/api/media"),
-    uploadMedia: async (file: File, onProgress?: (pct: number) => void): Promise<MediaAsset> => {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const form = new FormData();
-        form.append("file", file);
-        xhr.open("POST", `${BASE}/api/media`);
-        xhr.withCredentials = true;
-        const token = getCsrfToken();
-        if (token) xhr.setRequestHeader("x-csrf-token", token);
-        xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
-        xhr.onload = () => {
-          try {
-            const data = JSON.parse(xhr.responseText);
-            if (typeof data.csrfToken === "string") csrfToken = data.csrfToken;
-            if (xhr.status >= 200 && xhr.status < 300) resolve(data.asset);
-            else reject(new ApiError(xhr.status, data.error, data.message));
-          } catch {
-            reject(new ApiError(xhr.status, "PARSE", "Unexpected response"));
-          }
-        };
-        xhr.onerror = () => reject(new ApiError(0, "NETWORK", "Upload failed"));
-        xhr.send(form);
-      });
-    },
+    uploadMedia: (file: File, onProgress?: (pct: number) => void) => uploadMediaRequest("/api/media", file, onProgress),
+    replaceMedia: (id: string, file: File, onProgress?: (pct: number) => void) => uploadMediaRequest(`/api/media/${id}/replace`, file, onProgress),
     deleteMedia: (id: string) => request(`/api/media/${id}`, { method: "DELETE" }),
 
     audit: (params?: { page?: number; pageSize?: number; q?: string; action?: string; entity?: string; sort?: string }) =>
-      request<{ logs: AuditLogEntry[]; total: number; page: number; pageSize: number }>(`/api/stats/audit?${new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]))}`),
+      request<{ logs: AuditLogEntry[]; total: number; page: number; pageSize: number }>(
+        `/api/stats/audit${queryString({ page: params?.page === undefined ? undefined : String(params.page), pageSize: params?.pageSize === undefined ? undefined : String(params.pageSize), q: params?.q, action: params?.action, entity: params?.entity, sort: params?.sort })}`,
+      ),
     securityEvents: () => request<{ logs: AuditLogEntry[] }>("/api/stats/security-events"),
     overview: () => request<{ recentMessages: ContactMessage[]; recentAudit: AuditLogEntry[] }>("/api/stats/overview"),
     analytics: () => request<{ last30Days: { type: string; count: number }[]; daily: { day: string; count: number }[] }>("/api/events/summary"),

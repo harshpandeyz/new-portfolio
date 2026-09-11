@@ -80,6 +80,20 @@ export const messageBulkDeleteSchema = z.object({
   ids: z.array(z.string().min(1).max(64)).min(1).max(100),
 });
 
+export const contactQuerySchema = z.object({
+  status: z.enum(["ALL", ...messageStatusValues]).optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  q: z.string().trim().max(120).optional(),
+  sort: z.enum(["newest", "oldest"]).optional(),
+});
+
+export const siteSettingsInputSchema = z.object({
+  chatEnabled: z.boolean(),
+  contactEnabled: z.boolean(),
+  analyticsEnabled: z.boolean(),
+  maintenanceMode: z.boolean(),
+});
+
 export const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
@@ -90,7 +104,57 @@ export const auditQuerySchema = z.object({
 });
 
 const optionalText = z.string().trim().max(8000).optional().nullable();
-const urlish = z.string().trim().max(500).optional().nullable();
+
+/**
+ * URLs are content, not trusted code. Admin-authored links are rendered in
+ * public anchors and media elements, so reject executable and protocol-
+ * relative values at the shared contract boundary.
+ *
+ * Site-relative paths are supported for assets owned by the web/API apps;
+ * external links may use HTTPS (and mailto/tel for contact channels).
+ */
+function isSafePublicUrl(value: string): boolean {
+  if (value.startsWith("/")) return !value.startsWith("//");
+  try {
+    const parsed = new URL(value);
+    return ["https:", "mailto:", "tel:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+const urlish = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(isSafePublicUrl, "Use a site-relative path or an HTTPS/mailto/tel URL")
+  .optional()
+  .nullable();
+
+const galleryUrl = z
+  .string()
+  .trim()
+  .max(500)
+  .refine(isSafePublicUrl, "Use a site-relative path or an HTTPS URL");
+
+export const projectQuerySchema = z.object({
+  tier: z.enum(tierValues).optional(),
+  featured: z.enum(["true", "false"]).optional(),
+});
+
+export const certificateQuerySchema = z.object({
+  category: z.enum(["ALL", ...certificateCategoryValues]).optional(),
+  search: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+});
+
+export const skillQuerySchema = z.object({
+  category: z.enum(["ALL", ...skillCategoryValues]).optional(),
+});
+
+export const timelineQuerySchema = z.object({
+  type: z.enum(["ALL", ...timelineTypeValues]).optional(),
+});
 
 export const projectInputSchema = z.object({
   title: z.string().trim().min(2).max(120),
@@ -121,7 +185,7 @@ export const projectInputSchema = z.object({
   githubUrl: urlish,
   liveUrl: urlish,
   heroImage: urlish,
-  gallery: z.array(z.string().trim().max(500)).max(24).optional(),
+  gallery: z.array(galleryUrl).max(24).optional(),
 });
 export type ProjectInput = z.infer<typeof projectInputSchema>;
 
@@ -189,7 +253,7 @@ export const profileInputSchema = z.object({
     .array(
       z.object({
         label: z.string().trim().min(1).max(60),
-        url: z.string().trim().min(4).max(500),
+        url: z.string().trim().min(4).max(500).refine(isSafePublicUrl, "Use a site-relative path or an HTTPS/mailto/tel URL"),
         handle: z.string().trim().max(120).optional().nullable(),
         order: z.number().int().min(0).max(999),
       }),
@@ -201,3 +265,12 @@ export type ProfileInput = z.infer<typeof profileInputSchema>;
 export const messageStatusSchema = z.object({
   status: z.enum(messageStatusValues),
 });
+
+/** ── Admin: reply to a contact message ──────────────────────── */
+export const messageReplySchema = z.object({
+  subject: z.string().trim().max(140).optional().or(z.literal("")),
+  // Admin replies may be short acknowledgements ("Thanks!"); quality is the
+  // operator's call, so only block empty/whitespace bodies.
+  body: z.string().trim().min(2).max(4000),
+});
+export type MessageReplyInput = z.infer<typeof messageReplySchema>;

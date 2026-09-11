@@ -178,6 +178,18 @@ export interface ContactMessage {
   status: MessageStatus;
   ip: string | null;
   createdAt: string;
+  repliedAt: string | null;
+  replies?: MessageReply[];
+}
+
+export interface MessageReply {
+  id: string;
+  messageId: string;
+  to: string;
+  subject: string;
+  body: string;
+  sentBy: string | null;
+  sentAt: string;
 }
 
 export interface AuditLogEntry {
@@ -241,6 +253,14 @@ export interface MediaAsset {
   kind: string;
   title: string | null;
   createdAt: string;
+  referenced: boolean;
+}
+
+export interface SiteSettings {
+  chatEnabled: boolean;
+  contactEnabled: boolean;
+  analyticsEnabled: boolean;
+  maintenanceMode: boolean;
 }
 
 export interface AchievementDef {

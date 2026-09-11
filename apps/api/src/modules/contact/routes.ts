@@ -1,13 +1,15 @@
 import type { FastifyInstance } from "fastify";
-import { messageBulkDeleteSchema, messageBulkStatusSchema, messageStatusSchema, contactSchema } from "@hp/shared";
+import { contactQuerySchema, messageBulkDeleteSchema, messageBulkStatusSchema, messageStatusSchema, contactSchema, messageReplySchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, noStore, notFound, parseBody } from "../../utils/http.js";
+import { audit, clientIp, noStore, notFound, parseBody, parseQuery } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
-import { sendContactNotification } from "./mailer.js";
+import { sendContactNotification, sendMessageReply } from "./mailer.js";
 import { HttpError } from "../../utils/http.js";
+import { getSiteSettings } from "../settings/store.js";
+import { isSmtpConfigured } from "../../config.js";
 
 const CONTACT_WINDOW_MS = 10 * 60 * 1000;
 const CONTACT_MAX = 5;
@@ -18,11 +20,16 @@ const requireMessagesRead = requirePermission("messages:read");
 const requireMessagesWrite = requirePermission("messages:write");
 const requireMessagesDelete = requirePermission("messages:delete");
 
-const ALLOWED_STATUSES = new Set(["NEW", "READ", "REPLIED", "ARCHIVED", "SPAM"]);
+const REPLY_WINDOW_MS = 10 * 60 * 1000;
+const REPLY_MAX_PER_IP = 20;
+const REPLY_MAX_PER_MESSAGE = 5;
 
 export async function contactRoutes(app: FastifyInstance): Promise<void> {
   // ── public: receive a message ────────────────────────────────
   app.post("/", async (req, reply) => {
+    if (!(await getSiteSettings()).contactEnabled) {
+      return reply.code(503).send({ error: "CONTACT_DISABLED", message: "The contact form is temporarily unavailable." });
+    }
     const ip = clientIp(req);
 
     const limit = rateLimit(`contact:${ip}`, CONTACT_MAX, CONTACT_WINDOW_MS);
@@ -42,6 +49,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
       where: { email: input.email.toLowerCase(), createdAt: { gte: new Date(Date.now() - EMAIL_WINDOW_MS) } },
     });
     if (recent >= EMAIL_MAX) {
+      reply.header("retry-after", Math.ceil(EMAIL_WINDOW_MS / 1000));
       return reply.code(429).send({ error: "RATE_LIMITED", message: "Message limit reached for this email. Try again later." });
     }
 
@@ -55,7 +63,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
       },
     });
 
-    await audit(req, "contact.received", "contact_message", message.id, { from: message.email });
+    await audit(req, "MESSAGE_RECEIVED", "contact_message", message.id, { from: message.email });
     void sendContactNotification(message).catch((err) => app.log.warn({ err }, "contact notification failed"));
 
     reply.code(201);
@@ -65,18 +73,10 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   // ── admin: inbox ─────────────────────────────────────────────
   app.get("/", { preHandler: [requireMessagesRead] }, async (req, reply) => {
     noStore(reply);
-    const { status, page, q, sort, order } = req.query as {
-      status?: string;
-      page?: string;
-      q?: string;
-      sort?: string;
-      order?: string;
-    };
+    const { status, page: pageNum, q, sort } = parseQuery(req, contactQuerySchema);
     const pageSize = 25;
-    const pageNum = Math.max(1, Number(page ?? "1") || 1);
     const where: Record<string, unknown> = {};
     if (status && status !== "ALL") {
-      if (!ALLOWED_STATUSES.has(status)) throw new HttpError(400, "BAD_REQUEST", "Invalid status filter");
       (where as { status: string }).status = status;
     }
     if (q && q.trim()) {
@@ -88,8 +88,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
         { message: { contains: term, mode: "insensitive" } },
       ];
     }
-    const orderBy =
-      sort === "oldest" || order === "asc" ? { createdAt: "asc" as const } : { createdAt: "desc" as const };
+    const orderBy = sort === "oldest" ? { createdAt: "asc" as const } : { createdAt: "desc" as const };
     const [messages, total, unread] = await Promise.all([
       prisma.contactMessage.findMany({
         where: where as never,
@@ -112,22 +111,100 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   app.get("/:id", { preHandler: [requireMessagesRead] }, async (req, reply) => {
     noStore(reply);
     const { id } = req.params as { id: string };
-    const message = await prisma.contactMessage.findUnique({ where: { id } });
-    if (!message) notFound("Contact message");
+    if (id.length > 64) throw notFound("Contact message");
+    const message = await prisma.contactMessage.findUnique({
+      where: { id },
+      include: { replies: { orderBy: { sentAt: "asc" } } },
+    });
+    if (!message) throw notFound("Contact message");
     return { message };
   });
 
+  // ── admin: reply directly by email (no mail app involved) ──────
+  app.post("/:id/reply", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req, reply) => {
+    const ipLimit = rateLimit(`reply:${clientIp(req)}`, REPLY_MAX_PER_IP, REPLY_WINDOW_MS);
+    if (!ipLimit.allowed) {
+      reply.header("retry-after", ipLimit.retryAfterSeconds);
+      throw new HttpError(429, "RATE_LIMITED", "Too many replies. Try again later.");
+    }
+    const { id } = req.params as { id: string };
+    if (id.length > 64) throw notFound("Contact message");
+    const msgLimit = rateLimit(`reply:msg:${id}`, REPLY_MAX_PER_MESSAGE, 60 * 60 * 1000);
+    if (!msgLimit.allowed) {
+      reply.header("retry-after", msgLimit.retryAfterSeconds);
+      throw new HttpError(429, "RATE_LIMITED", "This conversation already received several replies recently. Try again later.");
+    }
+    const { subject, body } = parseBody(req, messageReplySchema);
+    const message = await prisma.contactMessage.findUnique({ where: { id } });
+    if (!message) throw notFound("Contact message");
+
+    if (!isSmtpConfigured()) {
+      throw new HttpError(
+        503,
+        "SMTP_NOT_CONFIGURED",
+        "Email sending is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD on the server, then try again.",
+      );
+    }
+
+    const finalSubject = (
+      (subject ?? "").trim() || `Re: ${message.subject?.trim() || "your message"}`
+    ).slice(0, 140);
+    const trimmedBody = body.trim();
+    try {
+      await sendMessageReply({
+        toName: message.name,
+        toEmail: message.email,
+        subject: finalSubject,
+        body: trimmedBody,
+        originalSubject: message.subject,
+        originalMessage: message.message,
+        originalDate: message.createdAt,
+      });
+    } catch (e) {
+      app.log.warn({ err: e }, "direct reply failed");
+      throw new HttpError(502, "REPLY_FAILED", e instanceof Error ? e.message : "Could not send the reply. Check SMTP settings and try again.");
+    }
+
+    // The email is already sent at this point: if persistence fails the
+    // admin must know (not silently lose history or blindly resend).
+    try {
+      const [updated, sent] = await prisma.$transaction([
+        prisma.contactMessage.update({
+          where: { id },
+          data: { status: "REPLIED", repliedAt: new Date() },
+        }),
+        prisma.messageReply.create({
+          data: { messageId: id, to: message.email, subject: finalSubject, body: trimmedBody, sentBy: req.admin?.email ?? null },
+        }),
+      ]);
+      await audit(req, "MESSAGE_REPLIED", "contact_message", id, { to: message.email, subject: finalSubject });
+      reply.code(201);
+      return { message: updated, reply: sent };
+    } catch (e) {
+      app.log.error({ err: e }, "reply sent but history not recorded");
+      throw new HttpError(
+        502,
+        "SENT_NOT_RECORDED",
+        "The email was sent, but saving the reply history failed. Do not resend yet — check the inbox and audit log first.",
+      );
+    }
+  });
+
   app.patch("/:id/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const { status } = parseBody(req, messageStatusSchema);
     const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) notFound("Contact message");
+    if (!existing) throw notFound("Contact message");
     const message = await prisma.contactMessage.update({ where: { id }, data: { status } });
     await audit(req, "MESSAGE_STATUS_CHANGED", "contact_message", id, { status });
     return { message };
   });
 
   app.post("/bulk/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { ids, status } = parseBody(req, messageBulkStatusSchema);
     const result = await prisma.contactMessage.updateMany({ where: { id: { in: ids } }, data: { status } });
     await audit(req, "MESSAGE_STATUS_CHANGED", "contact_message", null, { status, count: result.count });
@@ -135,6 +212,8 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/bulk/delete", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
     const { ids } = parseBody(req, messageBulkDeleteSchema);
     const result = await prisma.contactMessage.deleteMany({ where: { id: { in: ids } } });
     await audit(req, "MESSAGE_DELETED", "contact_message", null, { count: result.count });
@@ -142,9 +221,11 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/:id", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
+    const wl = rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) notFound("Contact message");
+    if (!existing) throw notFound("Contact message");
     await prisma.contactMessage.delete({ where: { id } });
     await audit(req, "MESSAGE_DELETED", "contact_message", id);
     return { ok: true };
