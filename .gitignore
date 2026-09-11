@@ -9,6 +9,11 @@ test-results/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.test
+.env.staging
+!.env.example
+!apps/web/.env.example
 *.pem
 
 # api runtime data
@@ -17,6 +22,9 @@ apps/api/uploads/
 
 # prisma
 apps/api/prisma/*.db
+*.db
+*.sqlite
+*.sqlite-journal
 *.tsbuildinfo
 
 # tooling / editor

@@ -10,7 +10,7 @@ admin area.
 ```
 portfolio/
 ├── apps/
-│   ├── web/        React 18 + Vite + TS · GSAP ScrollTrigger · React Three Fiber
+│   ├── web/        React 18 + Vite + TS · GSAP ScrollTrigger
 │   └── api/        Fastify 5 + TS · Prisma · PostgreSQL
 ├── packages/
 │   └── shared/     Domain types + zod schemas (single source of truth)
@@ -70,8 +70,8 @@ npm run admin:create -- --email you@domain.com --password "a-long-random-passphr
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | web + api in watch mode |
-| `npm run build` | typecheck + production build (all workspaces) |
-| `npm run typecheck` / `lint` | strict TS across the monorepo |
+| `npm run build` | production build (all workspaces; run `npm run typecheck` first for strict TS) |
+| `npm run typecheck` / `lint` | strict TS (`tsc --noEmit`) across the monorepo |
 | `npm run test` | web unit tests + API security suite |
 | `npm run test:api` | API suite only (needs `TEST_DATABASE_URL`, provided by compose) |
 | `npm run e2e` | Playwright browser tests |
@@ -81,11 +81,11 @@ npm run admin:create -- --email you@domain.com --password "a-long-random-passphr
 ## The public experience
 
 ```
-HERO → ABOUT → SELECTED WORK → CAPABILITIES → JOURNEY → CREDENTIALS → CONTACT
+HERO → ABOUT → JOURNEY → SELECTED WORK → CAPABILITIES → CREDENTIALS → CONTACT
 ```
 
-- **Quiet 3D atmosphere** — a low-contrast, tiered React Three Fiber scene that supports the
-  hero without competing with the content; it pauses when the page is hidden
+- **Quiet atmosphere** — a low-contrast ambient layer that supports the
+  hero without competing with the content; animation pauses when the page is hidden
 - **Command palette** (⌘K / Ctrl+K) — an advanced shortcut for destinations, résumé, links,
   AI, and private access
 - **Selected work** — one flagship project, secondary work, and compact additional entries;
