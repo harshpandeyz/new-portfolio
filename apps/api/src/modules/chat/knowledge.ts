@@ -7,6 +7,7 @@ export interface KnowledgeDoc {
   ref: string | null;
   content: string;
   keywords: string[];
+  links?: { label: string; href: string }[];
 }
 
 let cache: { docs: KnowledgeDoc[]; builtAt: number } | null = null;
@@ -36,6 +37,7 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
   const docs: KnowledgeDoc[] = [];
 
   if (profile) {
+    const socials = [...profile.socials].sort((a, b) => a.order - b.order);
     docs.push({
       id: "profile",
       kind: "PROFILE",
@@ -45,11 +47,24 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
         `${profile.name}. ${profile.headline} — ${profile.subHeadline}.`,
         profile.bio,
         `Location: ${profile.location}. Email: ${profile.email}. Availability: ${profile.availability}.`,
+        socials.length > 0 ? `Social links: ${socials.map((s) => `${s.label}: ${s.url}`).join("; ")}.` : "",
         profile.headline,
         profile.subHeadline,
       ].join(" "),
-      keywords: tokenize(`${profile.name} who is harsh about bio summary profile contact email location pune`),
+      keywords: tokenize(`${profile.name} who is harsh about bio summary profile contact email location ${profile.location} ${socials.map((s) => `${s.label} ${s.url}`).join(" ")}`),
+      links: socials.map((s) => ({ label: s.label, href: s.url })),
     });
+    if (profile.resumeUrl) {
+      docs.push({
+        id: "resume",
+        kind: "RESUME",
+        title: profile.resumeLabel ?? "Résumé",
+        ref: profile.resumeUrl,
+        content: `Résumé: ${profile.resumeLabel ?? "Résumé"}. Download: ${profile.resumeUrl}. Managed from the profile record.`,
+        keywords: tokenize("resume résumé cv curriculum vitae download profile"),
+        links: [{ label: "Download résumé", href: profile.resumeUrl }],
+      });
+    }
   }
 
   for (const p of projects) {
@@ -128,7 +143,7 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
       kind: "CERTIFICATE",
       title: `Certificate archive (${certSample.length} credentials)`,
       ref: null,
-      content: `Harsh holds ${certSample.length} verified credentials. Issuers include: ${[...grouped.keys()].join(", ")}. Notable: MongoDB Java Developer Path (MongoDB University), Backend Development and API Creation (Coursera), Node.js & MongoDB (Coursera/IBM), Software Engineering & Agile (Infosys Springboard), Cloud Technologies (Infosys Springboard), Networking Basics (Cisco Networking Academy), AMCAT certified.`,
+      content: `The credential archive contains ${certSample.length} records. Issuers include: ${[...grouped.keys()].join(", ")}. Records include: ${certSample.slice(0, 10).map((c) => c.title).join("; ")}.`,
       keywords: tokenize("certificates credentials certifications issuer archive verified"),
     });
   }

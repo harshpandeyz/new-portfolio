@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import type { ChatReply } from "@hp/shared";
+import { useData } from "../../lib/data";
 
 interface Msg {
   role: "user" | "ai";
@@ -14,6 +15,8 @@ interface Msg {
 }
 
 export function ChatWidget() {
+  const { publicSettings } = useData();
+  const enabled = publicSettings?.chatEnabled !== false;
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -27,7 +30,7 @@ export function ChatWidget() {
   const chatControllerRef = useRef<AbortController | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  useScrollLock(open);
+  useScrollLock(open && enabled);
 
   const openChat = useCallback(() => {
     previousFocusRef.current = document.activeElement as HTMLElement;
@@ -48,11 +51,11 @@ export function ChatWidget() {
   }, [openChat]);
 
   useEffect(() => {
-    if (open && suggestions.length === 0) {
+    if (enabled && open && suggestions.length === 0) {
       api.chatSuggestions().then((r) => setSuggestions(r.suggestions.slice(0, 5))).catch(() => undefined);
     }
     if (open) window.setTimeout(() => inputRef.current?.focus(), 60);
-  }, [open, suggestions.length]);
+  }, [enabled, open, suggestions.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,7 +154,7 @@ export function ChatWidget() {
     }
   };
 
-  return (
+  return enabled ? (
     <>
       {!open && (
         <button ref={fabRef} className="chat-fab" onClick={openChat} aria-label="Ask Harsh">
@@ -251,5 +254,5 @@ export function ChatWidget() {
         </div>
       )}
     </>
-  );
+  ) : null;
 }

@@ -1,6 +1,13 @@
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
+
+# Prisma's build-time engine detection must see the same OpenSSL ABI that is
+# installed in the runtime image below.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
@@ -13,7 +20,7 @@ RUN node ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.pri
   && npm run build --workspace @hp/shared \
   && npm run build --workspace @hp/api
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production

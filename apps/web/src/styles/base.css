@@ -105,6 +105,34 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: var(--weight-semibold);
 }
 
+.maintenance-notice {
+  position: fixed;
+  top: calc(var(--btn-h-lg) + 24px);
+  left: 50%;
+  z-index: var(--z-hud);
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border: 1px solid rgba(174, 112, 0, 0.22);
+  border-radius: var(--radius-pill);
+  color: #704700;
+  background: rgba(255, 248, 229, 0.96);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+.maintenance-notice__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #c98200;
+}
+.data-notice--below-maintenance { top: calc(var(--btn-h-lg) + 72px); }
+
 .container {
   width: min(100%, var(--container-max));
   margin: 0 auto;

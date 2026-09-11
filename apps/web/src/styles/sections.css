@@ -1426,6 +1426,7 @@
 }
 .contact-panel-head .eyebrow { margin-bottom: 10px; }
 .contact-panel-head > p { color: var(--color-text-muted); font-size: 13.5px; line-height: 1.6; }
+.contact-unavailable { padding: 28px 0; color: var(--color-text-muted); line-height: 1.6; }
 
 /* ── Reusable contact link card ── */
 .contact-channels { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; flex: 1 0 auto; }
@@ -2065,10 +2066,10 @@ a.clc { cursor: pointer; }
 .case-challenge { border-left: 2px solid var(--color-accent); padding-left: 14px; }
 
 /* Tech 9-grid — intentional 3×3, balanced */
-.tech-grid--nine { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.tech-grid--nine .tech-card { padding: 16px 14px 14px; }
-.tech-grid--nine .tech-tiles { gap: 6px; }
-.tech-grid--nine .tt-meta { display: block; font-size: 10px; color: var(--color-text-dim); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; }
+.tech-grid--taxonomy { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tech-grid--taxonomy .tech-card { padding: 16px 14px 14px; }
+.tech-grid--taxonomy .tech-tiles { gap: 6px; }
+.tech-grid--taxonomy .tt-meta { display: block; font-size: 10px; color: var(--color-text-dim); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; grid-column: 2; }
 
 /* Secondary project cards — visual concept + compact information */
 .project-card--secondary .project-card-visual {
@@ -2179,7 +2180,7 @@ a.clc { cursor: pointer; }
    ──────────────────────────────────────────────── */
 
 @media (max-width: 980px) {
-  .tech-grid--nine { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tech-grid--taxonomy { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .flagship--split .flagship-split { grid-template-columns: 1fr; }
   .flagship-visual { border-right: 0; border-bottom: 1px solid var(--color-line); }
   .flagship-visual img { max-height: 320px; min-height: 200px; }
@@ -2253,7 +2254,7 @@ a.clc { cursor: pointer; }
   .credential-viewer-info, .resume-viewer-mobile-bar { padding-bottom: max(16px, env(safe-area-inset-bottom)); flex-shrink: 0; }
   .resume-viewer-doc, .credential-viewer-frame { min-height: 0; }
   .resume-viewer-mobile-bar { display: flex; position: sticky; bottom: 0; }
-  .tech-grid, .tech-grid--nine { grid-template-columns: 1fr; }
+  .tech-grid, .tech-grid--taxonomy { grid-template-columns: 1fr; }
   .contact-grid { gap: 20px; }
   .contact-panel { padding: 20px 16px; border-radius: var(--radius-lg); }
   .contact-form .row { grid-template-columns: 1fr; }
@@ -2373,14 +2374,14 @@ a.clc { cursor: pointer; }
 
 @media (min-width: 1440px) {
   .work-row { gap: 18px; }
-  .tech-grid, .tech-grid--nine { gap: 20px; }
+  .tech-grid, .tech-grid--taxonomy { gap: 20px; }
 }
 @media (min-width: 1920px) {
   :root { --container-gutter: clamp(32px, 4vw, 64px); }
   .hero-inner { grid-template-columns: minmax(0, 720px); }
   .id-grid { gap: clamp(48px, 4vw, 80px); }
   .work-row { gap: 20px; }
-  .tech-grid, .tech-grid--nine { gap: 22px; }
+  .tech-grid, .tech-grid--taxonomy { gap: 22px; }
 }
 @media (min-width: 2560px) {
   :root { --container-max: 1320px; }

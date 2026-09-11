@@ -7,6 +7,10 @@ const configDir = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30000,
+  // Admin acceptance mutates the same disposable database as the public
+  // browser checks. One worker keeps those release tests deterministic and
+  // prevents a temporary CMS record from changing a visual baseline.
+  workers: 1,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
     screenshot: "only-on-failure",
@@ -18,14 +22,14 @@ export default defineConfig({
           command: "npm run build --workspace @hp/shared && npx tsx apps/api/src/server.ts",
           port: 4000,
           cwd: configDir,
-          reuseExistingServer: true,
+          reuseExistingServer: false,
           env: { ...process.env },
         },
         {
           command: "npx vite apps/web --config apps/web/vite.config.ts --port 5173",
           port: 5173,
           cwd: configDir,
-          reuseExistingServer: true,
+          reuseExistingServer: false,
         },
       ],
 });

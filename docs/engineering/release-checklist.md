@@ -8,8 +8,8 @@
 - [ ] `npm run build` — clean production build (shared → api → web)
 
 ### Tests
-- [ ] `npm run test` — all unit tests pass (web: 14, api: 31)
-- [ ] `npm run e2e` — all 68 E2E tests pass (6 viewports × 8 routes + interactive surfaces)
+- [ ] `npm run test` — all unit/API tests pass (web: 16, api: 40)
+- [ ] `npm run e2e` — all 41 E2E tests pass (admin acceptance, public experience, and two-viewport visual regression)
 
 ### Security
 - [ ] `SESSION_SECRET` is a strong random value (not placeholder)

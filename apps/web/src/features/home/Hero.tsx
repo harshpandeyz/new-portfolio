@@ -27,7 +27,7 @@ export function Hero({ caps, onViewResume }: HeroProps) {
       <div className="hero-inner">
         <p className="hero-kicker">
           <span className="kicker-dot" aria-hidden="true" />
-          Software Engineer · Pune
+          {profile?.headline ?? PROFILE.headline} · {profile?.location ?? PROFILE.location}
         </p>
 
         <h1 className="hero-name">{profile?.name ?? PROFILE.name}</h1>

@@ -50,7 +50,7 @@ rendered layout.
    visual-qa spec) — `frameloop="never"` + `paused` when set — freezing the core at
    its current frame so a full-page capture can stabilize.
 6. **Snapshots** — deleted the broken frames and regenerated with `--update-snapshots`
-   under the final capture flow (54/54), then verified **twice** with clean runs
+   under the final capture flow, then verified with clean runs
    (no `--update`) to certify the baselines don't depend on timing. Before accepting,
    `home-desktop-lg`, `work`, and `credentials` were inspected: every section renders
    real content (see "Snapshot Inspection" below).
@@ -60,9 +60,9 @@ rendered layout.
 ```
 npm run typecheck   → ✓ 0 errors (shared, api, web)
 npm run lint        → ✓ 0 errors (shared, api, web) — NOTE: lint = tsc --noEmit, NOT ESLint
-npm run test        → ✓ 45/45 pass (14 web + 31 API)
+npm run test        → ✓ 56/56 pass (16 web + 40 API)
 npm run build       → ✓ clean production build (1.6s)
-npm run e2e         → ✓ 68/68 pass (incl. visual-qa with scroll-settled captures)
+npm run e2e         → ✓ 41/41 pass (incl. visual-qa with scroll-settled captures)
 ```
 
 ---
@@ -73,10 +73,10 @@ npm run e2e         → ✓ 68/68 pass (incl. visual-qa with scroll-settled capt
 |---------|--------|
 | `npm run typecheck` | ✓ 0 errors |
 | `npm run lint` | ✓ 0 errors |
-| `npm run test` | ✓ 45/45 pass |
+| `npm run test` | ✓ 56/56 pass |
 | `npm run build` | ✓ built in 1.6s |
-| `npm run e2e` | ✓ 68/68 pass |
-| `npx playwright test e2e/visual-qa.spec.ts --update-snapshots` | ✓ 54/54 pass (shell deleted broken blank frames first; regenerated with scroll-settled captures) |
+| `npm run e2e` | ✓ 41/41 pass |
+| `npx playwright test e2e/visual-qa.spec.ts --update-snapshots` | ✓ snapshots regenerated and verified (shell deleted broken blank frames first; regenerated with scroll-settled captures) |
 
 ---
 
@@ -90,7 +90,7 @@ npm run e2e         → ✓ 68/68 pass (incl. visual-qa with scroll-settled capt
 | `apps/web/src/App.tsx` | Reveal effect re-refreshes ScrollTrigger after `load`/`fonts.ready`/lazy-image settle; added `location.hash` deep-link scrolling on fresh load (waits for fonts, verifies landing, instant-jump fallback) so `/#work` etc. are shareable |
 | `apps/web/src/components/three/CoreScene.tsx` | WebGL hero/core canvases honor `data-qa-static`: `frameloop="never"` + `paused` so the continuous rAF loop can be frozen for screenshot stability |
 | `apps/web/src/styles/surface.css` | Added `#main section[id] { scroll-margin-top: 96px }` so deep links and nav land clear of the floating topbar |
-| `e2e/visual-qa.spec.ts-snapshots/` | **Deleted broken blank frames, regenerated 54/54** with scroll-settled captures |
+| `e2e/visual-qa.spec.ts-snapshots/` | **Deleted broken blank frames and regenerated** with scroll-settled captures |
 
 ### Bug Fixes
 | File | Change |
@@ -139,7 +139,7 @@ npm run e2e         → ✓ 68/68 pass (incl. visual-qa with scroll-settled capt
 ### Visual Regression
 | File | Change |
 |------|--------|
-| `e2e/visual-qa.spec.ts-snapshots/` | Regenerated 54/54 from the final capture flow (WebGL frozen + scroll-settled); certified by two consecutive clean runs — prior baselines were blank below the fold and unstable (see "Defect Found & Fixed") |
+| `e2e/visual-qa.spec.ts-snapshots/` | Regenerated from the final capture flow (WebGL frozen + scroll-settled); prior baselines were blank below the fold and unstable (see "Defect Found & Fixed") |
 
 ### Snapshot Inspection (home-desktop-lg, 1280×800, full page 11171px)
 Before accepting the new baseline, non-white pixel analysis of `home-desktop-lg-darwin.png` confirmed real content in every section:
@@ -270,14 +270,14 @@ npm run dev
 
 ## Final Release Readiness
 
-**READY (post-correction)**
+**REPOSITORY READY; EXTERNAL HOSTING PENDING**
 
 Preceded by a render-integrity regression that was found and fixed — the
 visual-qa baseline previously captured blank below-fold sections (see "Defect
 Found & Fixed"). That gate is now trustworthy. The application:
 - Builds cleanly
-- Passes all 45 unit/API tests
-- Passes all 68 E2E tests (6 viewports × 8 routes + interactive surfaces), with
+- Passes all 56 unit/API tests
+- Passes all 41 E2E tests (admin acceptance, public experience and two core visual viewports), with
   scroll-settled visual captures verified to render real content in every section
 - Has no type errors
 - Has correct git hygiene
@@ -289,4 +289,4 @@ Found & Fixed"). That gate is now trustworthy. The application:
 
 ---
 
-*Generated: $(date -u "+%Y-%m-%d %H:%M UTC")*
+*Generated: 2026-09-07 UTC*

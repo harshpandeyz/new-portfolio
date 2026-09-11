@@ -5,31 +5,27 @@
 ```
 npm run typecheck    → ✓ 0 errors (shared, api, web)
 npm run lint         → ✓ 0 errors (shared, api, web)
-npm run test         → ✓ 45/45 pass (14 web + 31 API)
+npm run test         → ✓ 56/56 pass (16 web + 40 API)
 npm run build        → ✓ clean production build
-npm run e2e          → ✓ 68/68 pass (1.4m)
+npm run e2e          → ✓ 41/41 pass
 ```
 
 ### E2E Breakdown
 
 | Suite | Tests | Status |
 |-------|-------|--------|
-| Public experience | 14 | ✓ |
-| Security behavior | 1 | ✓ |
-| Visual regression (6 viewports × 8 routes) | 48 | ✓ |
-| Interactive surfaces (command palette, chat) | 5 | ✓ |
-| **Total** | **68** | **✓** |
+| Admin release acceptance | 1 | ✓ |
+| Public experience and security behavior | 14 | ✓ |
+| Visual regression (11 routes × 2 viewports) | 22 | ✓ |
+| Interactive surfaces (command palette, chat × 2 viewports) | 4 | ✓ |
+| **Total** | **41** | **✓** |
 
 ### Viewport Coverage
 
 | Viewport | Dimensions | Tests |
 |----------|-----------|-------|
-| desktop-xl | 1440×900 | 10 (8 routes + 2 interactive) |
-| desktop-lg | 1280×800 | 10 |
-| desktop-md | 1024×768 | 10 |
-| tablet-portrait | 768×1024 | 8 |
-| mobile-lg | 430×932 | 8 |
-| mobile-md | 390×844 | 8 |
+| desktop-xl | 1440×900 | 13 (11 routes + 2 interactive) |
+| mobile-md | 390×844 | 13 |
 
 ---
 
@@ -62,17 +58,7 @@ npm run e2e          → ✓ 68/68 pass (1.4m)
 
 ## Remaining Known Issues
 
-### Low Priority (Not Blocking)
-- `tokens.css` has 16 unused tokens (dead code, not harmful)
-- Hardcoded color/spacing values in sections.css (cosmetic, not functional)
-- nav-sheet missing close-on-outside-click in redesign.css (UX polish, not broken)
-- `.DS_Store` files tracked in git (in .gitignore going forward)
-- `chat.css` file is now dead (import removed, file can be deleted in future cleanup)
-
-### Design System
-- CSS files have some overlapping rules across sections.css and redesign.css
-- Some hardcoded values should use token references
-- These are cosmetic improvements, not functional issues
+No repository release-blocking issues were found in the current verified gates. External hosting still requires deploying the tested commit and configuring production secrets at the target provider.
 
 ---
 
@@ -81,16 +67,16 @@ npm run e2e          → ✓ 68/68 pass (1.4m)
 | Category | Status |
 |----------|--------|
 | Build | ✓ Passes cleanly |
-| Tests | ✓ 45/45 pass |
-| E2E | ✓ 68/68 pass |
+| Tests | ✓ 56/56 pass |
+| E2E | ✓ 41/41 pass |
 | Type safety | ✓ Strict TypeScript, 0 errors |
 | Security | ✓ Auth, CSRF, rate limiting, validation |
 | Accessibility | ✓ Focus traps, ARIA, reduced motion, contrast |
 | Performance | ✓ Code splitting, lazy loading, tier-aware rendering |
-| Responsive | ✓ 6 viewports tested, no overflow |
+| Responsive | ✓ desktop and mobile viewports tested, no overflow |
 | Documentation | ✓ Architecture, deployment, security, audit docs |
 
-**Verdict: Production-ready.**
+**Verdict: Repository release gates pass; external deployment remains pending.**
 
 ---
 

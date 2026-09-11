@@ -46,7 +46,7 @@ test.describe("public experience", () => {
   test("project case study scrolls through architecture", async ({ page }) => {
     await page.goto("/projects/quantummind");
     await expect(page.getByRole("heading", { name: /QuantumMind/i })).toBeVisible({ timeout: 15000 });
-    const diagram = page.locator(".case-system-map, .arch-diagram");
+    const diagram = page.getByRole("region", { name: "Four containers, one question" }).locator(".cs-canvas");
     await diagram.first().scrollIntoViewIfNeeded();
     await expect(diagram.first()).toBeVisible();
   });
@@ -219,7 +219,7 @@ test.describe("public experience", () => {
         expect(response.status(), `project media request failed: ${url}`).toBeLessThan(400);
       }
       await page.goto(`/projects/${project.slug}`);
-      await expect(page.locator(".case-hero h1")).toBeVisible({ timeout: 15000 });
+      await expect(page.locator(".cs-hero h1")).toBeVisible({ timeout: 15000 });
       await assertBrowserImagesHealthy(page);
     }
 
@@ -233,9 +233,9 @@ test.describe("security behavior", () => {
   test("private route shows login and rejects bad credentials", async ({ page }) => {
     await page.goto("/private");
     await expect(page.getByText("HARSH // CONTROL")).toBeVisible({ timeout: 15000 });
-    await page.locator("#ad-email").fill("admin@harshpandey.dev");
-    await page.locator("#ad-password").fill("totally-wrong-password");
-    await page.locator(".login-card button[type='submit']").click();
-    await expect(page.locator(".private-error")).toBeVisible({ timeout: 10000 });
+    await page.locator("#ctl-email").fill("admin@harshpandey.dev");
+    await page.locator("#ctl-password").fill("totally-wrong-password");
+    await page.locator(".ctl-login-card button[type='submit']").click();
+    await expect(page.locator(".ctl-alert")).toBeVisible({ timeout: 10000 });
   });
 });

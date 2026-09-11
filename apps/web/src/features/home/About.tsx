@@ -28,7 +28,7 @@ export function About() {
             {profile?.avatarUrl ? <img src={resolveMediaUrl(profile.avatarUrl)} alt={`Portrait of ${profile.name}`} loading="lazy" width={880} height={1100} /> : <div className="photo-placeholder">HP</div>}
             <figcaption className="id-caption">
               <span>{profile?.location ?? PROFILE.location}</span>
-              <span>B.Tech IT, MIT-ADT · Class of 2027</span>
+              {btech && <span>{btech.degree}, {btech.institution} · Class of {btech.endYear ?? "present"}</span>}
             </figcaption>
           </figure>
 
@@ -50,8 +50,9 @@ export function About() {
               build an iOS game end to end.
             </p>
             <p data-reveal>
-              Right now I'm completing my B.Tech in Information Technology at MIT-ADT University, Pune, and open
-              to full-stack, backend, and AI/ML engineering roles where the work matters beyond the demo.
+              Right now I'm completing {btech?.degree ?? "my degree"} in {btech?.field ?? "Information Technology"}
+              at {btech?.institution ?? "university"}, and open to full-stack, backend, and AI/ML engineering
+              roles where the work matters beyond the demo.
             </p>
 
             <div className="id-facts" data-reveal>

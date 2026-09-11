@@ -43,6 +43,9 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
   const social = (label: string) => profile?.socials.find((s) => s.label.toLowerCase() === label.toLowerCase())?.url;
   const resumePath = profile?.resumeUrl ?? PROFILE.resume.path;
   const email = profile?.email ?? PROFILE.email;
+  const recruiterHeadline = profile?.headline ?? PROFILE.headline;
+  const recruiterPositioning = profile?.subHeadline ?? PROFILE.positioning;
+  const recruiterSummary = profile?.bio ?? "Profile summary is temporarily unavailable.";
 
   return (
     <div className="recruiter-page">
@@ -59,8 +62,8 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
         <section className="recruiter-intro">
           <span className="eyebrow">Résumé — Fast review</span>
           <h1>{profile?.name ?? PROFILE.name}</h1>
-          <p className="recruiter-role">Software Engineer · Backend · AI · Full Stack</p>
-          <p className="recruiter-summary">I build reliable backend systems, applied AI products and thoughtful full-stack experiences end to end. I'm completing my B.Tech in Information Technology at MIT-ADT University, Pune, and am open to backend, full-stack and AI/ML opportunities.</p>
+          <p className="recruiter-role">{recruiterHeadline} · {recruiterPositioning}</p>
+          <p className="recruiter-summary">{recruiterSummary}</p>
           <div className="recruiter-cta">
             <Button variant="primary" href={`mailto:${email}`}>Contact Harsh — {email}</Button>
             <Button href="/#work">View selected work</Button>

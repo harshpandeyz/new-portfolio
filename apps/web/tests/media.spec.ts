@@ -17,4 +17,9 @@ describe("canonical media URL resolution", () => {
     expect(resolveMediaUrl("https://cdn.example.test/image.webp", "https://api.example.test")).toBe("https://cdn.example.test/image.webp");
     expect(resolveMediaUrl("data:image/png;base64,abc", "https://api.example.test")).toBe("data:image/png;base64,abc");
   });
+
+  it("rejects executable and protocol-relative media URLs", () => {
+    expect(resolveMediaUrl("javascript:alert(1)", "https://api.example.test")).toBe("");
+    expect(resolveMediaUrl("//evil.example.test/file.pdf", "https://api.example.test")).toBe("");
+  });
 });

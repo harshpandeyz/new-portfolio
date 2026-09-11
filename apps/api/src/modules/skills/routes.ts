@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
-import { skillInputSchema } from "@hp/shared";
+import { skillInputSchema, skillQuerySchema } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
@@ -8,13 +8,14 @@ import { requirePermission } from "../auth/rbac.js";
 import { clientIp } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
-import { audit, notFound, parseBody } from "../../utils/http.js";
+import { audit, notFound, parseBody, parseQuery } from "../../utils/http.js";
+import { invalidateKnowledge } from "../chat/knowledge.js";
 
 const requireEditor = requirePermission("content:write");
 
 export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req) => {
-    const { category } = req.query as { category?: string };
+    const { category } = parseQuery(req, skillQuerySchema);
     const where: Prisma.SkillWhereInput = category && category !== "ALL" ? { category } : {};
     const skills = await prisma.skill.findMany({
       where,
@@ -29,6 +30,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     const input = parseBody(req, skillInputSchema);
     const skill = await prisma.skill.create({ data: input });
     await audit(req, "CONTENT_CREATED", "skill", skill.id, { name: skill.name });
+    invalidateKnowledge();
     reply.code(201);
     return { skill };
   });
@@ -40,6 +42,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     const input = parseBody(req, skillInputSchema.partial());
     const skill = await prisma.skill.update({ where: { id }, data: input });
     await audit(req, "CONTENT_UPDATED", "skill", id, { name: skill.name });
+    invalidateKnowledge();
     return { skill };
   });
 
@@ -49,6 +52,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     await prisma.skill.delete({ where: { id } });
     await audit(req, "CONTENT_DELETED", "skill", id);
+    invalidateKnowledge();
     return { ok: true };
   });
 }

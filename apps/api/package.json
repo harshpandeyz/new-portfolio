@@ -9,11 +9,11 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "db:migrate": "prisma migrate deploy",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:generate": "prisma generate",
+    "db:migrate": "node ../../scripts/prisma-cli.mjs migrate deploy --schema prisma/schema.prisma",
+    "db:migrate:dev": "node ../../scripts/prisma-cli.mjs migrate dev --schema prisma/schema.prisma",
+    "db:generate": "node ../../scripts/prisma-cli.mjs generate --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio",
+    "db:studio": "node ../../scripts/prisma-cli.mjs studio --schema prisma/schema.prisma",
     "test": "TEST_MODE=1 vitest run --config tests/vitest.config.ts"
   },
   "prisma": {

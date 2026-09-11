@@ -112,7 +112,7 @@ export async function audit(
     });
   } catch (err) {
     // auditing must never break the request path, but log the failure
-    console.error("[audit] failed to write audit log:", err);
+    console.error("[audit] failed to write audit log", err instanceof Error ? err.name : "unknown error");
   }
 }
 

@@ -15,7 +15,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 2026,
+    port: 5173,
+    // A port change silently breaks the API proxy and can make local QA
+    // exercise a different process than the one developers intended.
+    strictPort: true,
     proxy: {
       "/api": { target: "http://localhost:4000", changeOrigin: true },
       "/static": { target: "http://localhost:4000", changeOrigin: true },

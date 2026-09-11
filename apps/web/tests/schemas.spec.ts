@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 // retrieval logic is server-side; here we test the shared schema contracts
-import { contactSchema, chatSchema, loginSchema, projectInputSchema } from "@hp/shared";
+import { contactSchema, chatSchema, loginSchema, projectInputSchema, profileInputSchema } from "@hp/shared";
 
 describe("shared validation schemas", () => {
   it("accepts a valid contact message", () => {
@@ -35,5 +35,16 @@ describe("shared validation schemas", () => {
     const base = { title: "Test", shortDescription: "desc", category: "CAT", tier: "featured", status: "draft", featured: false, year: "2026", order: 1, stack: [] };
     expect(projectInputSchema.safeParse({ ...base, slug: "Bad Slug" }).success).toBe(false);
     expect(projectInputSchema.safeParse({ ...base, slug: "valid-slug-2" }).success).toBe(true);
+  });
+
+  it("rejects executable public URLs in managed content", () => {
+    const base = {
+      name: "Harsh Pandey", headline: "Software Engineer", subHeadline: "Backend · AI",
+      bio: "A sufficiently long biography for schema validation.", location: "Pune, India",
+      email: "harsh@example.com", availability: "Open", avatarUrl: null, resumeUrl: null, resumeLabel: null,
+      socials: [{ label: "GitHub", url: "javascript:alert(1)", handle: null, order: 0 }],
+    };
+    expect(profileInputSchema.safeParse(base).success).toBe(false);
+    expect(profileInputSchema.safeParse({ ...base, socials: [{ ...base.socials[0], url: "https://github.com/example" }] }).success).toBe(true);
   });
 });

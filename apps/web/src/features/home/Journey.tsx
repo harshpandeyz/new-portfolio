@@ -38,12 +38,16 @@ export function Journey() {
                 </article>
               ))}
             </div>
-            <p className="edu-school">
-              Final-year B.Tech, Information Technology at <strong>MIT-ADT University, Pune</strong>.
-            </p>
-            <p className="edu-final">
-              Software &amp; Mobile Application Development specialization · CGPA 8.38 · graduating 2027.
-            </p>
+            {btech && (
+              <>
+                <p className="edu-school">
+                  {btech.degree}, {btech.field ?? "Information Technology"} at <strong>{btech.institution}</strong>.
+                </p>
+                <p className="edu-final">
+                  {btech.description ?? [btech.grade, btech.endYear ? `expected ${btech.endYear}` : null].filter(Boolean).join(" · ")}
+                </p>
+              </>
+            )}
           </div>
         ) : error ? (
           <ErrorState message="Education couldn't load." onRetry={() => void refresh()} />

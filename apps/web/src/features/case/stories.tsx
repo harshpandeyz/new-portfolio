@@ -19,9 +19,9 @@ function Split({ left, right }: { left: React.ReactNode; right: React.ReactNode 
   return <div className="cs-split"><Reveal className="cs-prose">{left}</Reveal><Reveal delay={0.08}>{right}</Reveal></div>;
 }
 
-/* ════════════════ MOB SURVEILLANCE ════════════════ */
+/* ════════════════ CCTV-X / INTELLIGENT SURVEILLANCE ════════════════ */
 
-export function MobStory({ project }: { project: Project }) {
+export function CctvStory({ project }: { project: Project }) {
   const [overview, analytics, zones, vault] = FLAGSHIP_GALLERY as [typeof FLAGSHIP_GALLERY[number], typeof FLAGSHIP_GALLERY[number], typeof FLAGSHIP_GALLERY[number], typeof FLAGSHIP_GALLERY[number]];
   return (
     <>
@@ -48,31 +48,32 @@ export function MobStory({ project }: { project: Project }) {
         </div>
       </CaseSection>
 
-      <CaseSection num="02" kick="COMPUTER VISION PIPELINE" title="From photons to mob event" lede="The detection path that turns a raw CCTV feed into a classified event worth sealing.">
-        <Canvas kicker="CV PIPELINE" right="YOLOV8 · OPENCV · MEDIAPIPE" caption={<><b>Read it left to right:</b> each frame is detected, tracked and classified before anything is allowed to become evidence.</>}>
+      <CaseSection num="02" kick="COMPUTER VISION PIPELINE" title="From frames to an investigation event" lede="The detection path that turns a camera stream or uploaded video into a classified event worth reviewing and sealing.">
+        <Canvas kicker="CV PIPELINE" right="YOLOV8N · OPENCV · TRACKING" caption={<><b>Read it left to right:</b> each frame is detected, tracked and escalated before anything is allowed to become evidence.</>}>
           <PipeFlow nodes={[
-            { label: "Capture", sub: "CCTV feed in", icon: "camera" },
-            { label: "Detect", sub: "YOLOv8 persons", icon: "brain" },
-            { label: "Track", sub: "OpenCV motion", icon: "search", hot: true },
-            { label: "Pose", sub: "MediaPipe cues", icon: "user" },
-            { label: "Classify", sub: "mob event?", icon: "alert", hot: true, state: true },
+            { label: "Capture", sub: "RTSP · webcam · upload", icon: "camera" },
+            { label: "Detect", sub: "YOLOv8n persons", icon: "brain" },
+            { label: "Track", sub: "centroid · IoU", icon: "search", hot: true },
+            { label: "Escalate", sub: "possible → confirmed", icon: "alert", hot: true, state: true },
+            { label: "Investigate", sub: "copilot · evidence", icon: "user" },
           ]} />
           <div className="cs-lanes">
-            <div className="cs-lane"><span className="lk">Perception</span><span className="lv"><b>YOLOv8 + OpenCV + MediaPipe</b> — person detection, motion tracking and pose cues fused into one event signal.</span></div>
-            <div className="cs-lane"><span className="lk">Gate</span><span className="lv">Only a <b>classified mob event</b> triggers clip extraction — the pipeline refuses to seal noise.</span></div>
+            <div className="cs-lane"><span className="lk">Perception</span><span className="lv"><b>YOLOv8n + centroid/IoU tracking</b> — detections become stable tracks before heuristics evaluate crowd, fight and stampede signals.</span></div>
+            <div className="cs-lane"><span className="lk">Gate</span><span className="lv">Events move through <b>possible → suspicious → confirmed</b>; the heuristic is labelled as an MVP rather than presented as a trained violence model.</span></div>
           </div>
         </Canvas>
       </CaseSection>
 
-      <CaseSection num="03" kick="CHAIN OF CUSTODY" title="Evidence you can prove, not promise" lede="Every artifact is encrypted before storage, hashed at creation, and anchored on-chain — tampering becomes mathematically detectable.">
-        <Canvas kicker="EVIDENCE LIFECYCLE" right="AES-256 · SHA-256 · ETHEREUM" caption={<><b>The seal happens first:</b> AES-256 encryption and SHA-256 hashing are applied before any storage, so at-rest artifacts are self-verifying.</>}>
+      <CaseSection num="03" kick="CHAIN OF CUSTODY" title="Evidence you can prove, not promise" lede="Every artifact is encrypted before storage, hashed at creation, and added to an append-only ledger — with external timestamp anchoring for later verification.">
+        <Canvas kicker="EVIDENCE LIFECYCLE" right="AES-GCM · SHA-256 · OPENTIMESTAMPS" caption={<><b>The seal happens first:</b> AES-GCM encryption and SHA-256 hashing are applied before storage, then the digest enters the append-only ledger.</>}>
           <PipeFlow nodes={[
             { label: "Camera", sub: "raw frames", icon: "camera" },
-            { label: "Detection", sub: "mob signal", icon: "brain" },
+            { label: "Detection", sub: "event signal", icon: "brain" },
             { label: "Event", sub: "clip extracted", icon: "alert", hot: true },
             { label: "Evidence", sub: "clip artifact", icon: "evidence" },
-            { label: "Seal", sub: "AES-256 · SHA-256", icon: "shield", hot: true, state: true },
-            { label: "Blockchain", sub: "Solidity · Web3.py", icon: "ledger" },
+            { label: "Seal", sub: "AES-GCM · SHA-256", icon: "shield", hot: true, state: true },
+            { label: "Ledger", sub: "append-only hash chain", icon: "ledger" },
+            { label: "Timestamp", sub: "OpenTimestamps · Bitcoin", icon: "attest" },
             { label: "Verify", sub: "hash re-check", icon: "search" },
             { label: "Operator", sub: "dashboard", icon: "user" },
           ]} />
@@ -85,10 +86,10 @@ export function MobStory({ project }: { project: Project }) {
           right={(
             <div className="cs-journey">
               {[
-                ["Monitor", "Sources-online board with live alert feed — fight and mob detections surface with context."],
+                ["Monitor", "Sources-online board with live alert feed — fight, crowd and mob signals surface with context."],
                 ["Triage", "Open the event: detection snapshot, zone, confidence and linked evidence record."],
-                ["Verify", "Re-check the sealed clip against its SHA-256 digest and on-chain record."],
-                ["Export", "Hand over an encrypted, hashed, chain-anchored bundle a third party can verify."],
+                ["Verify", "Re-check the sealed clip against its SHA-256 digest and append-only ledger record."],
+                ["Export", "Hand over an encrypted, hashed, timestamp-anchored bundle a third party can verify."],
               ].map(([t, d], i) => (
                 <div key={t} className="cs-jstep"><span className="jn">{String(i + 1).padStart(2, "0")}</span><div><b>{t}</b><p>{d}</p></div></div>
               ))}
@@ -97,15 +98,15 @@ export function MobStory({ project }: { project: Project }) {
         />
       </CaseSection>
 
-      <CaseSection num="05" kick="INCIDENT LIFECYCLE" title="One alert, end to end" lede="A single timeline follows an incident from first frame to court-ready bundle.">
+      <CaseSection num="05" kick="INCIDENT LIFECYCLE" title="One alert, end to end" lede="A single timeline follows an incident from first frame to a verifiable evidence bundle.">
         <div className="cs-timeline">
           {[
-            ["T+0s — Capture", "Frame ingestion", "CCTV feed enters the detection service; every frame is timestamped at the door."],
+            ["T+0s — Capture", "Frame ingestion", "A stream, webcam or uploaded video enters the detection service for processing."],
             ["T+1s — Detect", "YOLOv8 + OpenCV", "Person detections tracked across frames; crowd density accumulates per zone."],
-            ["T+2s — Event", "Mob classified", "Threshold crossed — the system declares a mob event and extracts the evidence clip."],
-            ["T+3s — Seal", "AES-256 · SHA-256", "Clip encrypted and hashed before storage; nothing unverifiable touches disk."],
-            ["T+min — Anchor", "Web3.py → Solidity", "Hash logged on Ethereum via smart contract against a local node in development."],
-            ["T+later — Prove", "Dashboard + export", "Operator reviews in the JWT-protected React dashboard and exports the verifiable bundle."],
+            ["T+2s — Event", "Escalation ladder", "A heuristic crosses a threshold and extracts an evidence clip for investigation."],
+            ["T+3s — Seal", "AES-GCM · SHA-256", "Clip encrypted and hashed before storage; the digest is committed to the ledger."],
+            ["T+later — Anchor", "OpenTimestamps → Bitcoin", "The ledger digest is submitted for external timestamp attestation; confirmation can take about 24 hours."],
+            ["T+later — Prove", "Dashboard + export", "Operator reviews the record and exports a bundle with an offline verification path."],
           ].map(([t, s, d]) => (
             <div key={t} className="cs-tl"><span className="tk">{t}</span><div className="tt">{s}</div><p>{d}</p></div>
           ))}
@@ -113,14 +114,14 @@ export function MobStory({ project }: { project: Project }) {
       </CaseSection>
 
       <CaseSection num="06" kick="ARCHITECTURE MAP" title="How it runs" lede={project.architecture ?? undefined}>
-        <Canvas kicker="DEPLOYED TOPOLOGY" right="DOCKER · JENKINS · CADDY" caption={<>Python detection behind <b>FastAPI</b>, metadata in <b>MongoDB</b>, JWT-protected <b>React + Vite</b> dashboard — shipped as Docker microservices through Jenkins, served over Caddy HTTPS.</>}>
-          <HScroll label="Deployment: detection service, FastAPI, MongoDB, dashboard, Docker, Jenkins, Caddy">
+        <Canvas kicker="DEPLOYED TOPOLOGY" right="DOCKER COMPOSE · CADDY" caption={<>A separate AI service behind <b>FastAPI</b>, metadata in <b>MongoDB</b>, and a JWT-protected <b>React</b> investigation UI — composed behind Caddy HTTPS.</>}>
+          <HScroll label="Deployment: AI service, FastAPI, MongoDB, investigation UI, Docker Compose, Caddy">
             <div className="cs-flow" aria-hidden="true">
               {[
-                ["Detect", "Python service"], ["Serve", "FastAPI"], ["Store", "MongoDB"], ["Anchor", "Web3.py → ETH"], ["View", "React + Vite"], ["Ship", "Docker · Jenkins"], ["Serve", "Caddy HTTPS"],
+                ["Detect", "AI service"], ["Serve", "FastAPI"], ["Store", "MongoDB"], ["Ledger", "append-only hash chain"], ["Attest", "OpenTimestamps · Bitcoin"], ["View", "React investigation UI"], ["Serve", "Caddy HTTPS"],
               ].map(([b, s], i, a) => (
                 <div key={`${b}-${i}`} style={{ display: "contents" }}>
-                  <div className="cs-node"><span className="ic"><FlowIcon kind={["brain", "api", "ledger", "attest", "web", "documents", "shield"][i]} /></span><b>{b}</b><span>{s}</span></div>
+                  <div className="cs-node"><span className="ic"><FlowIcon kind={["brain", "api", "ledger", "attest", "attest", "web", "shield"][i]} /></span><b>{b}</b><span>{s}</span></div>
                   {i < a.length - 1 && <span className="cs-link flowline" />}
                 </div>
               ))}
@@ -133,10 +134,10 @@ export function MobStory({ project }: { project: Project }) {
         <DecisionCards items={(project.decisions ?? []).map((d, i) => ({
           title: d,
           why: [
-            "Evidence integrity must not depend on trusting the operator — anchoring beats a third party.",
-            "Self-verifying artifacts: if ciphertext or hash drifts, verification fails loudly.",
-            "Async inference endpoints plus automatic OpenAPI docs fit a detection service.",
-            "Microservice images need automated build, test and deploy — no manual shipping.",
+            "Separate the AI service from the API so GPU-bound inference cannot starve request handling.",
+            "An append-only hash ledger makes mutations detectable instead of relying on a database-only audit trail.",
+            "OpenTimestamps provides externally verifiable timestamps without running a blockchain node.",
+            "Heuristic fight detection is labelled as an MVP with documented limitations.",
           ][i] ?? "Grounded in the repository implementation.",
           tag: ["Integrity", "Self-verifying", "Async API", "CI/CD"][i] ?? "Architecture",
         }))} />
@@ -145,19 +146,19 @@ export function MobStory({ project }: { project: Project }) {
       <CaseSection num="08" kick="SECURITY · CHALLENGE · OUTCOME" title="Hard parts, honestly" lede="Synchronizing on-chain writes with offline storage while keeping detection latency acceptable on consumer hardware.">
         <ChallengeChain steps={[
           { k: "Challenge", v: project.challenges ?? "Keeping detection latency acceptable on consumer hardware." },
-          { k: "Constraint", v: "On-chain writes are slow and offline clips must stay consistent with them." },
-          { k: "Decision", v: "Seal first (AES-256 + SHA-256), anchor the hash via Web3.py + Solidity." },
-          { k: "Trade-off", v: "Local Ethereum node in development; anchoring latency accepted for verifiability." },
-          { k: "Outcome", v: project.results ?? "Presented inter-collegiate; foundation for the CCTV-X successor." },
+          { k: "Constraint", v: "Live streams, evidence consistency and third-party verification must coexist across services." },
+          { k: "Decision", v: "Seal first (AES-GCM + SHA-256), then commit the digest to an append-only ledger." },
+          { k: "Trade-off", v: "External timestamp confirmation is asynchronous; the bundle remains locally verifiable while it is pending." },
+          { k: "Outcome", v: project.results ?? "Actively developed flagship with documented limitations and an offline verifier." },
         ]} />
         {project.securityNotes && <SecurityStrip items={project.securityNotes.split(" · ")} />}
         <StatusScale
           items={[
             { k: "Built", v: "Detection + evidence pipeline" },
-            { k: "Working", v: "Dashboard + anchoring flow" },
-            { k: "Verified", v: "Presented, certificate on record" },
-            { k: "Limited", v: "Consumer-hardware latency" },
-            { k: "Future", v: "CCTV-X successor system" },
+            { k: "Working", v: "Investigation UI + ledger flow" },
+            { k: "Documented", v: "Offline bundle verifier" },
+            { k: "Limited", v: "Heuristic detection is not a trained violence model" },
+            { k: "Future", v: "Broader production validation and monitoring" },
           ]}
           active={[0, 1, 2, 3]}
         />

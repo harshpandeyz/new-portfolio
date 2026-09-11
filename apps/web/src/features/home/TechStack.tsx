@@ -2,79 +2,27 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useData } from "../../lib/data";
-import type { Skill } from "@hp/shared";
+import type { Skill, SkillCategory } from "@hp/shared";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { TechGlyph } from "../tech/TechIcons";
 
-/*
- * Tech information architecture — exactly 9 domains, max 8 skills each,
- * no duplication across cards. Every skill appears in exactly one domain.
- *
- * Data comes from the verified seed inventory (50 skills). The domain
- * assignment below is semantic-normalized: e.g. SQL lives in Data &
- * Databases not Languages; Authentication & RBAC live in Security not
- * Backend.
- */
-
-type Domain = { title: string; intro: string; skills: string[] };
-
-const DOMAINS: Domain[] = [
-  {
-    title: "Languages",
-    intro: "The dialects I think in.",
-    skills: ["Java", "Python", "JavaScript", "TypeScript", "C++", "Swift", "Kotlin", "Solidity"],
-  },
-  {
-    title: "Frontend & Web",
-    intro: "Interfaces that respect the reader.",
-    skills: ["React.js", "HTML5 / CSS3", "Vite"],
-  },
-  {
-    title: "Backend & APIs",
-    intro: "The part nobody sees — where the real work lives.",
-    skills: ["Node.js", "Express.js", "Spring Boot", "FastAPI", "REST API design", "MVC architecture"],
-  },
-  {
-    title: "Data & Databases",
-    intro: "Schema, query, and stored truth.",
-    skills: ["MySQL", "PostgreSQL", "MongoDB", "Firebase", "Database design", "SQL"],
-  },
-  {
-    title: "AI / ML Platform",
-    intro: "Grounded generation over private knowledge.",
-    skills: ["RAG", "FAISS / vector search", "LLM API integration", "Machine Learning fundamentals", "MLOps"],
-  },
-  {
-    title: "Computer Vision",
-    intro: "Pixels to understanding, in real time.",
-    skills: ["Computer Vision", "YOLOv8", "OpenCV", "MediaPipe"],
-  },
-  {
-    title: "Cloud & DevOps",
-    intro: "Ships clean, runs without surprises.",
-    skills: ["Docker & Compose", "Jenkins", "CI/CD", "Git / GitHub", "Caddy", "Cloud fundamentals", "Postman"],
-  },
-  {
-    title: "Security & Reliability",
-    intro: "Evidence you can prove, not just promise.",
-    skills: [
-      "Authentication & JWT",
-      "RBAC",
-      "Evidence integrity (AES/SHA-256)",
-      "Blockchain anchoring",
-      "Web security practices",
-      "Networking fundamentals",
-      "Distributed systems",
-      "Selenium / test automation",
-    ],
-  },
-  {
-    title: "Mobile & Native",
-    intro: "Beyond the browser when it counts.",
-    skills: ["Android (Kotlin)", "iOS (Swift/UIKit)", "React Native"],
-  },
+const CATEGORY_ORDER: SkillCategory[] = [
+  "LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML", "CLOUD_DEVOPS", "SECURITY", "MOBILE", "BLOCKCHAIN", "EXPERIMENTAL",
 ];
+
+const CATEGORY_META: Record<SkillCategory, { title: string; intro: string }> = {
+  LANGUAGES: { title: "Languages", intro: "The dialects I think in." },
+  FRONTEND: { title: "Frontend & Web", intro: "Interfaces that respect the reader." },
+  BACKEND: { title: "Backend & APIs", intro: "The part nobody sees — where the real work lives." },
+  DATABASES: { title: "Data & Databases", intro: "Schema, query, and stored truth." },
+  AI_ML: { title: "AI / ML Platform", intro: "Grounded generation over private knowledge." },
+  CLOUD_DEVOPS: { title: "Cloud & DevOps", intro: "Ships clean, runs without surprises." },
+  SECURITY: { title: "Security & Reliability", intro: "Evidence you can prove, not just promise." },
+  MOBILE: { title: "Mobile & Native", intro: "Beyond the browser when it counts." },
+  BLOCKCHAIN: { title: "Blockchain", intro: "Distributed records and verifiable state." },
+  EXPERIMENTAL: { title: "Experimental", intro: "New tools, tested with intent." },
+};
 
 function SkillTile({ skill, onOpen, interactive }: { skill: Skill; onOpen: (s: Skill) => void; interactive: boolean }) {
   const context = skill.relatedConcepts.slice(0, 2).join(" · ");
@@ -115,22 +63,13 @@ export function TechStack() {
   const navigate = useNavigate();
 
   const domainData = useMemo(() => {
-    // Map normalized name → skill for O(1)
-    const byName = new Map<string, Skill>();
-    for (const s of skills) byName.set(s.name.trim().toLowerCase(), s);
-
-    return DOMAINS.map((domain) => {
-      const items: Skill[] = [];
-      for (const name of domain.skills) {
-        const hit = byName.get(name.trim().toLowerCase());
-        if (hit) items.push(hit);
-      }
-      // Sort featured first then order
-      items.sort((a, b) => Number(b.featured) - Number(a.featured) || a.order - b.order);
-      // Safety: cap at 8 per spec — taxonomy must not overflow card
-      if (items.length > 8) items.length = 8;
-      return { ...domain, items };
-    }).filter((d) => d.items.length > 0);
+    return CATEGORY_ORDER.map((category) => ({
+      ...CATEGORY_META[category],
+      category,
+      items: skills
+        .filter((skill) => skill.category === category)
+        .sort((a, b) => Number(b.featured) - Number(a.featured) || a.order - b.order),
+    })).filter((d) => d.items.length > 0);
   }, [skills]);
 
   const totalDisplayed = useMemo(() => domainData.reduce((n, d) => n + d.items.length, 0), [domainData]);
@@ -138,10 +77,16 @@ export function TechStack() {
   const isInteractive = useMemo(() => {
     const interactiveIds = new Set<string>();
     for (const d of domainData) {
-      for (const s of d.items) if (s.usedIn.length > 0) interactiveIds.add(s.id);
+      for (const s of d.items) {
+        const resolvesToProject = s.usedIn.some((usedIn) => projects.some((p) =>
+          p.title.toLowerCase().includes(usedIn.toLowerCase()) ||
+          p.slug.includes(usedIn.replace(/\s+/g, "-").toLowerCase()),
+        ));
+        if (resolvesToProject) interactiveIds.add(s.id);
+      }
     }
     return (skill: Skill) => interactiveIds.has(skill.id);
-  }, [domainData]);
+  }, [domainData, projects]);
 
   const openSkill = (skill: Skill) => {
     if (skill.usedIn.length === 0) return;
@@ -153,23 +98,18 @@ export function TechStack() {
     if (project) navigate(`/projects/${project.slug}`);
   };
 
-  const wordFor = (n: number) => {
-    const words: Record<number, string> = { 50: "Fifty", 49: "Forty-nine", 48: "Forty-eight", 51: "Fifty-one", 52: "Fifty-two" };
-    return words[n] ?? String(n);
-  };
-
   return (
     <section className="section tech-section" id="tech" aria-label="Technology stack">
       <div className="container">
         <SectionHeader
           eyebrow="Tech"
-          title={`${wordFor(totalDisplayed)} capabilities, nine domains.`}
-          sub={`No duplicate entries. Every skill appears once — ${totalDisplayed} shown, balanced so no single card dominates.`}
+          title={`${totalDisplayed} capabilities, ${domainData.length} domains.`}
+          sub="Every capability comes from the current portfolio record. Open a skill to see the work it connects to."
           inline
         />
 
         {domainData.length > 0 ? (
-          <div className="tech-grid tech-grid--nine">
+          <div className="tech-grid tech-grid--taxonomy">
             {domainData.map((domain, index) => (
               <article className="tech-card" key={domain.title} data-reveal data-reveal-delay={String((index % 3) * 0.06)}>
                 <header className="tech-card-head">

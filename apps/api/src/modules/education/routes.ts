@@ -8,6 +8,7 @@ import { clientIp } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
 import { audit, notFound, parseBody } from "../../utils/http.js";
+import { invalidateKnowledge } from "../chat/knowledge.js";
 
 const requireEditor = requirePermission("content:write");
 
@@ -23,6 +24,7 @@ export async function educationRoutes(app: FastifyInstance): Promise<void> {
     const input = parseBody(req, educationInputSchema);
     const item = await prisma.education.create({ data: input });
     await audit(req, "CONTENT_CREATED", "education", item.id, { degree: item.degree });
+    invalidateKnowledge();
     reply.code(201);
     return { item };
   });
@@ -34,6 +36,7 @@ export async function educationRoutes(app: FastifyInstance): Promise<void> {
     const input = parseBody(req, educationInputSchema.partial());
     const item = await prisma.education.update({ where: { id }, data: input });
     await audit(req, "CONTENT_UPDATED", "education", id);
+    invalidateKnowledge();
     return { item };
   });
 
@@ -43,6 +46,7 @@ export async function educationRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     await prisma.education.delete({ where: { id } });
     await audit(req, "CONTENT_DELETED", "education", id);
+    invalidateKnowledge();
     return { ok: true };
   });
 }

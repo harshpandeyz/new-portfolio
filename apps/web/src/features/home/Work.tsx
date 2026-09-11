@@ -8,6 +8,7 @@ import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { FlagshipProject } from "../projects/FlagshipProject";
 import { ProjectCard } from "../projects/ProjectCard";
+import { FLAGSHIP_SLUG } from "../projects/flagshipConfig";
 
 function ArchiveVisual({ total }: { total: number }) {
   const nodes = useMemo(() => {
@@ -55,10 +56,14 @@ export function Work() {
     return (slug: string) => map.get(slug) ?? null;
   }, [ordered]);
 
-  const flagship1 = getBySlug("intelligent-mob-surveillance-system");
-  const flagship2 = getBySlug("orchestraai");
-  const secondary1 = getBySlug("quantummind");
-  const secondary2 = getBySlug("skillmatch");
+  const featured = ordered.filter((project) => project.featured && project.status !== "draft");
+  const flagship1 = getBySlug(FLAGSHIP_SLUG) ?? featured[0] ?? null;
+  const flagship2 = featured.find((project) => project.id !== flagship1?.id) ?? ordered.find((project) => project.id !== flagship1?.id) ?? null;
+  const selectedSecondary = ordered
+    .filter((project) => project.id !== flagship1?.id && project.id !== flagship2?.id)
+    .slice(0, 2);
+  const featuredShown = [flagship1, flagship2].filter(Boolean).length;
+  const secondaryShown = selectedSecondary.length;
 
   const open = (slug: string) => {
     unlock("explorer");
@@ -66,7 +71,7 @@ export function Work() {
     navigate(`/projects/${slug}`);
   };
 
-  if (!flagship1 || !flagship2) {
+  if (projects.length === 0) {
     return (
       <section className="section work-section" id="work" aria-label="Selected work">
         <div className="container">
@@ -82,23 +87,22 @@ export function Work() {
         <SectionHeader
           eyebrow="Selected work"
           title="Systems I’ve built, shipped, and explored"
-          sub="Two flagships, two focused systems — then the full archive."
+          sub={`${featuredShown} featured system${featuredShown === 1 ? "" : "s"}, ${secondaryShown} focused build${secondaryShown === 1 ? "" : "s"} — then the full archive.`}
           inline
         />
-        <div className="sw-head-rule" aria-hidden="true"><span><strong>01 — 02</strong> · FLAGSHIP SYSTEMS</span><span>DEPTH OVER QUANTITY</span></div>
+        <div className="sw-head-rule" aria-hidden="true"><span><strong>01 — {String(featuredShown).padStart(2, "0")}</strong> · FEATURED SYSTEMS</span><span>DEPTH OVER QUANTITY</span></div>
         <div className="sw-flag-grid">
-          <FlagshipProject project={flagship1} onOpen={open} />
-          <FlagshipProject project={flagship2} onOpen={open} />
+          {flagship1 && <FlagshipProject project={flagship1} onOpen={open} />}
+          {flagship2 && <FlagshipProject project={flagship2} onOpen={open} />}
         </div>
 
-        <div className="sw-row-label" aria-hidden="true"><span><b>03 — 05</b> · FOCUSED WORK + ARCHIVE</span></div>
+        <div className="sw-row-label" aria-hidden="true"><span><b>{String(featuredShown + 1).padStart(2, "0")} — {String(featuredShown + secondaryShown).padStart(2, "0")}</b> · FOCUSED WORK + ARCHIVE</span></div>
         <div className="sw-sec-grid">
-          {secondary1 && <ProjectCard key={secondary1.id} project={secondary1} index={2} onOpen={open} />}
-          {secondary2 && <ProjectCard key={secondary2.id} project={secondary2} index={3} onOpen={open} />}
+          {selectedSecondary.map((project, index) => <ProjectCard key={project.id} project={project} index={index + 2} onOpen={open} />)}
           <article className="sw-archive" data-reveal data-reveal-delay="0.16" aria-label="View more projects — archive">
             <ArchiveVisual total={projects.length} />
             <div className="sw-archive-body">
-              <div className="project-meta" style={{ color: "rgba(238,242,249,0.6)" }}><span>05</span><span>Archive</span><span>{projects.length} total</span></div>
+              <div className="project-meta" style={{ color: "rgba(238,242,249,0.6)" }}><span>{String(featuredShown + secondaryShown + 1).padStart(2, "0")}</span><span>Archive</span><span>{projects.length} total</span></div>
               <h3>View More Projects</h3>
               <p>Explore the full project archive — experiments, academic builds and internship work.</p>
               <button className="sw-viewall" onClick={() => navigate("/projects")} aria-label="Open project archive" style={{ padding: 0 }}>

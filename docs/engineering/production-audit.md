@@ -2,14 +2,14 @@
 
 ## Executive Summary
 
-Full-stack portfolio application (React 18 + Vite, Fastify 5, PostgreSQL, Prisma, Three.js). After a comprehensive audit and targeted fixes, the project is production-ready.
+Full-stack portfolio application (React 18 + Vite, Fastify 5, PostgreSQL, Prisma, Three.js). The repository release gates and Docker production shape have been verified against the current implementation.
 
 **Status: All gates pass.**
 - `npm run typecheck` — 0 errors
 - `npm run lint` — 0 errors
-- `npm run test` — 45/45 tests pass (14 web + 31 API)
+- `npm run test` — 56/56 tests pass (16 web + 40 API)
 - `npm run build` — clean production build
-- `npm run e2e` — 68/68 E2E tests pass (including 6 viewports × 8 routes visual regression)
+- `npm run e2e` — 41/41 E2E tests pass (admin acceptance, public experience and two-viewport visual regression)
 
 ---
 
@@ -74,7 +74,7 @@ portfolio/
 │   ├── src/modules/   13 domain modules (auth, profile, projects, certificates, skills, etc.)
 │   └── prisma/        15 models, 2 migrations, seed with real data
 ├── packages/shared/   Domain types + Zod validation schemas
-├── e2e/               Playwright E2E + visual regression (6 viewports × 8 routes)
+├── e2e/               Playwright E2E + visual regression (two core viewports × 11 routes)
 ├── scripts/           admin-create, init-test-db
 └── docs/              Architecture, Deployment, Security, Engineering
 ```
