@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 
 import { useData } from "../../lib/data";
 import { unlock } from "../../lib/achievements";
-import { api } from "../../lib/api";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { FlagshipProject } from "../projects/FlagshipProject";
@@ -63,7 +62,6 @@ export function Work() {
 
   const open = (slug: string) => {
     unlock("explorer");
-    void api.track("project_view", slug);
     navigate(`/projects/${slug}`);
   };
 

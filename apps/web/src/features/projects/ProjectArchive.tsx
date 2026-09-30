@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useData } from "../../lib/data";
 import { unlock } from "../../lib/achievements";
-import { api } from "../../lib/api";
 import type { Project } from "@hp/shared";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 
@@ -61,7 +60,6 @@ export function ProjectArchive() {
 
   const open = (slug: string) => {
     unlock("explorer");
-    void api.track("project_view", slug);
     navigate(`/projects/${slug}`);
   };
 
