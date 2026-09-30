@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
@@ -88,12 +88,70 @@ function GenericStory({ project }: { project: Project }) {
   );
 }
 
+function useReadingProgress(enabled: boolean): number {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Still update, but without rAF-driven smoothing.
+      const onScroll = () => {
+        const el = document.documentElement;
+        const max = el.scrollHeight - el.clientHeight;
+        setProgress(max > 0 ? Math.min(1, Math.max(0, el.scrollTop / max)) : 0);
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+      return () => window.removeEventListener("scroll", onScroll);
+    }
+    let raf = 0;
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      if (document.hidden) return;
+      const el = document.documentElement;
+      const max = el.scrollHeight - el.clientHeight;
+      setProgress(max > 0 ? Math.min(1, Math.max(0, el.scrollTop / max)) : 0);
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      raf = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [enabled]);
+  return progress;
+}
+
+function useCaseToc(dep: string | undefined): { id: string; title: string }[] {
+  const [toc, setToc] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    // Build TOC from editorial sections only (skip link-only footer sections).
+    const sections = [...document.querySelectorAll(".cs-wrap .cs-sec")];
+    const items: { id: string; title: string }[] = [];
+    sections.forEach((sec) => {
+      const h = sec.querySelector("h2.cs-sec-title");
+      if (!h?.textContent?.trim()) return;
+      if (!sec.id) sec.id = `cs-s${items.length + 1}`;
+      items.push({ id: sec.id, title: h.textContent.trim() });
+    });
+    setToc(items.slice(0, 10));
+  }, [dep]);
+  return toc;
+}
+
 export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   const { slug } = useParams<{ slug: string }>();
   const { projects } = useData();
   const [project, setProject] = useState<Project | null>(() => projects.find((p) => p.slug === slug) ?? null);
   const [loading, setLoading] = useState(!project);
   const [notFound, setNotFound] = useState(false);
+  const progress = useReadingProgress(!loading && !notFound && !!project);
+  const toc = useCaseToc(project?.slug);
 
   useEffect(() => {
     let live = true;
@@ -182,8 +240,16 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
     ? `CASE ${String(storyNo).padStart(2, "0")} / ${String(orderedProjects.length).padStart(2, "0")}`
     : "CASE STUDY";
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <div className="subspace" data-tier={project.tier}>
+      <div className="cs-progress" aria-hidden="true"><i style={{ transform: `scaleX(${progress})` }} /></div>
       <div className="container cs-wrap">
         <header className="cs-hero">
           <Link to="/#work" className="back" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 28, color: "var(--subs-ink-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
@@ -210,6 +276,23 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
             </div>
           </div>
         </header>
+
+        {toc.length > 1 && (
+          <nav className="cs-toc" aria-label="On this page">
+            {toc.map((t, i) => (
+              <a
+                key={t.id}
+                href={`#${t.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToSection(t.id);
+                }}
+              >
+                {String(i + 1).padStart(2, "0")} · {t.title}
+              </a>
+            ))}
+          </nav>
+        )}
 
         {project.slug === "intelligent-surveillance-system" && <CctvStory project={project} />}
         {project.slug === "orchestraai" && <OrchestraStory project={project} />}

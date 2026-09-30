@@ -210,3 +210,34 @@
 .cs-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
 .cs-note { margin-top: 14px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--subs-ink-dim); }
 @media (prefers-reduced-motion: reduce) { .cs-rv { opacity: 1; transform: none; transition: none; } .cs-link.flowline { animation: none; } }
+
+/* Reading progress + sticky TOC — restrained, editorial */
+.cs-progress { position: sticky; top: 0; z-index: 30; height: 2px; margin: 0 -24px; background: transparent; }
+.cs-progress i { display: block; height: 100%; background: var(--subs-accent); transform-origin: 0 50%; transform: scaleX(0); }
+.cs-toc {
+  position: sticky; top: 12px; z-index: 20;
+  display: flex; gap: 8px; overflow-x: auto; padding: 10px 2px;
+  margin-top: 20px; scrollbar-width: none;
+  background: color-mix(in srgb, var(--subs-bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--subs-line); border-bottom: 1px solid var(--subs-line);
+}
+.cs-toc::-webkit-scrollbar { display: none; }
+.cs-toc a {
+  flex: none; padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--subs-line); background: var(--subs-surface);
+  color: var(--subs-ink-muted); font-size: 12px; font-weight: 600;
+  text-decoration: none; white-space: nowrap;
+}
+.cs-toc a:hover { color: var(--subs-accent); border-color: var(--subs-accent); }
+.cs-sec { scroll-margin-top: 120px; }
+.case-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 48px; padding-bottom: 64px; }
+.case-nav-link {
+  display: flex; flex-direction: column; gap: 6px; padding: 18px;
+  border: 1px solid var(--subs-line); border-radius: 14px; background: var(--subs-surface);
+  text-decoration: none; transition: border-color 0.2s, transform 0.2s;
+}
+.case-nav-link:hover { border-color: var(--subs-accent); transform: translateY(-2px); }
+.cn-label { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--subs-ink-dim); }
+.cn-title { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; color: var(--subs-ink); }
+@media (max-width: 640px) { .case-nav { grid-template-columns: 1fr; } }
