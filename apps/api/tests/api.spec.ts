@@ -63,6 +63,49 @@ describe("health", () => {
   });
 });
 
+describe("analytics summaries", () => {
+  it("counts page views separately and returns the requested daily range", async () => {
+    const { cookies } = await login();
+    await prisma.analyticsEvent.deleteMany();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12));
+    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 6 * dayMs);
+    const previousSince = new Date(since.getTime() - 7 * dayMs);
+    await prisma.analyticsEvent.createMany({
+      data: [
+        { type: "page_view", ref: "analytics-home", createdAt: today },
+        { type: "project_view", ref: "analytics-project", createdAt: today },
+        { type: "contact_submit", ref: "analytics-contact", createdAt: today },
+        { type: "page_view", ref: "analytics-previous", createdAt: new Date(since.getTime() - dayMs) },
+        { type: "page_view", ref: "analytics-outside", createdAt: new Date(previousSince.getTime() - 1) },
+      ],
+    });
+
+    const summary = await app.inject({ method: "GET", url: "/api/events/summary?days=7", cookies });
+    expect(summary.statusCode).toBe(200);
+    const body = summary.json() as {
+      days: number;
+      daily: { day: string; count: number }[];
+      eventCounts: { type: string; count: number }[];
+      previousEventCounts: { type: string; count: number }[];
+      projectPerformance: { slug: string; title: string; count: number }[];
+    };
+    expect(body.days).toBe(7);
+    expect(body.daily).toHaveLength(7);
+    expect(body.daily.reduce((sum, day) => sum + day.count, 0)).toBe(1);
+    expect(body.eventCounts).toEqual(expect.arrayContaining([
+      { type: "page_view", count: 1 },
+      { type: "project_view", count: 1 },
+      { type: "contact_submit", count: 1 },
+    ]));
+    expect(body.previousEventCounts).toContainEqual({ type: "page_view", count: 1 });
+    expect(body.projectPerformance).toContainEqual({ slug: "analytics-project", title: "analytics-project", count: 1 });
+    expect((await app.inject({ method: "GET", url: "/api/events/summary?days=14", cookies })).statusCode).toBe(400);
+    await prisma.analyticsEvent.deleteMany();
+  });
+});
+
 describe("authentication", () => {
   it("rejects bad credentials without user enumeration", async () => {
     const wrongPass = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: ADMIN.email, password: "definitely-wrong-pass" } });
@@ -568,6 +611,40 @@ describe("password + sessions + audit", () => {
 });
 
 describe("2fa totp + recovery codes", () => {
+  it("cancels a pending setup only with CSRF and recent authentication", async () => {
+    const { bcryptHash } = await import("../src/modules/auth/password.js");
+    const email = "twofa-cancel@test.local";
+    const password = "Cancel-setup-password-123!";
+    await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null },
+      create: { email, passwordHash: await bcryptHash(password), role: "ADMIN" },
+    });
+
+    const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    const jar: Record<string, string> = {};
+    for (const cookie of login.cookies) jar[cookie.name] = cookie.value;
+    const csrf = jar["hp_csrf"]!;
+    const setup = await app.inject({ method: "POST", url: "/api/auth/2fa/setup", cookies: jar, headers: authHeaders(csrf), payload: {} });
+    expect(setup.statusCode).toBe(200);
+
+    const missingCsrf = await app.inject({ method: "POST", url: "/api/auth/2fa/setup/cancel", cookies: jar, payload: {} });
+    expect(missingCsrf.statusCode).toBe(403);
+    await prisma.session.updateMany({ where: { user: { email } }, data: { reauthAt: new Date(Date.now() - 60 * 60 * 1000) } });
+    const staleAuth = await app.inject({ method: "POST", url: "/api/auth/2fa/setup/cancel", cookies: jar, headers: authHeaders(csrf), payload: {} });
+    expect(staleAuth.statusCode).toBe(403);
+    expect((await prisma.user.findUnique({ where: { email }, select: { totpSecret: true } }))?.totpSecret).toBeTruthy();
+
+    const reauth = await app.inject({ method: "POST", url: "/api/auth/reauth", cookies: jar, headers: authHeaders(csrf), payload: { password } });
+    expect(reauth.statusCode).toBe(200);
+    const cancelled = await app.inject({ method: "POST", url: "/api/auth/2fa/setup/cancel", cookies: jar, headers: authHeaders(csrf), payload: {} });
+    expect(cancelled.statusCode).toBe(200);
+    expect(await prisma.user.findUnique({ where: { email }, select: { totpSecret: true, totpEnabled: true } })).toEqual({ totpSecret: null, totpEnabled: false });
+    expect(await prisma.auditLog.findFirst({ where: { action: "AUTH_2FA_SETUP_CANCELLED", actor: email } })).toBeTruthy();
+    await prisma.session.deleteMany({ where: { user: { email } } });
+    await prisma.user.delete({ where: { email } });
+  });
+
   it("full enrollment, challenge login, recovery use, and disable with reauth", async () => {
     const { bcryptHash } = await import("../src/modules/auth/password.js");
     const email = "twofa@test.local";
