@@ -27,6 +27,11 @@ function SIcon({ kind }: { kind: string }) {
   }
 }
 
+const ROLE_FALLBACK: Record<string, string> = {
+  quantummind: "AI Research Intelligence Platform",
+  skillmatch: "Full-stack · recommendation engine",
+};
+
 /** Repository-verified mini system diagrams. */
 const MINI: Record<string, { label: string; sub: string; icon: string; core?: boolean }[]> = {
   quantummind: [
@@ -67,8 +72,9 @@ export function ProjectCard({ project, index, onOpen, compact }: ProjectCardProp
         )}
       </div>
       <div className="sw-sec-body">
-        <div className="project-meta"><span>{String(index + 1).padStart(2, "0")}</span><span>{formatTaxonomy(project.category)}</span><span>{project.year}</span></div>
+        <div className="project-meta"><span>{String(index + 1).padStart(2, "0")}</span><span>{formatTaxonomy(project.category)}</span><span>{project.year}</span><span className={`sw-status sw-status--${project.status}`}>{project.status}</span></div>
         <h3 className="sw-sec-title">{project.title}</h3>
+        <p className="sw-role">{project.codename ?? ROLE_FALLBACK[project.slug] ?? "Selected build"}</p>
         <p className="sw-sec-desc">{project.shortDescription}</p>
         {project.stack.length > 0 && (
           <div className="project-card-tags" aria-label="Tech stack">

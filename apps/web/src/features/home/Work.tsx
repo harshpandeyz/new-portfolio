@@ -8,7 +8,7 @@ import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { FlagshipProject } from "../projects/FlagshipProject";
 import { ProjectCard } from "../projects/ProjectCard";
-import { FLAGSHIP_SLUG } from "../projects/flagshipConfig";
+import { resolveHomepageCuration } from "@hp/shared";
 
 function ArchiveVisual({ total }: { total: number }) {
   const nodes = useMemo(() => {
@@ -49,20 +49,16 @@ export function Work() {
   const { projects, error, refresh } = useData();
   const navigate = useNavigate();
 
-  const ordered = useMemo(() => [...projects].sort((a, b) => a.order - b.order), [projects]);
-
-  const getBySlug = useMemo(() => {
-    const map = new Map(ordered.map(p => [p.slug, p]));
-    return (slug: string) => map.get(slug) ?? null;
-  }, [ordered]);
-
-  const featured = ordered.filter((project) => project.featured && project.status !== "draft");
-  const flagship1 = getBySlug(FLAGSHIP_SLUG) ?? featured[0] ?? null;
-  const flagship2 = featured.find((project) => project.id !== flagship1?.id) ?? ordered.find((project) => project.id !== flagship1?.id) ?? null;
-  const selectedSecondary = ordered
-    .filter((project) => project.id !== flagship1?.id && project.id !== flagship2?.id)
-    .slice(0, 2);
-  const featuredShown = [flagship1, flagship2].filter(Boolean).length;
+  // Explicit homepage curation — never derived from array order or a
+  // generic featured.slice(). See packages/shared/src/curation.ts.
+  const { flagship, selected } = useMemo(
+    () => resolveHomepageCuration(projects),
+    [projects],
+  );
+  const flagship1 = flagship[0] ?? null;
+  const flagship2 = flagship[1] ?? null;
+  const selectedSecondary = selected;
+  const featuredShown = flagship.length;
   const secondaryShown = selectedSecondary.length;
 
   const open = (slug: string) => {

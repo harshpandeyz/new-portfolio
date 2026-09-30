@@ -27,10 +27,29 @@ import { TechStack } from "./features/home/TechStack";
 import { Credentials } from "./features/home/Credentials";
 import { Contact } from "./features/contact/Contact";
 import { Closing } from "./features/home/Closing";
-import { ProjectCase } from "./features/projects/ProjectCase";
-import { ProjectArchive } from "./features/projects/ProjectArchive";
-import { CredentialArchive } from "./features/credentials/CredentialArchive";
-import { ChatWidget } from "./features/chat/ChatWidget";
+
+// Heavy routes are code-split so the homepage stays lean: case studies,
+// archives and the assistant load only when visited/opened.
+const ProjectCase = lazy(() =>
+  import("./features/projects/ProjectCase").then((m) => ({ default: m.ProjectCase })),
+);
+const ProjectArchive = lazy(() =>
+  import("./features/projects/ProjectArchive").then((m) => ({ default: m.ProjectArchive })),
+);
+const CredentialArchive = lazy(() =>
+  import("./features/credentials/CredentialArchive").then((m) => ({ default: m.CredentialArchive })),
+);
+const ChatWidget = lazy(() =>
+  import("./features/chat/ChatWidget").then((m) => ({ default: m.ChatWidget })),
+);
+
+function RouteFallback({ label }: { label: string }) {
+  return (
+    <div style={{ minHeight: "60vh", display: "grid", placeItems: "center" }} role="status" aria-label={label}>
+      <span className="mono mono-dim">Loading…</span>
+    </div>
+  );
+}
 
 function Experience({ caps }: { caps: EnvCapabilities }) {
   const { loaded, error, refresh, publicSettings } = useData();
@@ -288,9 +307,9 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
               </>
             }
           />
-          <Route path="/projects" element={<ProjectArchive />} />
-          <Route path="/credentials" element={<CredentialArchive />} />
-          <Route path="/projects/:slug" element={<ProjectCase onViewResume={openResume} />} />
+          <Route path="/projects" element={<Suspense fallback={<RouteFallback label="Loading projects" />}><ProjectArchive /></Suspense>} />
+          <Route path="/credentials" element={<Suspense fallback={<RouteFallback label="Loading credentials" />}><CredentialArchive /></Suspense>} />
+          <Route path="/projects/:slug" element={<Suspense fallback={<RouteFallback label="Loading case study" />}><ProjectCase onViewResume={openResume} /></Suspense>} />
           <Route path="/recruiter" element={<RecruiterRoute onViewResume={openResume} />} />
           <Route path="*" element={<NotFound onHome={() => navigate("/")} />} />
         </Routes>
@@ -301,7 +320,11 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       {!recruiterMode && <ResumeViewer open={resumeOpen} onClose={() => setResumeOpen(false)} />}
       {!recruiterMode && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
       {!recruiterMode && <PrivateAccess open={privateOpen} onClose={() => setPrivateOpen(false)} />}
-      {!recruiterMode && <ChatWidget />}
+      {!recruiterMode && (
+        <Suspense fallback={null}>
+          <ChatWidget />
+        </Suspense>
+      )}
       {!recruiterMode && <AchievementToasts />}
     </ErrorBoundary>
   );

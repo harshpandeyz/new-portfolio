@@ -1,9 +1,14 @@
 import type { Project } from "@hp/shared";
+import { FLAGSHIP_SLUGS, SELECTED_SLUGS, SIGNATURE_SLUGS } from "@hp/shared";
 
 /**
  * Single source of truth for the flagship (CCTV-X) visual presentation.
  * Homepage consumes hero + compact flow + facts.
  * Case study consumes hero + full intentional gallery + full flow + facts.
+ *
+ * Homepage curation itself lives in packages/shared/src/curation.ts and is
+ * consumed via resolveHomepageCuration() — never via array order or a
+ * generic featured.slice(). This file only owns CCTV-X *visuals*.
  *
  * Do NOT duplicate this in FlagshipProject.tsx / ProjectCase.tsx.
  */
@@ -11,7 +16,9 @@ import type { Project } from "@hp/shared";
 // CCTV-X is the evolved flagship repository. The older
 // intelligent-mob-surveillance-system remains in the archive as a separate
 // project and must never inherit CCTV-X's screenshots or architecture claims.
-export const FLAGSHIP_SLUG = "intelligent-surveillance-system";
+// All visual helpers below branch on exact slug equality for this reason.
+export const FLAGSHIP_SLUG = FLAGSHIP_SLUGS[0] as string;
+export { FLAGSHIP_SLUGS, SELECTED_SLUGS, SIGNATURE_SLUGS };
 
 export interface GalleryImage {
   src: string;

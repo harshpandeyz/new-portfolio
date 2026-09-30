@@ -91,6 +91,13 @@
 .sw-meta .sw-num { color: var(--color-accent); font-weight: 700; }
 .sw-meta .sw-flag-tag { padding: 4px 10px; border-radius: 999px; background: var(--color-accent-subtle); color: var(--color-accent); border: 1px solid rgba(0,113,227,0.18); font-weight: 700; }
 .sw-meta .sw-cat { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw-status { padding: 3px 9px; border-radius: 999px; border: 1px solid var(--color-line-strong); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.sw-status--active { background: rgba(31,169,127,0.12); color: #14755a; border-color: rgba(31,169,127,0.3); }
+.sw-status--complete { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+.sw-status--maintained { background: rgba(0,113,227,0.08); color: var(--color-accent); border-color: rgba(0,113,227,0.2); }
+.sw-status--archived { background: transparent; color: var(--color-text-dim); }
+.sw-catline { margin-top: 8px; color: var(--color-text-dim); font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+.sw-role { margin-top: 6px; color: var(--color-accent); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
 .sw-title { margin-top: 8px; font-size: clamp(21px, 2vw, 26px); line-height: 1.06; letter-spacing: var(--tracking-tight); font-weight: 700; }
 .sw-codename { margin-top: 4px; }
 .sw-pose { margin-top: 6px; max-width: 52ch; color: var(--color-text-muted); font-size: 14px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

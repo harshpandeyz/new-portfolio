@@ -105,11 +105,19 @@ const POSE: Record<string, string> = {
   orchestraai: "A control plane that routes every task to the right model, tool and memory — then streams it live.",
 };
 
+const ROLE_BY_SLUG: Record<string, string> = {
+  "intelligent-surveillance-system": "Full-stack · AI pipeline · evidence chain",
+  orchestraai: "Runtime · model routing · tooling",
+  quantummind: "RAG · retrieval · streaming",
+  skillmatch: "Backend · scoring · MVC",
+};
+
 export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
   const isCctv = project.slug === FLAGSHIP_SLUG;
   const num = isCctv ? "01" : "02";
   const flow = flagshipFlow(project);
   const pose = POSE[project.slug] ?? project.shortDescription;
+  const role = ROLE_BY_SLUG[project.slug] ?? project.category;
 
   return (
     <article className="sw-flag" data-reveal aria-label={`${project.title} — flagship project`}>
@@ -119,8 +127,9 @@ export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
           <span className="sw-num">{num}</span>
           <span className="sw-flag-tag">FLAGSHIP</span>
           <span>{project.year}</span>
-          <span className="sw-cat">{formatTaxonomy(project.category)}</span>
+          <span className={`sw-status sw-status--${project.status}`}>{project.status}</span>
         </div>
+        <div className="sw-catline">{formatTaxonomy(project.category)} · {role}</div>
         <h3 className="sw-title">{project.title}</h3>
         {project.codename && <div className="codename sw-codename">{project.codename}</div>}
         <p className="sw-pose">{pose}</p>
