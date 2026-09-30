@@ -324,7 +324,7 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
         actions={
           <>
             <SearchInput value={query} onChange={(v) => setQuery(v)} label="Search messages" placeholder="Search name, email, subject…" />
-            <select className="ctl-select" value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")} aria-label="Sort messages" style={{ width: "auto" }}>
+            <select className="ctl-select ctl-select--auto" value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")} aria-label="Sort messages">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
             </select>
@@ -416,7 +416,7 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
                       aria-label={`${isOpen ? "Close" : "Open"} message from ${m.name}, ${m.status}, ${formatTimeAgo(m.createdAt)}`}
                     >
                       <span className={`ctl-unread-dot${m.status === "NEW" ? "" : " read"}`} aria-hidden="true" />
-                      <span style={{ minWidth: 0, flex: 1 }}>
+                      <span className="ctl-msg-open-main">
                         <span className="ctl-msg-top">
                           <b>{m.name}</b>
                           <Badge tone={toneFor(m.status)}>{m.status}</Badge>
@@ -457,7 +457,7 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
                 >
                   ↑ Prev
                 </button>
-                <span aria-live="polite" style={{ fontSize: 12, color: "#8a93a3" }}>
+                <span className="ctl-muted ctl-message-count" aria-live="polite">
                   {activeIndex >= 0 ? `${activeIndex + 1} of ${visible.length}` : ""}
                 </span>
                 <button
@@ -540,7 +540,7 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
                 </div>
               </div>
               {repliesLoading ? (
-                <p style={{ color: "#8a93a3", fontSize: 13 }}>Loading sent replies…</p>
+                <p className="ctl-muted">Loading sent replies…</p>
               ) : replies.length > 0 ? (
                 <div className="ctl-reply-history" aria-label="Sent replies">
                   <h3>SENT ({replies.length})</h3>

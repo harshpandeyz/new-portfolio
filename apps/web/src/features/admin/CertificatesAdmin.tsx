@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api, resolveMediaUrl } from "../../lib/api";
 import type { Certificate } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import {
-  Badge, ConfirmDialog, Drawer, EmptyState, ErrorState, Field, PageHead, SearchInput,
+  Badge, ConfirmDialog, Drawer, EmptyState, ErrorState, Field, PageHead, Pagination, SearchInput,
   SkeletonList, friendlyError, useDebouncedValue, usePersistentState, useToast,
 } from "./ui";
 
@@ -27,6 +28,10 @@ export function CertificatesAdmin() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [search, setSearch] = usePersistentState("ctl:cert:q", "");
   const [category, setCategory] = usePersistentState("ctl:cert:cat", "ALL");
+  const [year, setYear] = usePersistentState("ctl:cert:year", "");
+  const [view, setView] = usePersistentState<"gallery" | "table">("ctl:cert:view", "gallery");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +51,15 @@ export function CertificatesAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const r = await api.admin.certificates({ search: debouncedSearch || undefined });
+      const r = await api.admin.certificates({
+        search: debouncedSearch || undefined,
+        category: category === "ALL" ? undefined : category,
+        year: /^\d{4}$/.test(year) ? year : undefined,
+        page,
+      }, signal);
       if (signal?.aborted) return;
       setItems(r.certificates);
+      setTotal(r.total);
       setSelected((prev) => {
         const ids = new Set(r.certificates.map((c) => c.id));
         return new Set([...prev].filter((id) => ids.has(id)));
@@ -58,13 +69,15 @@ export function CertificatesAdmin() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, category, year, page]);
 
   useEffect(() => {
     const c = new AbortController();
     void load(c.signal);
     return () => c.abort();
   }, [load]);
+
+  useEffect(() => setPage(1), [debouncedSearch, category, year]);
 
   useEffect(() => {
     if (searchParams.get("new") === "1") {
@@ -75,10 +88,8 @@ export function CertificatesAdmin() {
     }
   }, [searchParams, setSearchParams]);
 
-  const filtered = useMemo(
-    () => items.filter((c) => (category === "ALL" ? true : c.category === category)),
-    [items, category],
-  );
+  const filtered = items;
+  const pages = Math.max(1, Math.ceil(total / 24));
 
   const setEdit = (patch: Partial<Certificate>) => {
     setEditing((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -116,7 +127,10 @@ export function CertificatesAdmin() {
         push({ kind: "success", title: "Certificate saved" });
       } else {
         const created = await api.admin.createCertificate(payload);
-        setItems((list) => [created.certificate, ...list]);
+        setItems((list) => [created.certificate, ...list.filter((certificate) => certificate.id !== created.certificate.id)].slice(0, 24));
+        setTotal((value) => value + 1);
+        setPage(1);
+        setSearch(""); setCategory("ALL"); setYear("");
         push({ kind: "success", title: "Certificate created" });
       }
       setEditing(null);
@@ -147,6 +161,7 @@ export function CertificatesAdmin() {
     setSelected(new Set());
     if (done > 0) {
       setItems((list) => list.filter((c) => !ids.includes(c.id)));
+      setTotal((value) => Math.max(0, value - done));
       push({ kind: "success", title: `Deleted ${done} certificate${done === 1 ? "" : "s"}` });
     }
     if (failed > 0) push({ kind: "error", title: `Could not delete ${failed}`, desc: "Some items may require admin role." });
@@ -165,6 +180,7 @@ export function CertificatesAdmin() {
     try {
       await api.admin.deleteCertificate(toDelete.id);
       setItems((list) => list.filter((c) => c.id !== toDelete.id));
+      setTotal((value) => Math.max(0, value - 1));
       push({ kind: "success", title: "Certificate deleted" });
       setToDelete(null);
     } catch (e) {
@@ -178,7 +194,7 @@ export function CertificatesAdmin() {
     <>
       <PageHead
         title="Certificates"
-        desc={`${filtered.length} of ${items.length} certificate${items.length === 1 ? "" : "s"} · featured items surface publicly.`}
+        desc={`${total} stored credentials · manage dates, verification links, featured status, and supporting documents.`}
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} label="Search certificates" placeholder="Search title or issuer…" />
@@ -187,10 +203,15 @@ export function CertificatesAdmin() {
         }
       />
       <div className="ctl-list-toolbar">
-        <select className="ctl-select" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: "auto" }} aria-label="Filter by category">
+        <select className="ctl-select ctl-filter-select" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} aria-label="Filter by category">
           {["ALL", "AI", "BACKEND", "CLOUD", "DATABASE", "DATA", "DEVELOPMENT", "SECURITY", "OTHER"].map((c) => (<option key={c} value={c}>{c === "ALL" ? "All categories" : c}</option>))}
         </select>
-        {(search || category !== "ALL") && <button type="button" className="ctl-mini-btn" onClick={() => { setSearch(""); setCategory("ALL"); }}>Clear filters</button>}
+        <label className="ctl-year-filter"><span>Year</span><input className="ctl-input" inputMode="numeric" maxLength={4} value={year} onChange={(e) => { setYear(e.target.value.replace(/\D/g, "").slice(0, 4)); setPage(1); }} placeholder="All" aria-label="Filter certificates by year" /></label>
+        <div className="ctl-view-toggle" role="group" aria-label="Certificate layout">
+          <button type="button" aria-pressed={view === "gallery"} onClick={() => setView("gallery")}><AdminIcon name="media" size={15} />Gallery</button>
+          <button type="button" aria-pressed={view === "table"} onClick={() => setView("table")}><AdminIcon name="projects" size={15} />Table</button>
+        </div>
+        {(search || category !== "ALL" || year) && <button type="button" className="ctl-mini-btn" onClick={() => { setSearch(""); setCategory("ALL"); setYear(""); setPage(1); }}>Clear filters</button>}
         {selected.size > 0 && (
           <div className="ctl-bulkbar" role="toolbar" aria-label="Bulk actions">
             <span>{selected.size} selected</span>
@@ -200,31 +221,56 @@ export function CertificatesAdmin() {
         )}
       </div>
       {error && <ErrorState message={error} onRetry={() => void load()} />}
-      {loading && items.length === 0 ? (
+      {loading ? (
         <SkeletonList rows={6} />
       ) : filtered.length === 0 ? (
         <EmptyState
-          title={search ? `No results for “${search}”` : "No certificates"}
-          desc={search ? "Try a different search, or clear filters." : "Add a new certificate to populate the archive."}
-          action={search ? <button type="button" className="ctl-btn ctl-btn--secondary ctl-btn--sm" onClick={() => { setSearch(""); setCategory("ALL"); }}>Clear search</button>
+          title={search || year || category !== "ALL" ? "No matching certificates" : "No certificates"}
+          desc={search || year || category !== "ALL" ? "Try changing the search or filters." : "Add a certificate to the public archive."}
+          action={search || year || category !== "ALL" ? <button type="button" className="ctl-btn ctl-btn--secondary ctl-btn--sm" onClick={() => { setSearch(""); setCategory("ALL"); setYear(""); setPage(1); }}>Clear filters</button>
             : <button type="button" className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setErrors({}); setDirty(false); }}>+ New certificate</button>}
         />
+      ) : view === "gallery" ? (
+        <div className="ctl-certificate-grid">
+          {filtered.map((certificate) => {
+            const imageFile = Boolean(certificate.fileUrl && /\.(?:png|jpe?g|webp|avif|gif)(?:[?#]|$)/i.test(certificate.fileUrl));
+            return (
+              <article className="ctl-certificate-card" key={certificate.id}>
+                {certificate.fileUrl ? (
+                  <a className="ctl-certificate-thumb" href={resolveMediaUrl(certificate.fileUrl)} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${certificate.title}`}>
+                    {imageFile ? <img src={resolveMediaUrl(certificate.fileUrl)} alt="" loading="lazy" /> : <AdminIcon name="file" size={28} />}
+                  </a>
+                ) : <div className="ctl-certificate-thumb" aria-hidden="true"><AdminIcon name="certificates" size={28} /></div>}
+                <div className="ctl-certificate-card-body">
+                  <div className="ctl-certificate-issuer"><span className="ctl-issuer-mark" aria-hidden="true">{certificate.issuer.trim().slice(0, 1).toUpperCase() || "C"}</span><span>{certificate.issuer}</span></div>
+                  <button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...certificate }); setErrors({}); setDirty(false); }}>{certificate.title}</button>
+                  {certificate.description && <p>{certificate.description}</p>}
+                  <div className="ctl-certificate-meta"><Badge tone="neutral">{certificate.category}</Badge>{certificate.issuedOn && <time dateTime={certificate.issuedOn}>{certificate.issuedOn.slice(0, 4)}</time>}{certificate.featured && <Badge tone="amber">Featured</Badge>}</div>
+                  <div className="ctl-certificate-card-foot">
+                    {certificate.credentialUrl ? <a href={certificate.credentialUrl} target="_blank" rel="noopener noreferrer"><AdminIcon name="external" size={14} />Verify</a> : <span className="ctl-hint">No verification link</span>}
+                    <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => { setEditing({ ...certificate }); setErrors({}); setDirty(false); }}>Edit</button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       ) : (
         <div className="ctl-table-wrap">
           <table className="ctl-table">
-            <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((c) => c.id)) : new Set())} aria-label="Select all certificates" /></th><th>Title</th><th>Issuer</th><th>Category</th><th>Date</th><th><span className="ctl-th-static">Actions</span></th></tr></thead>
+            <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((c) => c.id)) : new Set())} aria-label="Select all certificates" /></th><th>Title</th><th>Issuer</th><th>Category</th><th>Year</th><th><span className="ctl-th-static">Actions</span></th></tr></thead>
             <tbody>
               {filtered.map((c) => (
                 <tr key={c.id} className={selected.has(c.id) ? "selected" : ""}>
                   <td><input type="checkbox" checked={selected.has(c.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n; })} aria-label={`Select ${c.title}`} /></td>
-                  <td><button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...c }); setErrors({}); setDirty(false); }}>{c.title}</button> {c.featured && <Badge tone="amber">FEATURED</Badge>}</td>
-                  <td>{c.issuer}</td>
-                  <td><Badge tone="neutral">{c.category}</Badge></td>
-                  <td style={{ whiteSpace: "nowrap" }}>{c.issuedOn ? <time dateTime={c.issuedOn}>{c.issuedOn}</time> : "—"}</td>
-                  <td>
+                  <td data-mobile-primary><button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...c }); setErrors({}); setDirty(false); }}>{c.title}</button> {c.featured && <Badge tone="amber">Featured</Badge>}</td>
+                  <td data-mobile-label="Issuer">{c.issuer}</td>
+                  <td data-mobile-label="Category"><Badge tone="neutral">{c.category}</Badge></td>
+                  <td data-mobile-label="Year">{c.issuedOn ? <time dateTime={c.issuedOn}>{c.issuedOn.slice(0, 4)}</time> : "Not recorded"}</td>
+                  <td data-mobile-label="Actions">
                     <div className="ctl-row-actions">
                       <button type="button" className="ctl-mini-btn" onClick={() => { setEditing({ ...c }); setErrors({}); setDirty(false); }}>Edit</button>
-                      {c.fileUrl && <a className="ctl-mini-btn" style={{ textDecoration: "none" }} href={resolveMediaUrl(c.fileUrl)} target="_blank" rel="noopener noreferrer" aria-label={`Open document for ${c.title}`}>View doc</a>}
+                      {c.fileUrl && <a className="ctl-mini-btn" href={resolveMediaUrl(c.fileUrl)} target="_blank" rel="noopener noreferrer" aria-label={`Open document for ${c.title}`}>View doc</a>}
                       <button type="button" className="ctl-mini-btn danger" onClick={() => setToDelete(c)}>Delete</button>
                     </div>
                   </td>
@@ -234,6 +280,7 @@ export function CertificatesAdmin() {
           </table>
         </div>
       )}
+      {total > 24 && <Pagination page={page} pages={pages} total={total} onPage={setPage} />}
       <Drawer
         open={!!editing}
         onClose={closeEditor}
@@ -272,14 +319,13 @@ export function CertificatesAdmin() {
             </Field>
             <Field label="Document" full hint="PDF or image. Uploads immediately; save to publish.">
               {(id) => (
-                <span style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <span className="ctl-cert-link-row">
                   <input
                     id={id}
-                    className="ctl-input"
                     value={editing.fileUrl ?? ""}
                     onChange={(e) => setEdit({ fileUrl: e.target.value })}
                     placeholder="/static/media/…"
-                    style={{ flex: 1, minWidth: 200 }}
+                    className="ctl-input ctl-cert-link-input"
                   />
                   <input ref={documentRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden onChange={(e) => e.target.files?.[0] && void uploadDocument(e.target.files[0])} />
                   <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => documentRef.current?.click()} disabled={uploading}>{uploading ? "Uploading…" : editing.fileUrl ? "Replace" : "Upload"}</button>
@@ -294,7 +340,7 @@ export function CertificatesAdmin() {
               {(id) => <textarea id={id} className="ctl-textarea" rows={3} value={editing.description ?? ""} onChange={(e) => setEdit({ description: e.target.value })} />}
             </Field>
             <Field label="Flags">
-              {(id) => <label htmlFor={id} style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}><input id={id} type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured</label>}
+              {(id) => <label htmlFor={id} className="ctl-featured-check"><input id={id} type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured</label>}
             </Field>
           </div>
         )}

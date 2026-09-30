@@ -7,6 +7,7 @@ import type { PaletteCommand } from "./ui";
 import { adminBus } from "./bus";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useScrollLock } from "../../hooks/useScrollLock";
+import { AdminIcon } from "./Icon";
 
 import { Login } from "./Login";
 import { Overview } from "./Overview";
@@ -31,29 +32,6 @@ interface AdminUser {
   totpEnabled: boolean;
 }
 
-function NavIcon({ kind }: { kind: string }) {
-  const p = {
-    width: 16, height: 16, viewBox: "0 0 16 16", fill: "none",
-    stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
-  };
-  switch (kind) {
-    case "overview": return (<svg {...p} aria-hidden="true"><path d="M2 8l6-5 6 5v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" /><path d="M6 13v-4h4v4" /></svg>);
-    case "projects": return (<svg {...p} aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2" /><path d="M2 6h12M6 6v7.5" /></svg>);
-    case "certs": return (<svg {...p} aria-hidden="true"><circle cx="8" cy="6" r="3.5" /><path d="M6 9l-2 5 4-2 4 2-2-5" /></svg>);
-    case "skills": return (<svg {...p} aria-hidden="true"><path d="M8 1.8l5.5 3.2v6L8 14.2 2.5 11V5z" /><path d="M8 5.5v5M5.5 7l5 2M10.5 7l-5 2" /></svg>);
-    case "timeline": return (<svg {...p} aria-hidden="true"><path d="M8 2v12M4 4.5h8M4 11.5h8" /><circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" /></svg>);
-    case "education": return (<svg {...p} aria-hidden="true"><path d="M8 2.5L2 5.5 8 8.5l6-3z" /><path d="M4 7v3.5c0 1 1.8 2 4 2s4-1 4-2V7M13 5.5V11" /></svg>);
-    case "profile": return (<svg {...p} aria-hidden="true"><circle cx="8" cy="5.5" r="2.8" /><path d="M2.8 13.5c.8-2.6 2.8-4 5.2-4s4.4 1.4 5.2 4" /></svg>);
-    case "messages": return (<svg {...p} aria-hidden="true"><rect x="2" y="3.5" width="12" height="9" rx="2" /><path d="M2.5 4.5L8 9l5.5-4.5" /></svg>);
-    case "media": return (<svg {...p} aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2" /><circle cx="5.5" cy="6.5" r="1.2" /><path d="M2.5 11.5l3.5-3 2.5 2 2-1.5 3 2.5" /></svg>);
-    case "security": return (<svg {...p} aria-hidden="true"><path d="M8 1.8l5 2v4c0 3-2 5.4-5 6.4-3-1-5-3.4-5-6.4v-4z" /><path d="M6 8l1.5 1.5L10.5 6" /></svg>);
-    case "ai": return (<svg {...p} aria-hidden="true"><path d="M8 1.8l1.7 3.6 3.6 1.7-3.6 1.7L8 12.4l-1.7-3.6L2.7 7.1l3.6-1.7z" /><path d="M12 11l.8 1.7 1.7.8-1.7.8L12 16l-.8-1.7-1.7-.8 1.7-.8z" /></svg>);
-    case "settings": return (<svg {...p} aria-hidden="true"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4" /></svg>);
-    case "audit": return (<svg {...p} aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6" /><circle cx="12.5" cy="12" r="1.5" /></svg>);
-    default: return (<svg {...p} aria-hidden="true"><circle cx="8" cy="8" r="5" /></svg>);
-  }
-}
-
 interface NavItem {
   path: string;
   label: string;
@@ -70,7 +48,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Content",
     items: [
       { path: "/private/projects", label: "Projects", icon: "projects", keywords: "work portfolio case studies curation order" },
-      { path: "/private/certificates", label: "Certificates", icon: "certs", keywords: "credentials courses" },
+      { path: "/private/certificates", label: "Certificates", icon: "certificates", keywords: "credentials courses" },
       { path: "/private/skills", label: "Skills", icon: "skills", keywords: "stack capabilities tech" },
       { path: "/private/timeline", label: "Timeline", icon: "timeline", keywords: "journey history milestones" },
       { path: "/private/education", label: "Education", icon: "education", keywords: "degree university study" },
@@ -146,6 +124,10 @@ export default function AdminApp() {
   const [checking, setChecking] = useState(true);
   const [unread, setUnread] = useState(0);
   const [drawer, setDrawer] = useState(false);
+  const [compactNav, setCompactNav] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("ctl:sidebar-collapsed") === "true"; } catch { return false; }
+  });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [triageCount, setTriageCount] = useState(0);
   const [userMenu, setUserMenu] = useState(false);
@@ -153,7 +135,19 @@ export default function AdminApp() {
   const location = useLocation();
   const navigate = useNavigate();
   const drawerRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const update = (event: MediaQueryListEvent) => {
+      setCompactNav(event.matches);
+      if (!event.matches) setDrawer(false);
+    };
+    setCompactNav(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const refreshUnread = useCallback(() => {
     api.admin
@@ -181,6 +175,10 @@ export default function AdminApp() {
     setUserMenu(false);
     setNewMenu(false);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    try { localStorage.setItem("ctl:sidebar-collapsed", String(sidebarCollapsed)); } catch { /* storage is optional */ }
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     const onUnauthorized = () => setUser(null);
@@ -236,7 +234,8 @@ export default function AdminApp() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [userMenu, newMenu]);
 
-  useFocusTrap(drawerRef as React.RefObject<HTMLElement | null>, drawer, () => setDrawer(false));
+  const closeDrawer = useCallback(() => setDrawer(false), []);
+  useFocusTrap(drawerRef as React.RefObject<HTMLElement | null>, drawer, closeDrawer, menuButtonRef.current);
   useScrollLock(drawer);
 
   const commands: PaletteCommand[] = useMemo(() => {
@@ -297,7 +296,7 @@ export default function AdminApp() {
       <div className="ctl-login-wrap">
         <div className="ctl-login-card" aria-label="Loading">
           <div className="ctl-brand-mark">H</div>
-          <p style={{ marginTop: 12, color: "#5b6472", fontSize: 13 }}>Verifying session…</p>
+          <p className="ctl-muted ctl-loading-note">Verifying session…</p>
         </div>
       </div>
     );
@@ -316,29 +315,31 @@ export default function AdminApp() {
     );
   }
 
-  const title = TITLES[location.pathname] ?? "Control";
+  const currentPath = location.pathname.replace(/\/+$/, "") || "/";
+  const title = TITLES[currentPath] ?? "Control";
   const initial = (user.email?.[0] ?? "A").toUpperCase();
   const isActive = (n: NavItem) => (n.end ? location.pathname === n.path : location.pathname.startsWith(n.path));
 
   const nav = (
     <>
-      <Link to="/" className="ctl-brand" aria-label="Harsh Control home">
+      <Link to="/private" className="ctl-brand" aria-label="Harsh Control overview">
         <span className="ctl-brand-mark">H</span>
         <span className="ctl-brand-name">Harsh // Control<small>PORTFOLIO OS</small></span>
       </Link>
       {NAV_GROUPS.map((g) => (
         <nav key={g.label} aria-label={g.label}>
-          <div className="ctl-nav-label">{g.label}</div>
+          <div className="ctl-nav-label" title={g.label}>{g.label}</div>
           {g.items.filter((n) => !n.adminOnly || user.role === "ADMIN").map((n) => (
             <Link
               key={n.path}
               to={n.path}
               className={`ctl-nav-item${isActive(n) ? " active" : ""}`}
               aria-current={isActive(n) ? "page" : undefined}
+              title={n.label}
             >
-              <span className="ctl-nav-ico" aria-hidden="true"><NavIcon kind={n.icon} /></span>
-              {n.label}
-              {n.badge && unread > 0 && <span className="ctl-nav-badge">{unread > 99 ? "99+" : unread}</span>}
+              <span className="ctl-nav-ico"><AdminIcon name={n.icon as React.ComponentProps<typeof AdminIcon>["name"]} /></span>
+              <span className="ctl-nav-text">{n.label}</span>
+              {n.badge && unread > 0 && <span className="ctl-nav-badge" aria-label={`${unread} unread`}>{unread > 99 ? "99+" : unread}</span>}
             </Link>
           ))}
         </nav>
@@ -346,16 +347,15 @@ export default function AdminApp() {
       <div className="ctl-sidebar-foot">
         <div className="ctl-userchip" title={user.email}>
           <span className="ctl-avatar" aria-hidden="true">{initial}</span>
-          <div style={{ minWidth: 0 }}>
+          <div className="ctl-min-w-0">
             <b className="ctl-userchip-email">{user.displayName || user.email}</b>
             <span>{user.role} · {user.totpEnabled ? "2FA on" : "2FA off"}</span>
           </div>
           <span className="ctl-session-dot" title="Session active" />
         </div>
         <div className="ctl-foot-row">
-          <Link className="ctl-btn ctl-btn--ghost ctl-btn--sm" to="/private/security" style={{ flex: 1, justifyContent: "center" }}>Security</Link>
-          <Link className="ctl-btn ctl-btn--ghost ctl-btn--sm" to="/" style={{ flex: 1, justifyContent: "center" }}>Public site</Link>
-          <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => void logout()} style={{ flex: 1, justifyContent: "center" }}>Log out</button>
+          <Link className="ctl-btn ctl-btn--ghost ctl-btn--sm" to="/" aria-label="View public site"><AdminIcon name="external" size={16} /><span>Public site</span></Link>
+          <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => void logout()} aria-label="Log out"><AdminIcon name="logout" size={16} /><span>Log out</span></button>
         </div>
       </div>
     </>
@@ -363,23 +363,34 @@ export default function AdminApp() {
 
   return (
     <ToastProvider>
-      <div className="ctl-shell">
+      <a className="ctl-skip" href="#ctl-main">Skip to content</a>
+      <div className={`ctl-shell${sidebarCollapsed ? " ctl-shell--collapsed" : ""}`}>
         <aside className="ctl-sidebar" aria-label="Control navigation">{nav}</aside>
         {drawer && (
           <>
-            <div className="ctl-drawer-backdrop" onClick={() => setDrawer(false)} />
-            <nav ref={drawerRef as React.RefObject<HTMLElement>} className="ctl-drawer" aria-label="Control navigation">
+            <button type="button" className="ctl-drawer-backdrop" onClick={closeDrawer} aria-label="Close navigation" />
+            <aside ref={drawerRef as React.RefObject<HTMLElement>} className="ctl-drawer" role="dialog" aria-modal="true" aria-label="Control navigation">
               <div className="ctl-drawer-head">
                 <span className="ctl-brand-name">Harsh // Control</span>
-                <button type="button" className="ctl-icon-btn" onClick={() => setDrawer(false)} aria-label="Close navigation">×</button>
+                <button type="button" className="ctl-icon-btn" onClick={closeDrawer} aria-label="Close navigation"><AdminIcon name="close" /></button>
               </div>
               {nav}
-            </nav>
+            </aside>
           </>
         )}
         <div className="ctl-body">
           <header className="ctl-topbar">
-            <button type="button" className="ctl-menu-btn" onClick={() => setDrawer(true)} aria-label="Open navigation" aria-expanded={drawer}>☰</button>
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className="ctl-menu-btn"
+              onClick={() => {
+                if (!compactNav) setSidebarCollapsed((value) => !value);
+                else setDrawer(true);
+              }}
+              aria-label={compactNav ? "Open navigation" : (sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")}
+              aria-expanded={compactNav ? drawer : !sidebarCollapsed}
+            ><AdminIcon name="panel" /></button>
             <nav className="ctl-crumbs" aria-label="Breadcrumb">
               <Link to="/private">Control</Link>
               <span aria-hidden="true">/</span>
@@ -392,11 +403,11 @@ export default function AdminApp() {
                 onClick={() => setPaletteOpen(true)}
                 aria-label="Open command palette"
               >
-                <span aria-hidden="true">⌕</span> Search or command… <kbd>{isMac ? "⌘K" : "Ctrl+K"}</kbd>
+                <AdminIcon name="search" /> <span>Search or command…</span> <kbd>{isMac ? "⌘K" : "Ctrl+K"}</kbd>
               </button>
               <div className="ctl-new-wrap" id="ctl-new-menu">
                 <button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm" onClick={() => setNewMenu((v) => !v)} aria-expanded={newMenu} aria-haspopup="menu">
-                  + New
+                  <AdminIcon name="plus" size={16} /><span>New</span>
                 </button>
                 {newMenu && (
                   <div className="ctl-new-menu" role="menu" aria-label="Create new">
@@ -422,8 +433,8 @@ export default function AdminApp() {
                 )}
               </div>
               {unread > 0 && (
-                <Link to="/private/messages" className="ctl-btn ctl-btn--secondary ctl-btn--sm" aria-label={`${unread} unread messages`}>
-                  ✉ {unread} new
+                <Link to="/private/messages" className="ctl-btn ctl-btn--secondary ctl-btn--sm ctl-unread-link" aria-label={`${unread} unread messages`}>
+                  <AdminIcon name="messages" size={16} /><span>{unread} new</span>
                 </Link>
               )}
               <Link
@@ -431,7 +442,7 @@ export default function AdminApp() {
                 className={`ctl-btn ctl-btn--ghost ctl-btn--sm${user.totpEnabled ? "" : " ctl-btn--warn"}`}
                 title={user.totpEnabled ? "Two-factor on" : "Two-factor off — enable in Security"}
               >
-                {user.totpEnabled ? "2FA on" : "2FA off"}
+                <AdminIcon name={user.totpEnabled ? "security" : "alert"} size={16} /><span>{user.totpEnabled ? "2FA on" : "2FA off"}</span>
               </Link>
               <div className="ctl-user-menu-wrap" ref={userMenuRef}>
                 <button type="button" className="ctl-avatar-btn" onClick={() => setUserMenu((v) => !v)} aria-expanded={userMenu} aria-haspopup="menu" aria-label={`Account: ${user.email}`}>
@@ -439,21 +450,21 @@ export default function AdminApp() {
                 </button>
                 {userMenu && (
                   <div className="ctl-user-menu" role="menu" aria-label="Account">
-                    <div style={{ padding: "8px 12px", fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {user.displayName && <div style={{ fontWeight: 700, color: "#16181d" }}>{user.displayName}</div>}
+                    <div className="ctl-user-menu-account">
+                      {user.displayName && <div className="ctl-user-menu-name">{user.displayName}</div>}
                       <div>{user.email}</div>
                       <div>{user.role}</div>
                     </div>
                     <Link role="menuitem" to="/private/security" onClick={() => setUserMenu(false)}>Security center</Link>
-                    <Link role="menuitem" to="/" onClick={() => setUserMenu(false)}>View public site</Link>
-                    <button type="button" role="menuitem" className="danger" onClick={() => { setUserMenu(false); void logout(); }}>Log out</button>
+                    <Link role="menuitem" to="/" onClick={() => setUserMenu(false)}><AdminIcon name="external" size={16} />View public site</Link>
+                    <button type="button" role="menuitem" className="danger" onClick={() => { setUserMenu(false); void logout(); }}><AdminIcon name="logout" size={16} />Log out</button>
                   </div>
                 )}
               </div>
             </div>
           </header>
           <main className="ctl-main" id="ctl-main">
-            <Suspense fallback={<div role="status" style={{ color: "#6b7280" }}>Loading section…</div>}>
+            <Suspense fallback={<div className="ctl-route-loading" role="status"><span className="ctl-loading-dot" />Loading section…</div>}>
               <Routes>
                 <Route index element={<Overview onUnreadChange={refreshUnread} />} />
                 <Route path="projects" element={<ProjectsAdmin />} />

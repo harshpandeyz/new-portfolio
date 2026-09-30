@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { api } from "../../lib/api";
+import { api, resolveMediaUrl } from "../../lib/api";
 import type { Project } from "@hp/shared";
 import { FLAGSHIP_SLUGS, SELECTED_SLUGS, isArchiveOnlySlug } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import {
   Badge, ConfirmDialog, Drawer, EmptyState, ErrorState, Field, PageHead, SearchInput, SkeletonList,
   Tabs, friendlyError, usePersistentState, useToast,
@@ -47,6 +48,7 @@ export function ProjectsAdmin() {
   const [tier, setTier] = usePersistentState("ctl:proj:tier", "ALL");
   const [status, setStatus] = usePersistentState("ctl:proj:status", "ALL");
   const [sort, setSort] = usePersistentState<SortKey>("ctl:proj:sort", "order");
+  const [view, setView] = usePersistentState<"grid" | "table">("ctl:proj:view", "grid");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -221,6 +223,11 @@ export function ProjectsAdmin() {
   };
 
   const signatureSlugs = useMemo(() => new Set([...FLAGSHIP_SLUGS, ...SELECTED_SLUGS] as string[]), []);
+  const curationSlots = useMemo(() => [...FLAGSHIP_SLUGS, ...SELECTED_SLUGS].map((slug, index) => ({
+    slug,
+    index,
+    project: projects.find((project) => project.slug === slug),
+  })), [projects]);
   const isFlagship = (slug: string) => (FLAGSHIP_SLUGS as readonly string[]).includes(slug);
   const isSelected = (slug: string) => (SELECTED_SLUGS as readonly string[]).includes(slug);
 
@@ -228,7 +235,7 @@ export function ProjectsAdmin() {
     <>
       <PageHead
         title="Projects"
-        desc={`${filtered.length} of ${projects.length} project${projects.length === 1 ? "" : "s"} · homepage uses explicit slug curation (CCTV-X, OrchestraAI, QuantumMind, SkillMatch) — order/featured never swap signature slots · drafts stay hidden.`}
+        desc={`${filtered.length} of ${projects.length} projects · fixed homepage slots are curated by slug. Drafts stay private until published.`}
         actions={
           <>
             <SearchInput value={query} onChange={setQuery} label="Search projects" placeholder="Search title, slug, category…" />
@@ -236,14 +243,29 @@ export function ProjectsAdmin() {
           </>
         }
       />
+      <div className="ctl-curation" aria-label="Fixed homepage project slots">
+        {curationSlots.map(({ slug, index, project }) => (
+          <div className="ctl-curation-slot" key={slug}>
+            <strong>{index < 2 ? `Flagship ${index + 1}` : `Selected ${index - 1}`}</strong>
+            <span>{project ? `${project.title}${project.codename ? ` · ${project.codename}` : ""}` : "Project not found"}</span>
+            <small>{project ? (project.status === "draft" ? "Draft · hidden publicly" : slug) : slug}</small>
+          </div>
+        ))}
+      </div>
+      <div className="ctl-project-summary" aria-label="Project summary">
+        <div><span>Total projects</span><strong>{projects.length}</strong></div>
+        <div><span>Drafts</span><strong>{projects.filter((project) => project.status === "draft").length}</strong></div>
+        <div><span>Published</span><strong>{projects.filter((project) => project.status !== "draft").length}</strong></div>
+        <div><span>Live curated slots</span><strong>{curationSlots.filter((slot) => slot.project && slot.project.status !== "draft").length}/4</strong></div>
+      </div>
       <div className="ctl-list-toolbar">
-        <select className="ctl-select" value={tier} onChange={(e) => setTier(e.target.value)} style={{ width: "auto" }} aria-label="Filter by tier">
+        <select className="ctl-select ctl-select--auto" value={tier} onChange={(e) => setTier(e.target.value)} aria-label="Filter by tier">
           {["ALL", "featured", "secondary", "experiment", "academic", "legacy", "internship"].map((t) => (<option key={t} value={t}>{t === "ALL" ? "All tiers" : t}</option>))}
         </select>
-        <select className="ctl-select" value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: "auto" }} aria-label="Filter by status">
+        <select className="ctl-select ctl-select--auto" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           {["ALL", "draft", "active", "complete", "maintained", "archived"].map((s) => (<option key={s} value={s}>{s === "ALL" ? "All statuses" : s}</option>))}
         </select>
-        <select className="ctl-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={{ width: "auto" }} aria-label="Sort projects">
+        <select className="ctl-select ctl-select--auto" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort projects">
           <option value="order">Sort: Order</option>
           <option value="title">Sort: Title</option>
           <option value="updated">Sort: Recently updated</option>
@@ -258,6 +280,10 @@ export function ProjectsAdmin() {
             <button type="button" className="ctl-mini-btn" disabled={busy} onClick={() => setSelected(new Set())}>Clear</button>
           </div>
         )}
+        <div className="ctl-view-toggle" role="group" aria-label="Project layout">
+          <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><AdminIcon name="media" size={15} />Grid</button>
+          <button type="button" aria-pressed={view === "table"} onClick={() => setView("table")}><AdminIcon name="projects" size={15} />Table</button>
+        </div>
       </div>
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
@@ -271,6 +297,37 @@ export function ProjectsAdmin() {
           action={query ? <button type="button" className="ctl-btn ctl-btn--secondary ctl-btn--sm" onClick={clearFilters}>Clear search</button>
             : <button type="button" className="ctl-btn ctl-btn--primary" onClick={() => openEditor({ ...EMPTY }, true)}>+ New project</button>}
         />
+      ) : view === "grid" ? (
+        <div className="ctl-project-grid">
+          {filtered.map((project) => (
+            <article className="ctl-project-card" key={project.id}>
+              <div className="ctl-project-thumb">
+                {project.heroImage ? <img src={resolveMediaUrl(project.heroImage)} alt="" loading="lazy" /> : <AdminIcon name="projects" size={26} />}
+              </div>
+              <div className="ctl-project-card-body">
+                <div className="ctl-project-card-head">
+                  <label className="ctl-check" aria-label={`Select ${project.title}`}><input type="checkbox" checked={selected.has(project.id)} onChange={(event) => setSelected((prev) => { const next = new Set(prev); if (event.target.checked) next.add(project.id); else next.delete(project.id); return next; })} /></label>
+                  {isFlagship(project.slug) ? <Badge tone="amber">Flagship</Badge> : isSelected(project.slug) ? <Badge tone="blue">Selected</Badge> : isArchiveOnlySlug(project.slug) ? <Badge tone="gray">Archive only</Badge> : <Badge tone="neutral">{project.tier}</Badge>}
+                </div>
+                <button type="button" className="ctl-link-btn" onClick={() => openEditor({ ...project }, false)}>{project.title}</button>
+                <p>{project.shortDescription}</p>
+                <div className="ctl-tech-list">{project.stack.slice(0, 4).map((technology) => <span key={technology}>{technology}</span>)}{project.stack.length > 4 && <span>+{project.stack.length - 4}</span>}</div>
+                <div className="ctl-project-card-foot">
+                  <Badge tone={project.status === "draft" ? "gray" : project.status === "archived" ? "red" : "green"}>{project.status}</Badge>
+                  <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => openEditor({ ...project }, false)}>Edit</button>
+                  <details className="ctl-overflow-menu">
+                    <summary aria-label={`More actions for ${project.title}`}><AdminIcon name="more" size={18} /></summary>
+                    <div>
+                      <button type="button" onClick={() => clone(project)}>Duplicate as draft</button>
+                      {project.status !== "draft" && <a href={`/projects/${project.slug}`} target="_blank" rel="noopener noreferrer">View public page</a>}
+                      <button type="button" className="danger" onClick={() => setToDelete(project)}>Delete project</button>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       ) : (
         <div className="ctl-table-wrap">
           <table className="ctl-table">
@@ -295,7 +352,8 @@ export function ProjectsAdmin() {
               {filtered.map((p) => (
                 <tr key={p.id} className={selected.has(p.id) ? "selected" : ""}>
                   <td><input type="checkbox" checked={selected.has(p.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} aria-label={`Select ${p.title}`} /></td>
-                  <td>
+                  <td data-mobile-primary>
+                    {p.heroImage && <img className="ctl-project-row-thumb" src={resolveMediaUrl(p.heroImage)} alt="" loading="lazy" />}
                     <button type="button" className="ctl-link-btn" onClick={() => openEditor({ ...p }, false)}>{p.title}</button>
                     {signatureSlugs.has(p.slug) && <span> </span>}
                     {isFlagship(p.slug) && <Badge tone="amber">HOMEPAGE · FLAGSHIP</Badge>}
@@ -306,16 +364,21 @@ export function ProjectsAdmin() {
                     {isArchiveOnlySlug(p.slug) && <Badge tone="gray">ARCHIVE ONLY</Badge>}
                     <div className="ctl-row-sub">/{p.slug}</div>
                   </td>
-                  <td><Badge tone="neutral">{p.tier}</Badge></td>
-                  <td><Badge tone={p.status === "draft" ? "gray" : p.status === "archived" ? "red" : "green"}>{p.status}</Badge></td>
-                  <td>{p.order}</td>
-                  <td style={{ whiteSpace: "nowrap" }}><time dateTime={p.updatedAt}>{new Date(p.updatedAt).toLocaleDateString()}</time></td>
-                  <td>
+                  <td data-mobile-label="Tier"><Badge tone="neutral">{p.tier}</Badge></td>
+                  <td data-mobile-label="Status"><Badge tone={p.status === "draft" ? "gray" : p.status === "archived" ? "red" : "green"}>{p.status}</Badge></td>
+                  <td data-mobile-label="Order">{p.order}</td>
+                  <td data-mobile-label="Updated"><time dateTime={p.updatedAt}>{new Date(p.updatedAt).toLocaleDateString()}</time></td>
+                  <td data-mobile-label="Actions">
                     <div className="ctl-row-actions">
                       <button type="button" className="ctl-mini-btn" onClick={() => openEditor({ ...p }, false)}>Edit</button>
-                      <button type="button" className="ctl-mini-btn" onClick={() => clone(p)}>Clone</button>
-                      <a className="ctl-mini-btn" href={`/projects/${p.slug}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>View</a>
-                      <button type="button" className="ctl-mini-btn danger" onClick={() => setToDelete(p)}>Delete</button>
+                      <details className="ctl-overflow-menu">
+                        <summary aria-label={`More actions for ${p.title}`}><AdminIcon name="more" size={17} /></summary>
+                        <div>
+                          <button type="button" onClick={() => clone(p)}>Duplicate as draft</button>
+                          {p.status !== "draft" && <a href={`/projects/${p.slug}`} target="_blank" rel="noopener noreferrer">View public page</a>}
+                          <button type="button" className="danger" onClick={() => setToDelete(p)}>Delete project</button>
+                        </div>
+                      </details>
                     </div>
                   </td>
                 </tr>
@@ -354,8 +417,8 @@ export function ProjectsAdmin() {
                 </Field>
                 <Field label="Slug (public URL)" required error={errors.slug} hint={editing.slug ? `Live at /projects/${editing.slug}` : undefined}>
                   {(id) => (
-                    <span style={{ display: "flex", gap: 8 }}>
-                      <input id={id} className="ctl-input" value={editing.slug ?? ""} aria-invalid={Boolean(errors.slug)} disabled={slugLocked && Boolean(editing.id)} onChange={(e) => setEdit({ slug: slugify(e.target.value) })} autoComplete="off" style={{ flex: 1 }} />
+                    <span className="ctl-project-slug-row">
+                      <input id={id} className="ctl-input ctl-input--grow" value={editing.slug ?? ""} aria-invalid={Boolean(errors.slug)} disabled={slugLocked && Boolean(editing.id)} onChange={(e) => setEdit({ slug: slugify(e.target.value) })} autoComplete="off" />
                       {editing.id && (
                         <button type="button" className="ctl-mini-btn" onClick={() => setSlugLocked((v) => !v)} aria-pressed={!slugLocked}>
                           {slugLocked ? "Unlock" : "Lock"}
@@ -448,7 +511,7 @@ export function ProjectsAdmin() {
                   {(id) => <input id={id} className="ctl-input" type="number" min={0} max={9999} value={String(editing.order ?? 99)} onChange={(e) => setEdit({ order: Number(e.target.value) })} />}
                 </Field>
                 <Field label="Flags">
-                  {(id) => <label htmlFor={id} style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}><input id={id} type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured on homepage</label>}
+                  {(id) => <label htmlFor={id} className="ctl-featured-check"><input id={id} type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured on homepage</label>}
                 </Field>
               </div>
             )}

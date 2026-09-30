@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../lib/api";
 import type { AiProvider } from "@hp/shared";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { useScrollLock } from "../../hooks/useScrollLock";
+import { AdminIcon } from "./Icon";
 import {
   Badge, ConfirmDialog, EmptyState, ErrorState, Field, PageHead,
   friendlyError, useToast,
@@ -85,6 +88,13 @@ export function AiProvidersAdmin() {
   const [rotateTarget, setRotateTarget] = useState<AiProvider | null>(null);
   const [rotateKey, setRotateKey] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const providerDialogRef = useRef<HTMLDivElement>(null);
+  const rotateDialogRef = useRef<HTMLDivElement>(null);
+  const closeProviderDialog = useCallback(() => setCreating(false), []);
+  const closeRotateDialog = useCallback(() => setRotateTarget(null), []);
+  useFocusTrap(providerDialogRef, creating, closeProviderDialog);
+  useFocusTrap(rotateDialogRef, Boolean(rotateTarget), closeRotateDialog);
+  useScrollLock(creating || Boolean(rotateTarget));
   const { push } = useToast();
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -238,7 +248,7 @@ export function AiProvidersAdmin() {
     return (
       <>
         <PageHead title="AI providers" desc="Configure the portfolio assistant's language models." />
-        <div className="ctl-card"><p style={{ color: "#8a93a3" }}>Loading providers…</p></div>
+        <div className="ctl-card"><p className="ctl-muted">Loading providers…</p></div>
       </>
     );
   }
@@ -253,14 +263,11 @@ export function AiProvidersAdmin() {
       {error && <ErrorState message={error} onRetry={() => { setLoading(true); void load(); }} />}
 
       {envFallback && (
-        <div className="ctl-card" style={{ marginBottom: 12 }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <b style={{ fontSize: 13 }}>Environment fallback</b>
+        <div className="ctl-ai-env">
+          <div className="ctl-ai-env-head"><AdminIcon name="ai" size={17} /><b>Environment fallback</b>
             <Badge tone={envFallback.configured ? "green" : "gray"}>{envFallback.configured ? "CONFIGURED" : "NOT SET"}</Badge>
-            <span style={{ fontSize: 12, color: "#8a93a3" }}>
-              {envFallback.provider}{envFallback.model ? ` · ${envFallback.model}` : ""} — used only when no DB provider is enabled. Manage secrets in server env, not here.
-            </span>
           </div>
+          <p>{envFallback.provider}{envFallback.model ? ` · ${envFallback.model}` : ""}. Used when no database provider is enabled. Manage its secret in the server environment.</p>
         </div>
       )}
 
@@ -271,49 +278,41 @@ export function AiProvidersAdmin() {
           action={<button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm" onClick={openCreate}>Add your first provider</button>}
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="ctl-ai-provider-list">
           {providers.map((p) => (
-            <article key={p.id} className="ctl-card" aria-label={`AI provider ${p.name}`}>
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <b style={{ fontSize: 15 }}>{p.name}</b>
+            <article key={p.id} className="ctl-ai-provider" aria-label={`AI provider ${p.name}`}>
+                <div className="ctl-ai-provider-main">
+                  <div className="ctl-ai-provider-title">
+                    <AdminIcon name="ai" size={18} /><h2>{p.name}</h2><span className="ctl-ai-kind">{p.kind}</span>
                     <Badge tone={p.enabled ? "green" : "neutral"}>{p.enabled ? "ENABLED" : "DISABLED"}</Badge>
                     <Badge tone={healthTone(p.health)}>{p.health.toUpperCase()}</Badge>
-                    {p.isFallback && <Badge tone="gray">FALLBACK</Badge>}
-                    <span style={{ fontSize: 12, color: "#8a93a3" }}>priority {p.priority}</span>
+                    {p.isFallback && <Badge tone="neutral">Fallback</Badge>}
                   </div>
-                  <div style={{ fontSize: 12.5, color: "#5b6472", marginTop: 6, wordBreak: "break-all" }}>
-                    {p.kind} · <code>{p.model}</code> · {p.baseUrl}
+                  <div className="ctl-ai-provider-model"><code>{p.model}</code><span>{p.baseUrl}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: "#5b6472", marginTop: 4 }}>
-                    Key: <code>{p.hasKey ? (p.keyHint ?? "****") : "— none stored —"}</code>
-                    {" · "}temp {p.temperature} · max {p.maxTokens} · timeout {Math.round(p.timeoutMs / 1000)}s
-                    {p.lastLatencyMs != null && <> · last check {p.lastLatencyMs}ms</>}
-                    {p.lastError && <> · <span style={{ color: "#b3261e" }}>{p.lastError.slice(0, 140)}</span></>}
+                  <div className="ctl-ai-provider-facts">
+                    <span>Credential <code>{p.hasKey ? (p.keyHint ?? "••••") : "Not configured"}</code></span>
+                    <span>Priority {p.priority}</span><span>Timeout {Math.round(p.timeoutMs / 1000)}s</span>
+                    {p.lastLatencyMs != null && <span>Last check {p.lastLatencyMs} ms</span>}
                   </div>
+                  {p.lastError && <p className="ctl-ai-provider-error"><AdminIcon name="alert" size={14} />{p.lastError.slice(0, 180)}</p>}
                 </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <button type="button" className="ctl-mini-btn" disabled={testingId !== null} onClick={() => void test(p, "connection")}>
-                    {testingId === `${p.id}:connection` ? "Testing…" : "Test connection"}
-                  </button>
-                  <button type="button" className="ctl-mini-btn" disabled={testingId !== null} onClick={() => void test(p, "model")}>
-                    {testingId === `${p.id}:model` ? "Testing…" : "Test model"}
-                  </button>
-                  <button type="button" className="ctl-mini-btn" disabled={busyId === p.id} onClick={() => void toggleEnabled(p)}>
-                    {p.enabled ? "Disable" : "Enable"}
-                  </button>
-                  <button type="button" className="ctl-mini-btn" onClick={() => openEdit(p)}>Edit</button>
-                  <button type="button" className="ctl-mini-btn" onClick={() => { setRotateTarget(p); setRotateKey(""); }}>Rotate key</button>
-                  <button type="button" className="ctl-mini-btn danger" onClick={() => setDeleteTarget(p)}>Delete</button>
+                <div className="ctl-ai-provider-actions">
+                  <button type="button" className="ctl-btn ctl-btn--secondary ctl-btn--sm" disabled={testingId !== null} onClick={() => void test(p, "connection")}><AdminIcon name="activity" size={14} />{testingId === `${p.id}:connection` ? "Testing…" : "Test connection"}</button>
+                  <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" disabled={busyId === p.id} onClick={() => openEdit(p)}>Edit</button>
+                  <details className="ctl-overflow-menu"><summary aria-label={`More actions for ${p.name}`}><AdminIcon name="more" size={17} /></summary><div>
+                    <button type="button" disabled={testingId !== null} onClick={() => void test(p, "model")}>Test model</button>
+                    <button type="button" disabled={busyId === p.id} onClick={() => void toggleEnabled(p)}>{p.enabled ? "Disable provider" : "Enable provider"}</button>
+                    <button type="button" onClick={() => { setRotateTarget(p); setRotateKey(""); }}>Rotate key</button>
+                    <button type="button" className="danger" onClick={() => setDeleteTarget(p)}>Delete provider</button>
+                  </div></details>
                 </div>
-              </div>
             </article>
           ))}
         </div>
       )}
 
-      <p style={{ fontSize: 12, color: "#8a93a3", marginTop: 12, maxWidth: 720 }}>
+      <p className="ctl-ai-note">
         Security: keys are AES-256-GCM encrypted with a server-side key, masked as {`****last4`} in this UI,
         never written to logs, analytics or audit records, and never sent to the browser except when you type a new one.
         Priority decides order; fallback providers are tried last. Reads require content access; writes require ADMIN.
@@ -321,7 +320,7 @@ export function AiProvidersAdmin() {
 
       {creating && (
         <div className="ctl-dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setCreating(false)}>
-          <div role="dialog" aria-modal="true" aria-label={editing ? "Edit provider" : "Add provider"} className="ctl-dialog ctl-dialog--wide">
+          <div ref={providerDialogRef} role="dialog" aria-modal="true" aria-label={editing ? "Edit provider" : "Add provider"} className="ctl-dialog ctl-dialog--wide">
             <div className="ctl-dialog-head">
               <div>
                 <h2>{editing ? `Edit ${editing.name}` : "Add provider"}</h2>
@@ -329,9 +328,9 @@ export function AiProvidersAdmin() {
               </div>
               <button className="ctl-icon-btn" onClick={() => setCreating(false)} aria-label="Close dialog">×</button>
             </div>
-            <div className="ctl-dialog-body" style={{ display: "grid", gap: 10 }}>
+            <div className="ctl-dialog-body ctl-ai-form">
               {formError && <ErrorState message={formError} />}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="ctl-ai-form-row ctl-ai-form-row--2">
                 <Field label="Name" required>{(id) => <input id={id} className="ctl-input" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="OpenRouter primary" maxLength={80} />}</Field>
                 <Field label="Provider" required>{(id) => (
                   <select id={id} className="ctl-select" value={form.kind} onChange={(e) => set("kind", e.target.value)}>
@@ -340,20 +339,20 @@ export function AiProvidersAdmin() {
                 )}</Field>
               </div>
               <Field label="Base URL" required hint="Full origin + version path, e.g. https://openrouter.ai/api/v1">{(id) => <input id={id} className="ctl-input" value={form.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} placeholder="https://…" inputMode="url" />}</Field>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="ctl-ai-form-row ctl-ai-form-row--2">
                 <Field label="Model" required hint="e.g. meta-llama/llama-3.1-8b-instruct:free">{(id) => <input id={id} className="ctl-input" value={form.model} onChange={(e) => set("model", e.target.value)} placeholder="model id" />}</Field>
                 <Field label={editing ? "API key (leave blank to keep current)" : "API key"} required={!editing} hint="Encrypted on save, never displayed again.">{(id) => <input id={id} className="ctl-input" type="password" autoComplete="new-password" value={form.apiKey} onChange={(e) => set("apiKey", e.target.value)} placeholder={editing ? "••••••••" : "sk-…"} />}</Field>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <div className="ctl-ai-form-row ctl-ai-form-row--3">
                 <Field label="Temperature" hint="0 – 2">{(id) => <input id={id} className="ctl-input" inputMode="decimal" value={form.temperature} onChange={(e) => set("temperature", e.target.value)} />}</Field>
                 <Field label="Max tokens" hint="32 – 8000">{(id) => <input id={id} className="ctl-input" inputMode="numeric" value={form.maxTokens} onChange={(e) => set("maxTokens", e.target.value)} />}</Field>
                 <Field label="Timeout (ms)" hint="2000 – 120000">{(id) => <input id={id} className="ctl-input" inputMode="numeric" value={form.timeoutMs} onChange={(e) => set("timeoutMs", e.target.value)} />}</Field>
               </div>
               <Field label="System prompt (optional)" hint="Overrides the default grounded-assistant prompt for this provider.">{(id) => <textarea id={id} className="ctl-textarea" rows={3} value={form.systemPrompt} onChange={(e) => set("systemPrompt", e.target.value)} placeholder="Leave blank for the default grounded prompt…" />}</Field>
-              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
+              <div className="ctl-ai-form-flags">
                 <label className="ctl-check"><input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} /> Enabled</label>
                 <label className="ctl-check"><input type="checkbox" checked={form.isFallback} onChange={(e) => set("isFallback", e.target.checked)} /> Fallback (tried last)</label>
-                <Field label="Priority (lower runs first)">{(id) => <input id={id} className="ctl-input" inputMode="numeric" value={form.priority} onChange={(e) => set("priority", e.target.value)} style={{ width: 90 }} />}</Field>
+                <Field label="Priority (lower runs first)">{(id) => <input id={id} className="ctl-input ctl-ai-priority" inputMode="numeric" value={form.priority} onChange={(e) => set("priority", e.target.value)} />}</Field>
               </div>
             </div>
             <div className="ctl-dialog-foot">
@@ -378,7 +377,7 @@ export function AiProvidersAdmin() {
 
       {rotateTarget && (
         <div className="ctl-dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setRotateTarget(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Rotate API key" className="ctl-dialog">
+          <div ref={rotateDialogRef} role="dialog" aria-modal="true" aria-label="Rotate API key" className="ctl-dialog">
             <div className="ctl-dialog-head">
               <div>
                 <h2>Rotate key — {rotateTarget.name}</h2>

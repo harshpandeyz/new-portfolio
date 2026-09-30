@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, resolveMediaUrl } from "../../lib/api";
 import type { MediaAsset } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import { ConfirmDialog, EmptyState, ErrorState, PageHead, SearchInput, Segmented, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 import { adminBus } from "./bus";
 
@@ -13,6 +14,7 @@ type KindFilter = "ALL" | "image" | "document" | "video" | "orphans";
 interface UploadRow {
   id: number;
   name: string;
+  file: File;
   progress: number;
   status: "uploading" | "done" | "error";
   error?: string;
@@ -66,16 +68,28 @@ export function MediaAdmin() {
     return adminBus.onUploadRequest(() => fileRef.current?.click());
   }, []);
 
-  const uploadFiles = useCallback(async (files: FileList | File[]) => {
+  const uploadFiles = useCallback(async (files: FileList | File[], retryId?: number) => {
     const list = [...files];
     if (list.length === 0) return;
+    let nextRetryId = retryId;
     for (const file of list) {
       if (file.size > MAX_BYTES) {
+        if (nextRetryId !== undefined) {
+          const id = nextRetryId;
+          setUploads((rows) => rows.map((r) => r.id === id ? { ...r, status: "error", error: "File exceeds the 25MB limit." } : r));
+          nextRetryId = undefined;
+        }
         push({ kind: "error", title: "File too large", desc: `${file.name} exceeds 25MB.` });
         continue;
       }
-      const id = uploadSeq++;
-      setUploads((rows) => [...rows, { id, name: file.name, progress: 0, status: "uploading" }]);
+      const retrying = nextRetryId !== undefined;
+      const id = nextRetryId ?? uploadSeq++;
+      nextRetryId = undefined;
+      if (retrying) {
+        setUploads((rows) => rows.map((r) => r.id === id ? { ...r, progress: 0, status: "uploading", error: undefined } : r));
+      } else {
+        setUploads((rows) => [...rows, { id, name: file.name, file, progress: 0, status: "uploading" }]);
+      }
       try {
         const asset = await api.admin.uploadMedia(file, (pct) => {
           setUploads((rows) => rows.map((r) => (r.id === id ? { ...r, progress: pct } : r)));
@@ -196,17 +210,17 @@ export function MediaAdmin() {
             <input
               ref={fileRef}
               id="ctl-media-upload"
+              className="ctl-hidden-input"
               type="file"
               accept={ACCEPT}
               multiple
-              style={{ display: "none" }}
               onChange={(e) => e.target.files && void uploadFiles(e.target.files)}
             />
             <input
               ref={replaceRef}
+              className="ctl-hidden-input"
               type="file"
               accept={ACCEPT}
-              style={{ display: "none" }}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void replace(f);
@@ -250,23 +264,31 @@ export function MediaAdmin() {
         <div className="ctl-upload-queue" aria-live="polite" aria-label="Uploads in progress">
           {uploads.map((u) => (
             <div className="ctl-upload-row" key={u.id}>
-              <span style={{ fontWeight: 650 }}>{u.name}</span>
+              <span className="ctl-upload-name">{u.name}</span>
               {u.status === "uploading" && (
                 <>
                   <span className="ctl-upload-bar"><i style={{ width: `${u.progress}%` }} /></span>
                   <span>{u.progress}%</span>
                 </>
               )}
-              {u.status === "done" && <span style={{ color: "#16a34a", fontWeight: 700 }}>Done</span>}
-              {u.status === "error" && <span style={{ color: "#b42318" }}>{u.error ?? "Failed"}</span>}
+              {u.status === "done" && <span className="ctl-upload-done">Done</span>}
+              {u.status === "error" && (
+                <>
+                  <span className="ctl-upload-error">{u.error ?? "Failed"}</span>
+                  <span className="ctl-upload-actions">
+                    <button type="button" className="ctl-mini-btn" onClick={() => void uploadFiles([u.file], u.id)}>Retry</button>
+                    <button type="button" className="ctl-icon-btn" aria-label={`Dismiss ${u.name}`} onClick={() => setUploads((rows) => rows.filter((row) => row.id !== u.id))}><AdminIcon name="close" size={15} /></button>
+                  </span>
+                </>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <div className="ctl-list-toolbar" style={{ marginTop: 12 }}>
+      <div className="ctl-list-toolbar ctl-list-toolbar--spaced">
         <Segmented options={["ALL", "image", "document", "video", "orphans"] as const} value={kind} onChange={setKind} label="Filter by kind" />
-        <label className="ctl-selectpage" style={{ margin: 0 }}>
+        <label className="ctl-selectpage ctl-selectpage--compact">
           <input
             type="checkbox"
             checked={allChecked}
@@ -327,7 +349,7 @@ export function MediaAdmin() {
                       aria-label={`Select ${a.filename}`}
                     />
                     <span className="ctl-media-name" title={`${a.filename} · ${a.mimeType} · ${(a.sizeBytes / 1024).toFixed(1)}KB`}>
-                      {a.filename} {!a.referenced && <small style={{ color: "#b45309" }}>ORPHAN</small>}
+                      {a.filename} {!a.referenced && <small className="ctl-orphan-mark">ORPHAN</small>}
                     </span>
                   </label>
                   <span className="ctl-media-actions">
@@ -348,9 +370,9 @@ export function MediaAdmin() {
             {lightbox.kind === "image" ? (
               <img src={resolveMediaUrl(lightbox.url)} alt={lightbox.filename} />
             ) : (
-              <div className="ctl-card" style={{ padding: 24 }}>
+              <div className="ctl-card ctl-lightbox-card">
                 <b>{lightbox.filename}</b>
-                <p style={{ color: "#6b7280", fontSize: 13 }}>{lightbox.mimeType} · {(lightbox.sizeBytes / 1024).toFixed(1)}KB</p>
+                <p className="ctl-media-meta">{lightbox.mimeType} · {(lightbox.sizeBytes / 1024).toFixed(1)}KB</p>
                 <a className="ctl-btn ctl-btn--primary ctl-btn--sm" href={resolveMediaUrl(lightbox.url)} target="_blank" rel="noopener noreferrer">Open file</a>
               </div>
             )}

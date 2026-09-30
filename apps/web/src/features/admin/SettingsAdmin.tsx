@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { SiteSettings } from "@hp/shared";
@@ -10,6 +9,12 @@ const ROWS: { key: keyof SiteSettings; title: string; desc: string }[] = [
   { key: "contactEnabled", title: "Contact form", desc: "Accept and store new contact messages in the private inbox." },
   { key: "analyticsEnabled", title: "Privacy-conscious analytics", desc: "Store aggregate event counters without fingerprinting or personal profiles." },
   { key: "maintenanceMode", title: "Maintenance mode", desc: "Show a visible public notice while keeping the portfolio browsable." },
+];
+
+const GROUPS = [
+  { title: "Public experience", description: "Visitor-facing contact and availability controls.", keys: ["contactEnabled", "maintenanceMode"] as const },
+  { title: "Assistant", description: "Grounded answers use the portfolio knowledge base and enabled providers.", keys: ["chatEnabled"] as const },
+  { title: "Analytics & privacy", description: "Aggregate event counts only. No visitor profiles are stored.", keys: ["analyticsEnabled"] as const },
 ];
 
 export function SettingsAdmin() {
@@ -70,7 +75,7 @@ export function SettingsAdmin() {
     return (
       <>
         <PageHead title="Settings" desc="Safe, non-secret site controls." />
-        <div className="ctl-card"><p style={{ color: "#8a93a3" }}>Loading settings…</p></div>
+        <div className="ctl-card"><p className="ctl-muted">Loading settings…</p></div>
       </>
     );
   }
@@ -82,19 +87,16 @@ export function SettingsAdmin() {
         desc="Safe, non-secret feature controls. Changes apply instantly. Provider keys and session secrets remain environment-managed."
       />
       {error && <ErrorState message={error} />}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }} role="group" aria-label="Site feature controls">
-        {ROWS.map((r) => (
-          <Switch
-            key={r.key}
-            checked={settings[r.key]}
-            disabled={savingKey !== null}
-            onChange={(v) => toggle(r.key, v)}
-            label={`${r.title}${savingKey === r.key ? " · saving…" : ""}`}
-            desc={r.desc}
-          />
-        ))}
+      <div className="ctl-settings-grid" aria-label="Site feature controls">
+        {GROUPS.map((group) => <section className="ctl-settings-group" key={group.title}>
+          <header><div><h2>{group.title}</h2><p>{group.description}</p></div></header>
+          {group.keys.map((key) => {
+            const row = ROWS.find((item) => item.key === key)!;
+            return <Switch key={row.key} checked={settings[row.key]} disabled={savingKey !== null} onChange={(v) => toggle(row.key, v)} label={`${row.title}${savingKey === row.key ? " · saving…" : ""}`} desc={row.desc} />;
+          })}
+        </section>)}
       </div>
-      <p style={{ fontSize: 12, color: "#8a93a3", marginTop: 12 }}>
+      <p className="ctl-settings-note">
         Turning the contact form or assistant off returns a polite 503 to visitors. Maintenance mode shows a banner but keeps every page browsable.
       </p>
 

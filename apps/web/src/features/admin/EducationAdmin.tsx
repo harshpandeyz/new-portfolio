@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { Education } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import { ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchInput, SkeletonList, friendlyError, useToast } from "./ui";
+import { usePersistentState } from "./ui";
 
 const EMPTY: Partial<Education> = {
   degree: "",
@@ -20,6 +22,7 @@ export function EducationAdmin() {
   const [items, setItems] = useState<Education[]>([]);
   const [editing, setEditing] = useState<Partial<Education> | null>(null);
   const [query, setQuery] = useState("");
+  const [view, setView] = usePersistentState<"cards" | "table">("ctl:education:view", "cards");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,7 +61,7 @@ export function EducationAdmin() {
     const q = query.trim().toLowerCase();
     return [...items]
       .filter((item) => !q || `${item.degree} ${item.institution} ${item.field ?? ""}`.toLowerCase().includes(q))
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => b.startYear.localeCompare(a.startYear) || a.order - b.order);
   }, [items, query]);
 
   const setEdit = (patch: Partial<Education>) => {
@@ -121,7 +124,7 @@ export function EducationAdmin() {
       <PageHead
         title="Education"
         desc={`${filtered.length} of ${items.length} records · rendered on the public journey and recruiter view.`}
-        actions={<><SearchInput value={query} onChange={setQuery} label="Search education" placeholder="Search education…" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New record</button></>}
+        actions={<><SearchInput value={query} onChange={setQuery} label="Search education" placeholder="Search education…" /><div className="ctl-view-toggle" role="group" aria-label="Education layout"><button className={view === "cards" ? "active" : ""} aria-pressed={view === "cards"} onClick={() => setView("cards")}><AdminIcon name="education" size={15} /><span>Cards</span></button><button className={view === "table" ? "active" : ""} aria-pressed={view === "table"} onClick={() => setView("table")}><AdminIcon name="audit" size={15} /><span>Table</span></button></div><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>New record</button></>}
       />
       {error && <ErrorState message={error} onRetry={() => void load()} />}
       {loading && items.length === 0 ? <SkeletonList rows={5} /> : filtered.length === 0 ? (
@@ -131,18 +134,24 @@ export function EducationAdmin() {
           action={<button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New record</button>}
         />
       ) : (
-        <div className="ctl-table-wrap">
+        view === "cards" ? <div className="ctl-education-list">
+          {filtered.map((item) => <article className="ctl-education-card" key={item.id}>
+            <div className="ctl-education-mark"><AdminIcon name="education" size={19} /></div>
+            <div className="ctl-education-main"><h2>{item.degree}</h2><p>{item.institution}{item.field ? ` · ${item.field}` : ""}</p>{item.description && <p className="ctl-education-description">{item.description}</p>}{item.grade && <span className="ctl-education-grade">{item.grade}</span>}</div>
+            <div className="ctl-education-side"><span className="ctl-education-years">{item.startYear} – {item.endYear ?? "Present"}</span><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(item)}>Delete</button></div></div>
+          </article>)}
+        </div> : <div className="ctl-table-wrap">
           <table className="ctl-table">
             <thead><tr><th>Degree</th><th>Institution</th><th>Years</th><th>Grade</th><th>Order</th><th><span className="ctl-th-static">Actions</span></th></tr></thead>
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id}>
-                  <td><button className="ctl-link-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>{item.degree}</button><div className="ctl-row-sub">{item.field ?? ""}</div></td>
-                  <td>{item.institution}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>{item.startYear} → {item.endYear ?? "Present"}</td>
-                  <td>{item.grade ?? "—"}</td>
-                  <td>{item.order}</td>
-                  <td><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(item)}>Delete</button></div></td>
+                  <td data-mobile-primary="Degree" data-mobile-label="Degree"><button className="ctl-link-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>{item.degree}</button><div className="ctl-row-sub">{item.field ?? ""}</div></td>
+                  <td data-mobile-label="Institution">{item.institution}</td>
+                  <td data-mobile-label="Years">{item.startYear} – {item.endYear ?? "Present"}</td>
+                  <td data-mobile-label="Grade">{item.grade ?? "—"}</td>
+                  <td data-mobile-label="Order">{item.order}</td>
+                  <td data-mobile-label="Actions"><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(item)}>Delete</button></div></td>
                 </tr>
               ))}
             </tbody>

@@ -69,7 +69,7 @@ export function Login({ onSuccess }: LoginProps) {
           {challenge ? "Two-factor verification required." : "Sign in to manage your portfolio. Sessions are private and audit-logged."}
         </p>
         {!challenge ? (
-          <form onSubmit={submitPassword} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
+          <form onSubmit={submitPassword} className="ctl-login-form">
             <div className="ctl-field">
               <label htmlFor="ctl-email">Email</label>
               <input id="ctl-email" className="ctl-input" type="email" required autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
@@ -79,22 +79,22 @@ export function Login({ onSuccess }: LoginProps) {
               <input id="ctl-password" className="ctl-input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" />
             </div>
             {error && <div className="ctl-alert" role="alert">{error}</div>}
-            <button className="ctl-btn ctl-btn--primary" type="submit" disabled={busy} style={{ justifyContent: "center" }}>
+            <button className="ctl-btn ctl-btn--primary ctl-btn--center" type="submit" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
-            <p style={{ fontSize: 12, color: "#8a93a3" }}>Failed attempts are rate-limited and logged. No account hints are revealed.</p>
+            <p className="ctl-login-note">Failed attempts are rate-limited and logged. No account hints are revealed.</p>
           </form>
         ) : (
-          <form onSubmit={submitCode} style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
+          <form onSubmit={submitCode} className="ctl-login-form">
             <div className="ctl-field">
               <label htmlFor="ctl-code">6-digit code or recovery code</label>
               <input id="ctl-code" className="ctl-input" inputMode="text" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="123 456 or XXXXX-XXXXX" autoFocus />
             </div>
             {error && <div className="ctl-alert" role="alert">{error}</div>}
-            <button className="ctl-btn ctl-btn--primary" type="submit" disabled={busy} style={{ justifyContent: "center" }}>
+            <button className="ctl-btn ctl-btn--primary ctl-btn--center" type="submit" disabled={busy}>
               {busy ? "Verifying…" : "Verify"}
             </button>
-            <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => { setChallenge(null); setCode(""); setError(null); }} style={{ justifyContent: "center" }}>
+            <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--center" onClick={() => { setChallenge(null); setCode(""); setError(null); }}>
               Back to password
             </button>
           </form>

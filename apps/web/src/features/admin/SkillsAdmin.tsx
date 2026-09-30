@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import type { Skill } from "@hp/shared";
+import type { Project, Skill } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchInput, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 
 const EMPTY: Partial<Skill> = {
@@ -12,10 +13,12 @@ const EMPTY: Partial<Skill> = {
 
 export function SkillsAdmin() {
   const [items, setItems] = useState<Skill[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [editing, setEditing] = useState<Partial<Skill> | null>(null);
   const [query, setQuery] = usePersistentState("ctl:skill:q", "");
   const [category, setCategory] = usePersistentState("ctl:skill:cat", "ALL");
   const [level, setLevel] = usePersistentState("ctl:skill:lvl", "ALL");
+  const [view, setView] = usePersistentState<"groups" | "table">("ctl:skill:view", "groups");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +37,7 @@ export function SkillsAdmin() {
       const r = await api.admin.skills();
       setItems(r.skills);
       setSelected(new Set());
+      void api.projects().then((result) => setProjects(result.projects)).catch(() => setProjects([]));
     } catch (e) {
       setError(friendlyError(e));
     } finally {
@@ -114,6 +118,16 @@ export function SkillsAdmin() {
   };
 
   const allChecked = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+  const projectByReference = useMemo(() => {
+    const map = new Map<string, Project>();
+    projects.forEach((project) => [project.title, project.slug, project.codename].forEach((value) => {
+      if (value?.trim()) map.set(value.trim().toLowerCase(), project);
+    }));
+    return map;
+  }, [projects]);
+  const groups = useMemo(() => [...new Set(filtered.map((skill) => skill.category))], [filtered]);
+  const categoryLabel = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const levelRank: Record<string, number> = { experimental: 1, exploring: 2, working: 3, core: 4 };
 
   const remove = async () => {
     if (!toDelete) return;
@@ -132,15 +146,20 @@ export function SkillsAdmin() {
 
   return (
     <>
-      <PageHead title="Skills" desc={`${filtered.length} of ${items.length} skill${items.length === 1 ? "" : "s"}.`}
+      <PageHead title="Skills" desc={`${filtered.length} of ${items.length} capabilities · levels are shown exactly as stored.`}
         actions={<><SearchInput value={query} onChange={setQuery} label="Search skills" placeholder="Search skills…" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New skill</button></>} />
       <div className="ctl-toolbar">
-        <select className="ctl-select" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: "auto" }} aria-label="Filter by category">
+        <select className="ctl-select ctl-filter-select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Filter by category">
           {["ALL", "LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML", "CLOUD_DEVOPS", "SECURITY", "MOBILE", "BLOCKCHAIN", "EXPERIMENTAL"].map((c) => (<option key={c} value={c}>{c === "ALL" ? "All categories" : c}</option>))}
         </select>
-        <select className="ctl-select" value={level} onChange={(e) => setLevel(e.target.value)} style={{ width: "auto" }} aria-label="Filter by level">
+        <select className="ctl-select ctl-filter-select" value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Filter by level">
           {["ALL", "core", "working", "exploring", "experimental"].map((l) => (<option key={l} value={l}>{l === "ALL" ? "All levels" : l}</option>))}
         </select>
+        <label className="ctl-selectpage"><input type="checkbox" checked={allChecked} onChange={(event) => setSelected(event.target.checked ? new Set(filtered.map((skill) => skill.id)) : new Set())} aria-label="Select all visible skills" />Select visible</label>
+        <div className="ctl-view-toggle" role="group" aria-label="Skills layout">
+          <button type="button" aria-pressed={view === "groups"} onClick={() => setView("groups")}><AdminIcon name="skills" size={15} />Groups</button>
+          <button type="button" aria-pressed={view === "table"} onClick={() => setView("table")}><AdminIcon name="projects" size={15} />Table</button>
+        </div>
         {(query || category !== "ALL" || level !== "ALL") && <button className="ctl-mini-btn" onClick={() => { setQuery(""); setCategory("ALL"); setLevel("ALL"); }}>Clear filters</button>}
         {selected.size > 0 && (
           <div className="ctl-bulkbar" role="toolbar" aria-label="Bulk actions">
@@ -159,7 +178,45 @@ export function SkillsAdmin() {
               ? <button className="ctl-btn ctl-btn--secondary ctl-btn--sm" onClick={() => { setQuery(""); setCategory("ALL"); setLevel("ALL"); }}>Clear search</button>
               : <button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New skill</button>}
           />
-        : (
+        : view === "groups" ? (
+          <div className="ctl-skill-groups">
+            {groups.map((group) => {
+              const skills = filtered.filter((skill) => skill.category === group);
+              return <section className="ctl-skill-group" key={group}>
+                <div className="ctl-skill-group-head"><h2>{categoryLabel(group)}</h2><span>{skills.length} skill{skills.length === 1 ? "" : "s"}</span></div>
+                <div className="ctl-skill-card-grid">
+                  {skills.map((skill) => {
+                    const rank = levelRank[skill.level] ?? 1;
+                    return <article className="ctl-skill-card" data-level={skill.level} key={skill.id}>
+                      <div className="ctl-skill-card-head">
+                        <label className="ctl-skill-select"><input type="checkbox" checked={selected.has(skill.id)} onChange={(event) => setSelected((prev) => { const next = new Set(prev); if (event.target.checked) next.add(skill.id); else next.delete(skill.id); return next; })} aria-label={`Select ${skill.name}`} /></label>
+                        <button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...skill }); setDirty(false); }}>{skill.name}</button>
+                        {skill.featured && <Badge tone="blue">Featured</Badge>}
+                      </div>
+                      <div className="ctl-skill-proficiency">
+                        <span className="ctl-proficiency-meter" role="img" aria-label={`Level recorded: ${skill.level}`}>
+                          {Array.from({ length: 4 }, (_, index) => <i key={index} className={index < rank ? "active" : ""} />)}
+                        </span>
+                        <span>Level recorded: <b>{categoryLabel(skill.level)}</b></span>
+                      </div>
+                      {skill.description && <p className="ctl-skill-description">{skill.description}</p>}
+                      <div className="ctl-skill-evidence">
+                        <strong>Project evidence</strong>
+                        {skill.usedIn.length ? <ul>{skill.usedIn.map((reference) => {
+                          const project = projectByReference.get(reference.trim().toLowerCase());
+                          return <li key={`${skill.id}:${reference}`}>{project ? <a href={`/projects/${project.slug}`} target="_blank" rel="noopener noreferrer">{reference}</a> : <span className="is-orphan" title="This stored reference does not match a current project title, slug, or codename">Unmatched: {reference}</span>}</li>;
+                        })}</ul> : <span className="ctl-hint">No project evidence recorded.</span>}
+                      </div>
+                      {skill.relatedConcepts.length > 0 && <div className="ctl-tech-list">{skill.relatedConcepts.slice(0, 4).map((concept) => <span key={concept}>{concept}</span>)}{skill.relatedConcepts.length > 4 && <span>+{skill.relatedConcepts.length - 4}</span>}</div>}
+                      <div className="ctl-skill-card-foot"><span>{skill.order} · public order</span><button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => { setEditing({ ...skill }); setDirty(false); }}>Edit skill</button></div>
+                    </article>;
+                  })}
+                </div>
+              </section>;
+            })}
+            <p className="ctl-data-note">Project evidence uses the text labels stored on each skill. The current schema does not link certificates to skills.</p>
+          </div>
+        ) : (
           <div className="ctl-table-wrap">
             <table className="ctl-table">
               <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((s) => s.id)) : new Set())} aria-label="Select all skills" /></th><th>Name</th><th>Category</th><th>Level</th><th>Order</th><th><span className="ctl-th-static">Actions</span></th></tr></thead>
@@ -167,11 +224,11 @@ export function SkillsAdmin() {
                 {filtered.map((s) => (
                   <tr key={s.id} className={selected.has(s.id) ? "selected" : ""}>
                     <td><input type="checkbox" checked={selected.has(s.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(s.id); else n.delete(s.id); return n; })} aria-label={`Select ${s.name}`} /></td>
-                    <td><button className="ctl-link-btn" onClick={() => { setEditing({ ...s }); setDirty(false); }}>{s.name}</button> {s.featured && <Badge tone="amber">FEATURED</Badge>}</td>
-                    <td><Badge tone="neutral">{s.category}</Badge></td>
-                    <td><Badge tone={s.level === "core" ? "blue" : s.level === "working" ? "green" : "gray"}>{s.level}</Badge></td>
-                    <td>{s.order}</td>
-                    <td><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...s }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(s)}>Delete</button></div></td>
+                    <td data-mobile-primary><button className="ctl-link-btn" onClick={() => { setEditing({ ...s }); setDirty(false); }}>{s.name}</button> {s.featured && <Badge tone="blue">Featured</Badge>}</td>
+                    <td data-mobile-label="Category"><Badge tone="neutral">{categoryLabel(s.category)}</Badge></td>
+                    <td data-mobile-label="Level">{categoryLabel(s.level)}</td>
+                    <td data-mobile-label="Order">{s.order}</td>
+                    <td data-mobile-label="Actions"><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...s }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(s)}>Delete</button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -195,7 +252,9 @@ export function SkillsAdmin() {
               </select>
             </div>
             <div className="ctl-field full"><label htmlFor="sk-desc">Description</label><textarea id="sk-desc" className="ctl-textarea" rows={2} value={editing.description ?? ""} onChange={(e) => setEdit({ description: e.target.value })} /></div>
-            <div className="ctl-field"><label>Flags</label><label style={{ fontSize: 13 }}><input type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured</label></div>
+            <div className="ctl-field full"><label htmlFor="sk-used-in">Project evidence labels</label><textarea id="sk-used-in" className="ctl-textarea" rows={2} value={(editing.usedIn ?? []).join("\n")} onChange={(e) => setEdit({ usedIn: e.target.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean) })} placeholder="One stored project title or codename per line" /><span className="ctl-field-hint">These are text labels in the current schema. Matching titles, slugs and codenames link to projects.</span></div>
+            <div className="ctl-field full"><label htmlFor="sk-concepts">Related concepts</label><input id="sk-concepts" className="ctl-input" value={(editing.relatedConcepts ?? []).join(", ")} onChange={(e) => setEdit({ relatedConcepts: e.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="e.g. Retrieval augmented generation, vector search" /></div>
+            <div className="ctl-field"><label>Flags</label><label className="ctl-featured-check"><input type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured</label></div>
           </div>
         )}
       </Dialog>

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../../lib/api";
+import { AdminIcon } from "./Icon";
 import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, Field, PageHead, friendlyError, useToast } from "./ui";
 
 interface Overview {
@@ -69,7 +70,7 @@ function Section({
         {action}
       </div>
       {loading ? (
-        <p style={{ color: "#8a93a3", fontSize: 13 }}>Loading…</p>
+        <p className="ctl-sec-muted">Loading…</p>
       ) : error ? (
         <ErrorState message={error} onRetry={onRetry} />
       ) : (
@@ -106,6 +107,7 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
 
   // 2fa wizard: 1 scan → 2 verify → 3 codes
   const [setup, setSetup] = useState<{ secret: string; qrDataUrl: string | null; otpauthUrl: string } | null>(null);
+  const pendingSetup = useRef(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [verifyCode, setVerifyCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
@@ -154,6 +156,10 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
       live = false;
     };
   }, [loadOverview, loadSessions, loadEvents]);
+
+  useEffect(() => () => {
+    if (pendingSetup.current) void api.twofaCancelSetup().catch(() => undefined);
+  }, []);
 
   const needReauth = (label: string, fn: () => void) => {
     setPendingAction({ label, run: fn });
@@ -212,6 +218,7 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
     setBusy2fa(true);
     try {
       const r = await api.twofaSetup();
+      pendingSetup.current = true;
       setSetup(r);
       setWizardStep(1);
       setVerifyCode("");
@@ -235,6 +242,7 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
     setBusy2fa(true);
     try {
       const r = await api.twofaEnable(verifyCode.trim());
+      pendingSetup.current = false;
       setRecoveryCodes(r.recoveryCodes);
       setWizardStep(3);
       setSetup(null);
@@ -269,6 +277,24 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
       } else {
         push({ kind: "error", title: "Disable failed", desc: msg });
       }
+    } finally {
+      setBusy2fa(false);
+    }
+  };
+
+  const cancelSetup = async () => {
+    if (busy2fa) return;
+    setBusy2fa(true);
+    try {
+      await api.twofaCancelSetup();
+      pendingSetup.current = false;
+      setSetup(null);
+      setVerifyCode("");
+      push({ kind: "info", title: "2FA setup cancelled" });
+    } catch (e) {
+      const msg = friendlyError(e);
+      if (/Recent authentication/i.test(msg)) needReauth("cancel 2FA setup", () => void cancelSetup());
+      else push({ kind: "error", title: "Could not cancel setup", desc: msg });
     } finally {
       setBusy2fa(false);
     }
@@ -349,21 +375,21 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
       <div className="ctl-sec-grid">
         <Section title="AUTHENTICATION" loading={loading && !overview && !overviewError} error={overviewError} onRetry={() => void loadOverview()}>
           {overview ? (
-            <dl style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13.5, margin: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><dt>Signed in as</dt><dd style={{ margin: 0 }}><b>{overview.email}</b></dd></div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><dt>Role</dt><dd style={{ margin: 0 }}><Badge tone="blue">{overview.role}</Badge></dd></div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><dt>Password last changed</dt><dd style={{ margin: 0 }}><b>{overview.passwordChangedAt ? new Date(overview.passwordChangedAt).toLocaleString() : "Never recorded"}</b></dd></div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><dt>Two-factor</dt><dd style={{ margin: 0 }}><Badge tone={overview.totpEnabled ? "green" : "amber"}>{overview.totpEnabled ? "ENABLED" : "DISABLED"}</Badge></dd></div>
+            <dl className="ctl-sec-facts">
+              <div className="ctl-sec-fact"><dt>Signed in as</dt><dd><b>{overview.email}</b></dd></div>
+              <div className="ctl-sec-fact"><dt>Role</dt><dd><Badge tone="blue">{overview.role}</Badge></dd></div>
+              <div className="ctl-sec-fact"><dt>Password last changed</dt><dd><b>{overview.passwordChangedAt ? new Date(overview.passwordChangedAt).toLocaleString() : "Never recorded"}</b></dd></div>
+              <div className="ctl-sec-fact"><dt>Two-factor</dt><dd><Badge tone={overview.totpEnabled ? "green" : "amber"}>{overview.totpEnabled ? "ENABLED" : "DISABLED"}</Badge></dd></div>
               {overview.totpEnabled && (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><dt>Recovery codes left</dt><dd style={{ margin: 0 }}><b>{overview.recoveryCodesRemaining}</b></dd></div>
+                <div className="ctl-sec-fact"><dt>Recovery codes left</dt><dd><b>{overview.recoveryCodesRemaining}</b></dd></div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><dt>Last login</dt><dd style={{ margin: 0 }}><b>{overview.lastLoginAt ? new Date(overview.lastLoginAt).toLocaleString() : "—"}</b></dd></div>
+              <div className="ctl-sec-fact"><dt>Last login</dt><dd><b>{overview.lastLoginAt ? new Date(overview.lastLoginAt).toLocaleString() : "—"}</b></dd></div>
             </dl>
           ) : null}
         </Section>
 
         <Section title="CHANGE PASSWORD" loading={false} error={null} onRetry={() => undefined}>
-          <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <form onSubmit={changePassword} className="ctl-sec-form">
             <Field label="Current password" required error={pwError ?? undefined}>
               {(id) => <input id={id} className="ctl-input" type={showPw ? "text" : "password"} autoComplete="current-password" required value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} />}
             </Field>
@@ -373,31 +399,31 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
             {newPw && (
               <div id="sec-pw-meter" role="status" aria-label={`Password strength: ${SCORE_LABEL[score]}`}>
                 <div className="ctl-meter"><i className={`ctl-meter-${score}`} /></div>
-                <span style={{ fontSize: 12, color: "#6b7280" }}>{SCORE_LABEL[score]}</span>
+                <span className="ctl-sec-muted">{SCORE_LABEL[score]}</span>
               </div>
             )}
             <Field label="Confirm new password" required>
               {(id) => <input id={id} className="ctl-input" type={showPw ? "text" : "password"} autoComplete="new-password" required value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}
             </Field>
-            <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center" }}>
+            <label className="ctl-sec-checkbox">
               <input type="checkbox" checked={showPw} onChange={(e) => setShowPw(e.target.checked)} /> Show passwords
             </label>
-            <button type="submit" className="ctl-btn ctl-btn--primary" disabled={pwBusy} style={{ justifyContent: "center" }}>{pwBusy ? "Changing…" : "Change password"}</button>
-            <p style={{ fontSize: 12, color: "#8a93a3" }}>Changing your password revokes all other sessions.</p>
+            <button type="submit" className="ctl-btn ctl-btn--primary ctl-sec-submit" disabled={pwBusy}>{pwBusy ? "Changing…" : "Change password"}</button>
+            <p className="ctl-sec-note">Changing your password revokes all other sessions.</p>
           </form>
         </Section>
       </div>
 
-      <div className="ctl-sec-grid" style={{ marginTop: 12 }}>
+      <div className="ctl-sec-grid ctl-sec-grid--spaced">
         <Section title="TWO-FACTOR AUTHENTICATION" loading={false} error={null} onRetry={() => undefined}>
           {!overview?.totpEnabled ? (
             !setup && !recoveryCodes ? (
               <>
-                <p style={{ fontSize: 13.5, color: "#4b5563" }}>Add TOTP (authenticator app) as a second factor. You will enter a 6-digit code after your password.</p>
-                <button type="button" className="ctl-btn ctl-btn--primary" onClick={() => void startSetup()} disabled={busy2fa} style={{ marginTop: 10 }}>{busy2fa ? "Preparing…" : "Start setup"}</button>
+                <p className="ctl-sec-intro">Add TOTP (authenticator app) as a second factor. You will enter a 6-digit code after your password.</p>
+                <button type="button" className="ctl-btn ctl-btn--primary ctl-sec-top-space" onClick={() => void startSetup()} disabled={busy2fa}>{busy2fa ? "Preparing…" : "Start setup"}</button>
               </>
             ) : setup ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="ctl-sec-form">
                 <div className="ctl-steps" aria-label="2FA setup progress">
                   <span className={`ctl-step${wizardStep >= 1 ? " active" : ""}`}>1 · Scan</span>
                   <span className={`ctl-step${wizardStep >= 2 ? " active" : ""}`}>2 · Verify</span>
@@ -405,57 +431,58 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
                 </div>
                 {wizardStep === 1 && (
                   <>
-                    {setup.qrDataUrl && <img src={setup.qrDataUrl} alt="Scan this QR code with your authenticator app" width={180} height={180} style={{ borderRadius: 12, border: "1px solid #e6e8ee" }} />}
+                    {setup.qrDataUrl && <img className="ctl-sec-qr" src={setup.qrDataUrl} alt="Scan this QR code with your authenticator app" width={180} height={180} />}
                     <Field label="Manual entry secret">
                       {(id) => (
-                        <span style={{ display: "flex", gap: 8 }}>
-                          <input id={id} className="ctl-input" readOnly value={setup.secret} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+                        <span className="ctl-sec-copy-row">
+                          <input id={id} className="ctl-input" readOnly value={setup.secret} onFocus={(e) => e.target.select()} />
                           <button type="button" className="ctl-mini-btn" onClick={() => navigator.clipboard.writeText(setup.secret).catch(() => undefined)}>Copy</button>
                         </span>
                       )}
                     </Field>
-                    <p style={{ fontSize: 12, color: "#6b7280" }}>Can't scan? Enter the secret manually — the app name and issuer are encoded in the QR.</p>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <p className="ctl-sec-note">Can't scan? Enter the secret manually — the app name and issuer are encoded in the QR.</p>
+                    <div className="ctl-sec-actions">
                       <button type="button" className="ctl-btn ctl-btn--primary" onClick={() => setWizardStep(2)}>Continue</button>
-                      <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => setSetup(null)}>Cancel</button>
+                      <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => void cancelSetup()} disabled={busy2fa}>Cancel setup</button>
                     </div>
                   </>
                 )}
                 {wizardStep === 2 && (
-                  <form onSubmit={confirmEnable} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <form onSubmit={confirmEnable} className="ctl-sec-form">
                     <Field label="6-digit code from your app" required>
                       {(id) => <input id={id} className="ctl-input" inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="one-time-code" required value={verifyCode} onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" autoFocus />}
                     </Field>
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className="ctl-sec-actions">
                       <button type="submit" className="ctl-btn ctl-btn--primary" disabled={busy2fa}>{busy2fa ? "Verifying…" : "Verify & enable"}</button>
                       <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => setWizardStep(1)}>Back</button>
+                      <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => void cancelSetup()} disabled={busy2fa}>Cancel setup</button>
                     </div>
                   </form>
                 )}
               </div>
             ) : null
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <p style={{ fontSize: 13.5, color: "#4b5563" }}>Enabled{overview.totpEnabledAt ? ` since ${new Date(overview.totpEnabledAt).toLocaleDateString()}` : ""}.</p>
+            <div className="ctl-sec-form">
+              <p className="ctl-sec-intro">Enabled{overview.totpEnabledAt ? ` since ${new Date(overview.totpEnabledAt).toLocaleDateString()}` : ""}.</p>
               <p className="ctl-reauth-note">Disabling 2FA or regenerating codes needs re-verification first.</p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div className="ctl-sec-actions ctl-sec-actions--wrap">
                 <button type="button" className="ctl-btn ctl-btn--secondary ctl-btn--sm" onClick={() => void regenCodes()} disabled={busy2fa}>Regenerate recovery codes</button>
                 <button type="button" className="ctl-btn ctl-btn--danger ctl-btn--sm" onClick={() => setConfirmDisable(true)}>Disable 2FA…</button>
               </div>
             </div>
           )}
           {recoveryCodes && wizardStep === 3 && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ fontSize: 13, fontWeight: 700 }}>Recovery codes — shown once. Store them safely.</p>
-              <div className="ctl-code-grid" style={{ marginTop: 8 }}>{recoveryCodes.map((c) => (<span key={c}>{c}</span>))}</div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <div className="ctl-sec-recovery">
+              <p className="ctl-sec-recovery-title">Recovery codes — shown once. Store them safely.</p>
+              <div className="ctl-code-grid">{recoveryCodes.map((c) => (<span key={c}>{c}</span>))}</div>
+              <div className="ctl-sec-actions ctl-sec-actions--wrap">
                 <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => navigator.clipboard.writeText(recoveryCodes.join("\n")).catch(() => undefined)}>Copy codes</button>
                 <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={downloadCodes}>Download .txt</button>
               </div>
-              <label style={{ fontSize: 13, display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+              <label className="ctl-sec-checkbox ctl-sec-top-space">
                 <input type="checkbox" checked={codesSaved} onChange={(e) => setCodesSaved(e.target.checked)} /> I saved these codes somewhere safe
               </label>
-              <button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm" disabled={!codesSaved} style={{ marginTop: 8 }} onClick={finishWizard}>Done</button>
+              <button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm ctl-sec-top-space" disabled={!codesSaved} onClick={finishWizard}>Done</button>
             </div>
           )}
         </Section>
@@ -472,9 +499,9 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
           ) : (
             <div className="ctl-list">
               {events.slice(0, 12).map((l) => (
-                <div key={l.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f2f6", fontSize: 12.5 }}>
-                  <span style={{ fontFamily: "monospace", fontWeight: 700, color: l.action.includes("FAILURE") ? "#c0362c" : "#0a55d6" }}>{l.action}</span>
-                  <span style={{ marginLeft: "auto", color: "#8a93a3" }}>{new Date(l.createdAt).toLocaleString()}</span>
+                <div key={l.id} className="ctl-sec-event">
+                  <span className={`ctl-sec-event-action${l.action.includes("FAILURE") ? " is-danger" : ""}`}>{l.action}</span>
+                  <span className="ctl-sec-event-time">{new Date(l.createdAt).toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -485,7 +512,7 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
       <Section
         title={`SESSIONS (${sessions.length} ACTIVE)`}
         action={
-          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span className="ctl-sec-actions ctl-sec-actions--wrap">
             <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => void revokeOthers()}>Revoke others</button>
             <button type="button" className="ctl-btn ctl-btn--danger ctl-btn--sm" onClick={() => setConfirmRevokeAll(true)}>Revoke all…</button>
           </span>
@@ -494,32 +521,41 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
         error={sessionsError}
         onRetry={() => void loadSessions()}
       >
-        <p className="ctl-reauth-note" style={{ marginBottom: 8 }}>Revoking all sessions signs you out everywhere and needs re-verification.</p>
+        <p className="ctl-reauth-note ctl-sec-session-note">Revoking all sessions signs you out everywhere and needs re-verification.</p>
         {sessions.length === 0 ? (
           <EmptyState title="No active sessions" desc="You appear to be signed out everywhere." />
         ) : (
           <div>
             {sessions.map((s) => (
-              <div className="ctl-session-row" key={s.id}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <b style={{ fontSize: 13 }}>{s.device}</b>
+              <article className="ctl-session-row" key={s.id}>
+                <div className="ctl-session-main">
+                  <div className="ctl-session-title">
+                    <span className="ctl-session-icon"><AdminIcon name="panel" size={17} /></span>
+                    <b>{s.device}</b>
                     {s.current && <Badge tone="green">THIS SESSION</Badge>}
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, overflowWrap: "anywhere" }}>
-                    {s.ip ?? "unknown IP"} · last active {new Date(s.lastSeenAt).toLocaleString()} · expires {new Date(s.expiresAt).toLocaleDateString()}
+                  <div className="ctl-session-summary">
+                    Last active {new Date(s.lastSeenAt).toLocaleString()} · expires {new Date(s.expiresAt).toLocaleDateString()}
                   </div>
-                  <div style={{ fontSize: 11, color: "#9aa1ad", overflowWrap: "anywhere" }}>{s.userAgent ?? ""}</div>
+                  <details className="ctl-session-details">
+                    <summary>Technical details</summary>
+                    <dl>
+                      <div><dt>IP address</dt><dd>{s.ip ?? "Unavailable"}</dd></div>
+                      <div><dt>Browser and device</dt><dd>{s.userAgent ?? "Unavailable"}</dd></div>
+                      <div><dt>Started</dt><dd>{new Date(s.createdAt).toLocaleString()}</dd></div>
+                      <div><dt>Expires</dt><dd>{new Date(s.expiresAt).toLocaleString()}</dd></div>
+                    </dl>
+                  </details>
                 </div>
                 <button type="button" className="ctl-mini-btn danger" onClick={() => setRevokeTarget(s)} aria-label={`Revoke session on ${s.device}`}>Revoke</button>
-              </div>
+              </article>
             ))}
           </div>
         )}
       </Section>
 
       <Dialog open={reauthOpen} onClose={() => setReauthOpen(false)} title="Confirm it is you" description={pendingAction ? `To ${pendingAction.label}, verify again (valid ~10 minutes).` : "Sensitive actions need a fresh verification (valid ~10 minutes)."}>
-        <form onSubmit={doReauth} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <form onSubmit={doReauth} className="ctl-sec-form">
           <Field label="Password" required>
             {(id) => <input id={id} className="ctl-input" type="password" required value={reauthPw} onChange={(e) => setReauthPw(e.target.value)} autoFocus autoComplete="current-password" />}
           </Field>
@@ -528,7 +564,7 @@ export function SecurityCenter({ onSessionChange }: { onSessionChange: () => voi
               {(id) => <input id={id} className="ctl-input" value={reauthCode} onChange={(e) => setReauthCode(e.target.value)} required autoComplete="one-time-code" />}
             </Field>
           )}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <div className="ctl-sec-actions ctl-sec-actions--end">
             <button type="button" className="ctl-btn ctl-btn--ghost" onClick={() => setReauthOpen(false)}>Cancel</button>
             <button type="submit" className="ctl-btn ctl-btn--primary" disabled={reauthBusy}>{reauthBusy ? "Verifying…" : "Verify"}</button>
           </div>

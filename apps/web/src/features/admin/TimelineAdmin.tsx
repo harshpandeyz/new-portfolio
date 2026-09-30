@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { TimelineItem } from "@hp/shared";
+import { AdminIcon } from "./Icon";
 import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchInput, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 
 const EMPTY: Partial<TimelineItem> = {
@@ -15,6 +16,7 @@ export function TimelineAdmin() {
   const [editing, setEditing] = useState<Partial<TimelineItem> | null>(null);
   const [query, setQuery] = usePersistentState("ctl:tl:q", "");
   const [type, setType] = usePersistentState("ctl:tl:type", "ALL");
+  const [view, setView] = usePersistentState<"timeline" | "table">("ctl:timeline:view", "timeline");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,7 +59,14 @@ export function TimelineAdmin() {
     return items
       .filter((t) => (type === "ALL" ? true : t.type === type))
       .filter((t) => (!q ? true : `${t.title} ${t.organization ?? ""}`.toLowerCase().includes(q)))
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => {
+        const rank = (value: string) => {
+          const normalized = /^\d{4}$/.test(value) ? `${value}-01-01` : /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : value;
+          const parsed = Date.parse(normalized);
+          return Number.isNaN(parsed) ? 0 : parsed;
+        };
+        return rank(b.date) - rank(a.date) || (a.order ?? 0) - (b.order ?? 0);
+      });
   }, [items, query, type]);
 
   const setEdit = (patch: Partial<TimelineItem>) => {
@@ -132,9 +141,9 @@ export function TimelineAdmin() {
   return (
     <>
       <PageHead title="Timeline" desc={`${filtered.length} of ${items.length} entr${items.length === 1 ? "y" : "ies"} · shown chronologically publicly.`}
-        actions={<><SearchInput value={query} onChange={setQuery} label="Search timeline" placeholder="Search entries…" /><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New entry</button></>} />
+        actions={<><SearchInput value={query} onChange={setQuery} label="Search timeline" placeholder="Search entries…" /><div className="ctl-view-toggle" role="group" aria-label="Timeline layout"><button className={view === "timeline" ? "active" : ""} aria-pressed={view === "timeline"} onClick={() => setView("timeline")}><AdminIcon name="timeline" size={15} /><span>Timeline</span></button><button className={view === "table" ? "active" : ""} aria-pressed={view === "table"} onClick={() => setView("table")}><AdminIcon name="audit" size={15} /><span>Table</span></button></div><button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>New entry</button></>} />
       <div className="ctl-toolbar">
-        <select className="ctl-select" value={type} onChange={(e) => setType(e.target.value)} style={{ width: "auto" }} aria-label="Filter by type">
+        <select className="ctl-select ctl-select--auto" value={type} onChange={(e) => setType(e.target.value)} aria-label="Filter by type">
           {["ALL", "education", "project", "certification", "experience", "competition", "milestone"].map((t) => (<option key={t} value={t}>{t === "ALL" ? "All types" : t}</option>))}
         </select>
         {(query || type !== "ALL") && <button className="ctl-mini-btn" onClick={() => { setQuery(""); setType("ALL"); }}>Clear filters</button>}
@@ -156,18 +165,24 @@ export function TimelineAdmin() {
               : <button className="ctl-btn ctl-btn--primary" onClick={() => { setEditing({ ...EMPTY }); setDirty(false); }}>+ New entry</button>}
           />
         : (
-          <div className="ctl-table-wrap">
+          view === "timeline" ? <div className="ctl-timeline">
+            {filtered.map((item) => <article className="ctl-timeline-item" key={item.id}>
+              <div className="ctl-timeline-top"><div><Badge tone="neutral">{item.type}</Badge>{item.organization && <span className="ctl-timeline-org">{item.organization}</span>}</div><time className="ctl-timeline-date">{item.date}{item.endDate ? ` – ${item.endDate}` : ""}</time></div>
+              <h2>{item.title}</h2>{item.description && <p>{item.description}</p>}
+              <div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(item)}>Delete</button></div>
+            </article>)}
+          </div> : <div className="ctl-table-wrap">
             <table className="ctl-table">
               <thead><tr><th><input type="checkbox" checked={allChecked} onChange={(e) => setSelected(e.target.checked ? new Set(filtered.map((x) => x.id)) : new Set())} aria-label="Select all entries" /></th><th>Title</th><th>Type</th><th>Date</th><th>Order</th><th><span className="ctl-th-static">Actions</span></th></tr></thead>
               <tbody>
                 {filtered.map((t) => (
                   <tr key={t.id} className={selected.has(t.id) ? "selected" : ""}>
-                    <td><input type="checkbox" checked={selected.has(t.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(t.id); else n.delete(t.id); return n; })} aria-label={`Select ${t.title}`} /></td>
-                    <td><button className="ctl-link-btn" onClick={() => { setEditing({ ...t }); setDirty(false); }}>{t.title}</button><div className="ctl-row-sub">{t.organization ?? ""}</div></td>
-                    <td><Badge tone="neutral">{t.type}</Badge></td>
-                    <td style={{ whiteSpace: "nowrap" }}>{t.date}{t.endDate ? ` → ${t.endDate}` : ""}</td>
-                    <td>{t.order}</td>
-                    <td><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...t }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(t)}>Delete</button></div></td>
+                    <td data-mobile-label="Select"><input type="checkbox" checked={selected.has(t.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(t.id); else n.delete(t.id); return n; })} aria-label={`Select ${t.title}`} /></td>
+                    <td data-mobile-primary="Title" data-mobile-label="Title"><button className="ctl-link-btn" onClick={() => { setEditing({ ...t }); setDirty(false); }}>{t.title}</button><div className="ctl-row-sub">{t.organization ?? ""}</div></td>
+                    <td data-mobile-label="Type"><Badge tone="neutral">{t.type}</Badge></td>
+                    <td data-mobile-label="Date">{t.date}{t.endDate ? ` – ${t.endDate}` : ""}</td>
+                    <td data-mobile-label="Order">{t.order}</td>
+                    <td data-mobile-label="Actions"><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...t }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(t)}>Delete</button></div></td>
                   </tr>
                 ))}
               </tbody>
