@@ -1,7 +1,7 @@
 import type {
   Profile, Project, Certificate, Skill, Education, TimelineItem,
   SystemStats, ChatReply, GithubOverview, AuditLogEntry, ContactMessage, MediaAsset, SiteSettings,
-  MessageReply, MessageStatus,
+  MessageReply, MessageStatus, AiProvider, InterviewReply,
 } from "@hp/shared";
 
 export type { MessageReply };
@@ -195,6 +195,8 @@ export const api = {
     request<SystemStats>("/api/stats", { signal }),
   chat: (message: string, signal?: AbortSignal) =>
     request<ChatReply>("/api/chat", { method: "POST", json: { message }, signal, timeout: CHAT_TIMEOUT }),
+  interview: (input: { action: "start" | "answer" | "end"; answer?: string; history?: { role: "ai" | "user"; text: string }[] }, signal?: AbortSignal) =>
+    request<InterviewReply>("/api/chat/interview", { method: "POST", json: input, signal, timeout: CHAT_TIMEOUT }),
   chatSuggestions: (signal?: AbortSignal) =>
     request<{ suggestions: string[] }>("/api/chat/suggestions", { signal }),
   github: (signal?: AbortSignal) =>
@@ -267,6 +269,16 @@ export const api = {
     updateProfile: (input: unknown) => request<{ profile: Profile }>("/api/profile", { method: "PATCH", json: input }),
     settings: () => request<{ settings: SiteSettings }>("/api/settings"),
     updateSettings: (input: SiteSettings) => request<{ settings: SiteSettings }>("/api/settings", { method: "PATCH", json: input }),
+
+    aiProviders: () =>
+      request<{ providers: AiProvider[]; envFallback: { provider: string; model: string | null; baseUrl: string | null; configured: boolean } }>("/api/ai-providers"),
+    createAiProvider: (input: unknown) => request<{ provider: AiProvider }>("/api/ai-providers", { method: "POST", json: input }),
+    updateAiProvider: (id: string, input: unknown) => request<{ provider: AiProvider }>(`/api/ai-providers/${id}`, { method: "PATCH", json: input }),
+    deleteAiProvider: (id: string) => request<{ ok: boolean }>(`/api/ai-providers/${id}`, { method: "DELETE" }),
+    testAiProvider: (id: string, mode: "connection" | "model") =>
+      request<{ ok: boolean; latencyMs: number; echo: string | null; provider: AiProvider }>(`/api/ai-providers/${id}/test`, { method: "POST", json: { mode }, timeout: 65000 }),
+    rotateAiProviderKey: (id: string, apiKey: string) =>
+      request<{ provider: AiProvider }>(`/api/ai-providers/${id}/rotate`, { method: "POST", json: { apiKey } }),
 
     messages: (params?: { status?: string; page?: number; q?: string; sort?: string }) =>
       request<{ messages: ContactMessage[]; total: number; unread: number; page: number; pageSize: number }>(
