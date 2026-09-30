@@ -151,11 +151,13 @@ const PROJECTS = [
     longDescription:
       "An AI-powered CCTV framework that detects suspicious mob/crowd activity in real time, automatically extracts evidence clips on detection, encrypts them with AES-256, hashes them with SHA-256 and logs the hashes immutably on an Ethereum blockchain via Solidity smart contracts — so footage integrity can be proven, not promised. Includes an authenticated monitoring dashboard.",
     category: "AI / COMPUTER VISION / SECURITY / BLOCKCHAIN",
-    tier: "featured",
+    // Archive-only predecessor of CCTV-X — never a homepage signature slot.
+    // See packages/shared/src/curation.ts. Stays discoverable in /projects.
+    tier: "legacy",
     status: "complete",
-    featured: true,
+    featured: false,
     year: "2024—2025",
-    order: 2,
+    order: 5,
     problem:
       "During mob gatherings, manual monitoring fails at scale and recorded evidence is vulnerable to tampering challenges in legal contexts.",
     solution:
@@ -193,7 +195,7 @@ const PROJECTS = [
     status: "active",
     featured: true,
     year: "2025—2026",
-    order: 3,
+    order: 2,
     problem: "Agent runtimes often lock into a single model or tool chain, leading to cost, latency, or quality mismatches as tasks evolve.",
     solution:
       "A control plane that continuously evaluates model health, context limits, budget, and latency; routes between providers, compresses context, caches responses, and recovers via versioned checkpoints with idempotent tool execution.",
@@ -227,9 +229,9 @@ const PROJECTS = [
     category: "AI / RAG / SEARCH / MULTIMODAL",
     tier: "secondary",
     status: "complete",
-    featured: false,
+    featured: true,
     year: "2025—2026",
-    order: 4,
+    order: 3,
     problem: "LLMs answer confidently but hallucinate; research questions demand grounded, source-linked answers over private document sets.",
     solution:
       "Documents are chunked, embedded with sentence-transformers and indexed in FAISS. At query time the AI service retrieves the most similar chunks and grounds the LLM answer (Groq / OpenAI / Sarvam providers) in them — the model elaborates, the vector store cites.",
@@ -263,9 +265,9 @@ const PROJECTS = [
     category: "FULL-STACK / RECOMMENDATION / BACKEND",
     tier: "secondary",
     status: "complete",
-    featured: false,
+    featured: true,
     year: "2025",
-    order: 5,
+    order: 4,
     problem: "Learners drown in unordered course catalogues; what to learn next should be computed from what they already know.",
     solution:
       "A transparent scoring engine: candidate skills are ranked by category match with the learner's profile, keyword relevance to the target role, and difficulty progression — producing a progressive learning path instead of a flat list.",
@@ -295,9 +297,10 @@ const PROJECTS = [
     longDescription:
       "A native iOS memory-matching game built entirely in Swift and UIKit: card-flip animations, matched-pair tracking, an in-app rules screen, and state persistence with UserDefaults so a player can close the app mid-game and resume later.",
     category: "MOBILE / iOS / GAME",
-    tier: "featured",
+    // Archive-only experiment — never a homepage signature slot.
+    tier: "experiment",
     status: "complete",
-    featured: true,
+    featured: false,
     year: "2026",
     order: 6,
     problem: "A deliberate exercise in learning a third mobile ecosystem (after Android/Kotlin) well enough to ship something complete.",

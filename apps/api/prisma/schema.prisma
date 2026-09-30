@@ -288,3 +288,35 @@ model ChatQueryLog {
 
   @@index([createdAt])
 }
+
+/// ── AI provider configuration (admin-managed, secrets encrypted) ──
+///
+/// API keys are AES-256-GCM encrypted at rest and NEVER returned to the
+/// browser. List/detail responses expose only `hasKey` + `keyHint`
+/// (e.g. "****ab12"). The browser talks to our backend; the backend talks
+/// to the configured LLM provider.
+model AiProviderConfig {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  kind          String    @default("custom")
+  baseUrl       String
+  model         String
+  apiKeyEnc     String?
+  keyHint       String?
+  temperature   Float     @default(0.2)
+  maxTokens     Int       @default(500)
+  timeoutMs     Int       @default(20000)
+  systemPrompt  String?
+  enabled       Boolean   @default(true)
+  priority      Int       @default(0)
+  isFallback    Boolean   @default(false)
+  health        String    @default("unknown")
+  lastLatencyMs Int?
+  lastError     String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([enabled, priority])
+  @@index([health])
+}
