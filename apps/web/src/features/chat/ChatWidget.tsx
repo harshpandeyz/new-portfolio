@@ -14,17 +14,31 @@ interface Msg {
   retry?: string;
 }
 
+interface InterviewMsg {
+  role: "ai" | "user";
+  text: string;
+}
+
+type Tab = "ask" | "interview";
+
 export function ChatWidget() {
   const { publicSettings } = useData();
   const enabled = publicSettings?.chatEnabled !== false;
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("ask");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // interview state
+  const [iturns, setIturns] = useState<InterviewMsg[]>([]);
+  const [ianswer, setIanswer] = useState("");
+  const [ibusy, setIbusy] = useState(false);
+  const [idone, setIdone] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const iInputRef = useRef<HTMLTextAreaElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const chatControllerRef = useRef<AbortController | null>(null);
@@ -51,11 +65,16 @@ export function ChatWidget() {
   }, [openChat]);
 
   useEffect(() => {
-    if (enabled && open && suggestions.length === 0) {
+    if (enabled && open && tab === "ask" && suggestions.length === 0) {
       api.chatSuggestions().then((r) => setSuggestions(r.suggestions.slice(0, 5))).catch(() => undefined);
     }
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 60);
-  }, [enabled, open, suggestions.length]);
+    if (open) {
+      window.setTimeout(() => {
+        if (tab === "ask") inputRef.current?.focus();
+        else iInputRef.current?.focus();
+      }, 60);
+    }
+  }, [enabled, open, suggestions.length, tab]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,7 +86,7 @@ export function ChatWidget() {
       }
       if (event.key !== "Tab") return;
       const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
-        "button:not(:disabled), input:not(:disabled), a[href]",
+        "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), a[href]",
       );
       if (!focusables?.length) return;
       const first = focusables[0]!;
@@ -88,12 +107,11 @@ export function ChatWidget() {
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
+  }, [messages, busy, iturns, ibusy, tab]);
 
   const send = async (text: string) => {
     const q = text.trim();
     if (!q || busy) return;
-    // Cancel any in-flight chat request to prevent stale overwrites.
     chatControllerRef.current?.abort();
     const controller = new AbortController();
     chatControllerRef.current = controller;
@@ -126,6 +144,57 @@ export function ChatWidget() {
       chatControllerRef.current?.abort();
     };
   }, []);
+
+  const startInterview = async () => {
+    if (ibusy) return;
+    setIbusy(true);
+    try {
+      const r = await api.interview({ action: "start", history: iturns });
+      const next: InterviewMsg[] = [];
+      if (r.reaction) next.push({ role: "ai", text: r.reaction });
+      if (r.question) next.push({ role: "ai", text: r.question });
+      setIturns((t) => [...t, ...next]);
+      setIdone(r.done);
+    } catch {
+      setIturns((t) => [...t, { role: "ai", text: "The interview room hit a snag — try starting again in a moment." }]);
+    } finally {
+      setIbusy(false);
+      window.setTimeout(() => iInputRef.current?.focus(), 50);
+    }
+  };
+
+  const sendInterviewAnswer = async () => {
+    const a = ianswer.trim();
+    if (!a || ibusy || idone) return;
+    setIbusy(true);
+    const withAnswer: InterviewMsg[] = [...iturns, { role: "user", text: a }];
+    setIturns(withAnswer);
+    setIanswer("");
+    try {
+      const r = await api.interview({ action: "answer", answer: a, history: withAnswer });
+      const next: InterviewMsg[] = [];
+      if (r.reaction) next.push({ role: "ai", text: r.reaction });
+      if (r.question) next.push({ role: "ai", text: r.question });
+      setIturns((t) => [...t, ...next]);
+      setIdone(r.done);
+    } catch {
+      setIturns((t) => [...t, { role: "ai", text: "I missed that — could you say it once more?" }]);
+      setIanswer(a);
+    } finally {
+      setIbusy(false);
+      window.setTimeout(() => iInputRef.current?.focus(), 50);
+    }
+  };
+
+  const endInterview = async () => {
+    try {
+      await api.interview({ action: "end", history: iturns });
+    } catch {
+      /* best effort */
+    }
+    setIdone(true);
+    setIturns((t) => [...t, { role: "ai", text: "Thanks for the conversation — the case studies and recruiter view have everything we covered, with links." }]);
+  };
 
   const handleLink = (href: string) => {
     closeChat();
@@ -170,86 +239,172 @@ export function ChatWidget() {
             <div className="ai-orb" aria-hidden="true" />
             <div>
               <div className="ai-name">Ask Harsh</div>
-              <div className="ai-status">A quick way to learn more</div>
+              <div className="ai-status">Grounded in the portfolio</div>
             </div>
             <div className="ai-actions">
-              {messages.length > 0 && (
-                <button className="chat-icon-btn" onClick={() => setMessages([])} aria-label="Clear conversation">Clear</button>
+              {(tab === "ask" ? messages.length > 0 : iturns.length > 0) && (
+                <button
+                  className="chat-icon-btn"
+                  onClick={() => (tab === "ask" ? setMessages([]) : (setIturns([]), setIdone(false)))}
+                  aria-label="Clear conversation"
+                >
+                  Clear
+                </button>
               )}
               <button className="chat-icon-btn" onClick={closeChat} aria-label="Close assistant">✕</button>
             </div>
           </div>
 
-          <div className="chat-body" ref={bodyRef} aria-live="polite">
-            {messages.length === 0 && (
-              <div className="msg msg-ai">
-                <div className="msg-bubble">
-                  Hi — ask me about Harsh's work, skills, education, or the way a project was built.
-                </div>
-              </div>
-            )}
-            {messages.map((m, i) => (
-              <div className={`msg ${m.role === "user" ? "msg-user" : "msg-ai"}`} key={i}>
-                <div className="msg-bubble">{m.text}</div>
-                {m.reply && (
-                  <>
-                    {(m.reply.sources.length > 0 || m.reply.confidence !== "UNKNOWN") && (
-                      <div className="msg-meta">
-                        {m.reply.confidence !== "UNKNOWN" && (
-                          <span className={`msg-confidence ${m.reply.confidence}`}>{m.reply.confidence}</span>
-                        )}
-                        {m.reply.sources.slice(0, 3).map((s, si) => (
-                          <span className="msg-source" key={si}>From {s.label}</span>
-                        ))}
-                      </div>
-                    )}
-                    {m.reply.links.length > 0 && (
-                      <div className="msg-links">
-                        {m.reply.links.map((l, li) => (
-                          <button className="msg-link" key={li} onClick={() => handleLink(l.href)}>→ {l.label}</button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-                {m.retry && (
-                  <button className="msg-retry" onClick={() => void send(m.retry!)}>Try again</button>
-                )}
-              </div>
-            ))}
-            {busy && (
-              <div className="msg msg-ai">
-                <div className="typing" aria-label="Assistant is typing"><i /><i /><i /></div>
-              </div>
-            )}
+          <div className="chat-tabs" role="tablist" aria-label="Assistant mode">
+            <button
+              role="tab"
+              aria-selected={tab === "ask"}
+              className={`chat-tab${tab === "ask" ? " active" : ""}`}
+              onClick={() => setTab("ask")}
+            >
+              Ask
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "interview"}
+              className={`chat-tab${tab === "interview" ? " active" : ""}`}
+              onClick={() => setTab("interview")}
+            >
+              Interview
+            </button>
           </div>
 
-          {messages.length === 0 && suggestions.length > 0 && (
-            <div className="chat-suggest">
-              {suggestions.map((s) => (
-                <button className="chat-suggest-btn" key={s} onClick={() => void send(s)}>{s}</button>
-              ))}
-            </div>
-          )}
+          {tab === "ask" ? (
+            <>
+              <div className="chat-body" ref={bodyRef} aria-live="polite">
+                {messages.length === 0 && (
+                  <div className="msg msg-ai">
+                    <div className="msg-bubble">
+                      Hi — ask me about Harsh's work, skills, education, or the way a project was built. Answers stay grounded in the portfolio.
+                    </div>
+                  </div>
+                )}
+                {messages.map((m, i) => (
+                  <div className={`msg ${m.role === "user" ? "msg-user" : "msg-ai"}`} key={i}>
+                    <div className="msg-bubble">{m.text}</div>
+                    {m.reply && (
+                      <>
+                        {(m.reply.sources.length > 0 || m.reply.confidence !== "UNKNOWN") && (
+                          <div className="msg-meta">
+                            {m.reply.confidence !== "UNKNOWN" && (
+                              <span className={`msg-confidence ${m.reply.confidence}`}>{m.reply.confidence}</span>
+                            )}
+                            {m.reply.sources.slice(0, 3).map((s, si) => (
+                              <span className="msg-source" key={si}>From {s.label}</span>
+                            ))}
+                          </div>
+                        )}
+                        {m.reply.links.length > 0 && (
+                          <div className="msg-links">
+                            {m.reply.links.map((l, li) => (
+                              <button className="msg-link" key={li} onClick={() => handleLink(l.href)}>→ {l.label}</button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {m.retry && (
+                      <button className="msg-retry" onClick={() => void send(m.retry!)}>Try again</button>
+                    )}
+                  </div>
+                ))}
+                {busy && (
+                  <div className="msg msg-ai">
+                    <div className="typing" aria-label="Assistant is typing"><i /><i /><i /></div>
+                  </div>
+                )}
+              </div>
 
-          <form
-            className="chat-input-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send(input);
-            }}
-          >
-            <input
-              ref={inputRef}
-              className="chat-input"
-              placeholder="Ask about projects, skills…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              aria-label="Message Ask Harsh"
-              maxLength={600}
-            />
-            <button className="chat-send" type="submit" disabled={busy || !input.trim()} aria-label="Send">➤</button>
-          </form>
+              {messages.length === 0 && suggestions.length > 0 && (
+                <div className="chat-suggest">
+                  {suggestions.map((s) => (
+                    <button className="chat-suggest-btn" key={s} onClick={() => void send(s)}>{s}</button>
+                  ))}
+                </div>
+              )}
+
+              <form
+                className="chat-input-row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void send(input);
+                }}
+              >
+                <input
+                  ref={inputRef}
+                  className="chat-input"
+                  placeholder="Ask about projects, skills…"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  aria-label="Message Ask Harsh"
+                  maxLength={600}
+                />
+                <button className="chat-send" type="submit" disabled={busy || !input.trim()} aria-label="Send">➤</button>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="chat-body" aria-live="polite">
+                {iturns.length === 0 && (
+                  <div className="msg msg-ai">
+                    <div className="msg-bubble">
+                      Interview mode: I'll ask one grounded question at a time about Harsh's real work and react to your answers. No scores, no rankings — just a focused conversation.
+                    </div>
+                  </div>
+                )}
+                {iturns.map((t, i) => (
+                  <div className={`msg ${t.role === "user" ? "msg-user" : "msg-ai"}`} key={i}>
+                    <div className="msg-bubble">{t.text}</div>
+                  </div>
+                ))}
+                {ibusy && (
+                  <div className="msg msg-ai">
+                    <div className="typing" aria-label="Interviewer is thinking"><i /><i /><i /></div>
+                  </div>
+                )}
+              </div>
+              {iturns.length === 0 ? (
+                <div style={{ padding: "0 17px 14px" }}>
+                  <button className="chat-start-btn" onClick={() => void startInterview()} disabled={ibusy}>
+                    {ibusy ? "Starting…" : "Start interview"}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <form
+                    className="chat-input-row"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void sendInterviewAnswer();
+                    }}
+                  >
+                    <textarea
+                      ref={iInputRef}
+                      className="chat-input chat-textarea"
+                      placeholder={idone ? "Interview wrapped — start a new one with Clear." : "Your answer…"}
+                      value={ianswer}
+                      onChange={(e) => setIanswer(e.target.value)}
+                      aria-label="Your interview answer"
+                      maxLength={4000}
+                      rows={2}
+                      disabled={idone || ibusy}
+                    />
+                    <button className="chat-send" type="submit" disabled={ibusy || idone || !ianswer.trim()} aria-label="Send answer">➤</button>
+                  </form>
+                  {!idone && iturns.length > 0 && (
+                    <div style={{ padding: "0 17px 10px", textAlign: "right" }}>
+                      <button className="msg-retry" onClick={() => void endInterview()}>End interview</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
           <div className="chat-disclaimer">Answers are based on Harsh's portfolio</div>
         </div>
       )}

@@ -4,6 +4,7 @@
  */
 
 export * from "./schemas.js";
+export * from "./curation.js";
 
 export type ProjectTier = "featured" | "secondary" | "experiment" | "academic" | "legacy" | "internship";
 export type ProjectStatus = "active" | "complete" | "maintained" | "archived" | "draft";
@@ -261,6 +262,41 @@ export interface SiteSettings {
   contactEnabled: boolean;
   analyticsEnabled: boolean;
   maintenanceMode: boolean;
+}
+
+export type AiProviderKind = "openai" | "openrouter" | "nvidia" | "groq" | "custom";
+export type AiProviderHealth = "unknown" | "ok" | "error" | "disabled";
+
+/** Admin-facing provider record. Raw keys are NEVER present. */
+export interface AiProvider {
+  id: string;
+  name: string;
+  kind: AiProviderKind;
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+  keyHint: string | null;
+  temperature: number;
+  maxTokens: number;
+  timeoutMs: number;
+  systemPrompt: string | null;
+  enabled: boolean;
+  priority: number;
+  isFallback: boolean;
+  health: AiProviderHealth;
+  lastLatencyMs: number | null;
+  lastError: string | null;
+  lastCheckedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterviewReply {
+  question: string | null;
+  reaction: string | null;
+  done: boolean;
+  turn: number;
+  provider: string;
 }
 
 export interface AchievementDef {

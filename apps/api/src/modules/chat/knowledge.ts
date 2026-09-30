@@ -27,7 +27,10 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
 
   const [profile, projects, skills, certificates, education, timeline] = await Promise.all([
     prisma.profile.findFirst({ include: { socials: true } }),
-    prisma.project.findMany({ where: { status: { not: "draft" } } }),
+    prisma.project.findMany({
+      where: { status: { not: "draft" } },
+      orderBy: [{ order: "asc" }, { updatedAt: "desc" }],
+    }),
     prisma.skill.findMany(),
     prisma.certificate.findMany(),
     prisma.education.findMany(),

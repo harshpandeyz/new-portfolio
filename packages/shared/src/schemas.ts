@@ -274,3 +274,49 @@ export const messageReplySchema = z.object({
   body: z.string().trim().min(2).max(4000),
 });
 export type MessageReplyInput = z.infer<typeof messageReplySchema>;
+
+/** ── Admin: AI provider configuration ─────────────────────────
+ * Secrets travel client→server on write only and are never returned.
+ * List/detail responses expose hasKey + keyHint (masked suffix).
+ */
+export const aiProviderKindValues = ["openai", "openrouter", "nvidia", "groq", "custom"] as const;
+
+const aiProviderBase = z.object({
+  name: z.string().trim().min(2).max(80).regex(/^[A-Za-z0-9 _-]+$/, "Use letters, numbers, spaces, - or _"),
+  kind: z.enum(aiProviderKindValues),
+  baseUrl: z.string().trim().min(8).max(500).url("Use a full HTTPS URL"),
+  model: z.string().trim().min(1).max(160),
+  temperature: z.coerce.number().min(0).max(2).default(0.2),
+  maxTokens: z.coerce.number().int().min(32).max(8000).default(500),
+  timeoutMs: z.coerce.number().int().min(2000).max(120000).default(20000),
+  systemPrompt: z.string().trim().max(8000).optional().nullable().or(z.literal("")),
+  enabled: z.boolean().default(true),
+  priority: z.coerce.number().int().min(0).max(999).default(0),
+  isFallback: z.boolean().default(false),
+});
+
+export const aiProviderCreateSchema = aiProviderBase.extend({
+  apiKey: z.string().trim().min(8).max(5000),
+});
+export type AiProviderCreateInput = z.infer<typeof aiProviderCreateSchema>;
+
+export const aiProviderUpdateSchema = aiProviderBase.partial().extend({
+  apiKey: z.string().trim().min(8).max(5000).optional().or(z.literal("")),
+});
+export type AiProviderUpdateInput = z.infer<typeof aiProviderUpdateSchema>;
+
+export const interviewSchema = z.object({
+  action: z.enum(["start", "answer", "end"]),
+  answer: z.string().trim().max(4000).optional().or(z.literal("")),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["ai", "user"]),
+        text: z.string().trim().max(4000),
+      }),
+    )
+    .max(40)
+    .optional()
+    .default([]),
+});
+export type InterviewInput = z.infer<typeof interviewSchema>;

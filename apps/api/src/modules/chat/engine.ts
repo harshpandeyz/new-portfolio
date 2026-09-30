@@ -1,8 +1,15 @@
 import type { ChatReply, ChatSource } from "@hp/shared";
+import { SIGNATURE_SLUGS } from "@hp/shared";
 
-import { getLlmProvider, type LlmMessage } from "./llm.js";
+import { completeWithFallback, getLlmProviders, type LlmMessage } from "./llm.js";
 import { buildKnowledge, type KnowledgeDoc } from "./knowledge.js";
 import { retrieve, type RetrievedDoc } from "./retrieval.js";
+
+function signatureRank(ref: string | null): number {
+  if (!ref) return 99;
+  const idx = (SIGNATURE_SLUGS as readonly string[]).indexOf(ref);
+  return idx === -1 ? 99 : idx;
+}
 
 const UNKNOWN_THRESHOLD = 3.5;
 
@@ -140,11 +147,16 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], _query: stri
 
     case "projects_list": {
       if (allProjectDocs.length === 0) return { ...FALLBACK_REPLY };
-      allProjectDocs.slice(0, 4).forEach((h) => {
+      // Same intentional hierarchy as homepage/recruiter — signature slugs
+      // in curation order first, never blind featured.slice().
+      const curated = [...allProjectDocs].sort(
+        (a, b) => signatureRank(a.doc.ref) - signatureRank(b.doc.ref),
+      );
+      curated.slice(0, 4).forEach((h) => {
         addSource(h.doc);
         if (h.doc.ref) links.push(projectLink(h.doc.ref));
       });
-      const lines = allProjectDocs.slice(0, 4).map((h) => {
+      const lines = curated.slice(0, 4).map((h) => {
         const d = h.doc;
         const first = d.content.split(". ")[0] ?? d.title;
         return `• ${d.title} — ${first.replace(new RegExp(`^${escapeRegex(d.title)}`, "i"), "").trim().replace(/^[-–—(: ]+/, "") || d.title}`;
@@ -339,8 +351,8 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
     return { ...FALLBACK_REPLY };
   }
 
-  const provider = getLlmProvider();
-  if (!provider.isConfigured()) {
+  const providers = await getLlmProviders();
+  if (providers.length === 0) {
     return composeDeterministic(detectIntent(question, docs), hits, question, docs);
   }
 
@@ -359,7 +371,7 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
   ];
 
   try {
-    const answer = await provider.complete(messages, { maxTokens: 400, temperature: 0.2 });
+    const { text: answer, provider } = await completeWithFallback(messages, { maxTokens: 400, temperature: 0.2 });
     if (answer.toLowerCase().includes("don't have verified information")) {
       return { ...FALLBACK_REPLY };
     }
@@ -371,7 +383,7 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
         .filter((h) => h.doc.kind === "PROJECT" && h.doc.ref)
         .slice(0, 2)
         .map((h) => projectLink(h.doc.ref!)),
-      provider: provider.name,
+      provider,
     };
   } catch (err) {
     // provider failure → degrade to deterministic answer
