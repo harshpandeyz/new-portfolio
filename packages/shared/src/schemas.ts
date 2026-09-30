@@ -145,6 +145,7 @@ export const projectQuerySchema = z.object({
 export const certificateQuerySchema = z.object({
   category: z.enum(["ALL", ...certificateCategoryValues]).optional(),
   search: z.string().trim().max(120).optional(),
+  year: z.string().regex(/^\d{4}$/).optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
 });
 
