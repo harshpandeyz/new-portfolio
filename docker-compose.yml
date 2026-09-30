@@ -2,15 +2,23 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Loopback-only binding: reachable from the host for local dev/tests, but
+    # never exposed to the LAN/internet. In Oracle production the DB lives
+    # only on the compose network (reverse proxy in front, no public DB port).
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: hp_os
-    ports:
-      - "5432:5432"
     volumes:
       - hp_pgdata:/var/lib/postgresql/data
       - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -30,11 +38,13 @@ services:
       API_PORT: 4000
       APP_URL: ${APP_URL:-http://localhost:8080}
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/hp_os
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/hp_os
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET before starting the production stack}
+      AI_CONFIG_KEY: ${AI_CONFIG_KEY:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      UPLOAD_DIR: ${UPLOAD_DIR:-uploads}
       LLM_PROVIDER: ${LLM_PROVIDER:-none}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
@@ -44,11 +54,30 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       CONTACT_NOTIFY_EMAIL: ${CONTACT_NOTIFY_EMAIL:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      REPLY_FROM_NAME: ${REPLY_FROM_NAME:-Harsh Pandey}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - hp_uploads:/app/apps/api/uploads
+    # API is proxied via `web`/NGINX in production; the host port mapping
+    # below is for single-host Oracle deploys. Behind a reverse proxy, drop
+    # the mapping and route through the proxy network instead.
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 10s
@@ -66,6 +95,16 @@ services:
         condition: service_healthy
     ports:
       - "8080:80"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ > /dev/null 2>&1 || exit 1"]
       interval: 10s

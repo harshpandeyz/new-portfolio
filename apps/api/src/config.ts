@@ -89,6 +89,21 @@ export const config = {
     notifyEmail: process.env.CONTACT_NOTIFY_EMAIL ?? "",
     replyFromName: process.env.REPLY_FROM_NAME ?? "Harsh Pandey",
   },
+  email: {
+    // Render Free (and similar sandboxes) block outbound SMTP ports, so
+    // production mail goes over HTTPS. Explicit EMAIL_PROVIDER wins;
+    // otherwise a present RESEND_API_KEY selects Resend automatically,
+    // keeping local Gmail-SMTP setups working with zero changes.
+    provider: (() => {
+      const raw = (process.env.EMAIL_PROVIDER ?? "").trim().toLowerCase();
+      if (raw === "resend" || raw === "smtp") return raw;
+      return process.env.RESEND_API_KEY ? "resend" : "smtp";
+    })() as "resend" | "smtp",
+    resendApiKey: process.env.RESEND_API_KEY ?? "",
+    // Verified sender, e.g. "Harsh Pandey <hello@yourdomain.com>".
+    // Resend test mode accepts "onboarding@resend.dev" (account email only).
+    from: process.env.EMAIL_FROM ?? "",
+  },
   githubToken: process.env.GITHUB_TOKEN ?? "",
   corsOrigins: normalizeOriginList(process.env.APP_URL ?? "http://localhost:5173"),
 } as const;
@@ -101,4 +116,14 @@ export const COOKIE_NAMES = {
 /** True when the server can actually send mail (notifications + replies). */
 export function isSmtpConfigured(): boolean {
   return Boolean(config.smtp.host && config.smtp.user && config.smtp.password);
+}
+
+/** Resend HTTPS API is usable when a key and a sender identity are set. */
+export function isResendConfigured(): boolean {
+  return Boolean(config.email.resendApiKey && config.email.from);
+}
+
+/** True when the active email provider can send (notifications + replies). */
+export function isEmailConfigured(): boolean {
+  return config.email.provider === "resend" ? isResendConfigured() : isSmtpConfigured();
 }

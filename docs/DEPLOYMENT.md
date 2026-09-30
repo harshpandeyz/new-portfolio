@@ -38,8 +38,14 @@ configured `APP_URL` origin list with credentials.
 - Start: `node apps/api/dist/apps/api/src/server.js`
 - Health check: `/api/health`
 - Env: `DATABASE_URL`, `SESSION_SECRET`, `APP_URL`, `NODE_ENV=production`, optional
-  `LLM_*`, `SMTP_*`, `GITHUB_TOKEN`, `MAX_UPLOAD_MB`, `TRUST_PROXY` (default `1`,
+  `LLM_*`, `GITHUB_TOKEN`, `MAX_UPLOAD_MB`, `TRUST_PROXY` (default `1`,
   see `docs/SECURITY.md`)
+- Email (HTTPS API — Render Free blocks outbound SMTP ports 25/465/587):
+  `RESEND_API_KEY` + `EMAIL_FROM` (verified sender, e.g.
+  `Harsh Pandey <hello@yourdomain.com>`). SMTP (`SMTP_*`) remains as a
+  local-dev fallback only and is never used in production when the Resend
+  key is present. Without either, contact messages still persist and the
+  inbox Reply button reports `EMAIL_NOT_CONFIGURED`.
 - Attach a persistent disk mounted at `apps/api/uploads` (or switch `STORAGE_DRIVER`
   to an S3-compatible adapter in `src/modules/media`)
 
@@ -88,7 +94,7 @@ runtime media; back it up alongside Postgres.
 - [ ] `APP_URL` matches the deployed web origin (CORS + cookies)
 - [ ] `VITE_API_URL` is set on the web build only when the API is cross-origin
 - [ ] HTTPS terminated at the platform (cookies flip to `secure` when `NODE_ENV=production`)
-- [ ] `SMTP_*` configured if email notifications are wanted (messages always persist)
+- [ ] `SMTP_*` only for local dev; production email is `RESEND_API_KEY` + `EMAIL_FROM` (messages always persist regardless)
 - [ ] `LLM_PROVIDER` left `none` unless a key is configured (chat works either way)
 - [ ] Uploads disk mounted / storage driver chosen
 - [ ] Backups scheduled on Postgres

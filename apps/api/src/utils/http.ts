@@ -65,6 +65,9 @@ const SENSITIVE_KEYS = new Set([
   "api_key",
   "apikey",
   "smtp_password",
+  "apikeyenc",
+  "llm_api_key",
+  "resend_api_key",
 ]);
 
 /** Strips sensitive values from audit metadata. Never logs secrets. */

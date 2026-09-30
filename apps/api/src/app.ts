@@ -25,6 +25,7 @@ import { analyticsRoutes } from "./modules/analytics/routes.js";
 import { githubRoutes } from "./modules/github/routes.js";
 import { statsRoutes } from "./modules/stats/routes.js";
 import { settingsRoutes } from "./modules/settings/routes.js";
+import { aiProviderRoutes } from "./modules/ai-providers/routes.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -56,6 +57,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // Private/admin API responses must never be cached by browsers or CDNs.
+  // Public content GETs get a short shared cache (60s) to cut TTFB + DB load
+  // behind a reverse proxy; mutations and private routes stay no-store.
   app.addHook("onSend", async (req, reply, payload) => {
     const url = req.url;
     if (
@@ -66,11 +69,18 @@ export async function buildApp(): Promise<FastifyInstance> {
       url.startsWith("/api/settings") ||
       url.startsWith("/api/chat") ||
       url.startsWith("/api/github") ||
-      url.startsWith("/api/profile") ||
+      url.startsWith("/api/ai-providers") ||
       url.startsWith("/api/events/summary")
     ) {
       reply.header("cache-control", "no-store, no-cache, must-revalidate, private");
       reply.header("pragma", "no-cache");
+      return payload;
+    }
+    if (req.method === "GET" && reply.statusCode === 200 && url.startsWith("/api/")) {
+      // Public content (profile/projects/skills/…) — safe for 60s shared cache.
+      // Vary on Origin so CORS caches stay correct behind nginx.
+      reply.header("cache-control", "public, max-age=60, stale-while-revalidate=120");
+      reply.header("vary", "Origin");
     }
     return payload;
   });
@@ -143,9 +153,26 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ── routes ───────────────────────────────────────────────────
-  app.get("/api/health", async () => {
-    await prisma.$queryRaw`SELECT 1`;
-    return { status: "ok" };
+  // Liveness: cheap, no DB. Readiness: DB + migrations reachable.
+  app.get("/api/health", async () => ({ status: "ok", time: new Date().toISOString() }));
+  app.get("/health", async () => ({ status: "ok", time: new Date().toISOString() }));
+  app.get("/api/ready", async (_req, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: "ready", time: new Date().toISOString() };
+    } catch {
+      reply.code(503);
+      return { status: "not-ready", time: new Date().toISOString() };
+    }
+  });
+  app.get("/ready", async (_req, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return { status: "ready", time: new Date().toISOString() };
+    } catch {
+      reply.code(503);
+      return { status: "not-ready", time: new Date().toISOString() };
+    }
   });
 
   await app.register(authRoutes, { prefix: "/api/auth" });
@@ -162,6 +189,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(githubRoutes, { prefix: "/api/github" });
   await app.register(statsRoutes, { prefix: "/api/stats" });
   await app.register(settingsRoutes, { prefix: "/api/settings" });
+  await app.register(aiProviderRoutes, { prefix: "/api/ai-providers" });
 
   // admin bootstrap helper (used by scripts/admin-create.ts via direct import too)
   app.decorate("requireAdmin", requireAdmin);
