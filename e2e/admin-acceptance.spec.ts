@@ -37,11 +37,14 @@ test.describe("admin release acceptance", () => {
   test("auth, CMS mutations, public reflection, media, settings and audit", async ({ page, request }) => {
     test.setTimeout(120000);
     await signIn(page);
-    await expect(page.getByText(/Control \/ Overview/)).toBeVisible();
+    page.setDefaultTimeout(10000);
+    page.setDefaultNavigationTimeout(15000);
+    await expect(page.locator('.ctl-crumbs [aria-current="page"]')).toHaveText("Overview");
 
     // Server-side authorization must hold independently of the private UI.
     const unauthorized = await request.post("/api/projects", { data: { title: "Unauthorised" } });
     expect(unauthorized.status()).toBe(401);
+    expect((await request.get("/api/projects/admin")).status()).toBe(401);
 
     const originalProfile = (await json<{ profile: Record<string, unknown> }>(await page.request.get("/api/profile"))).profile;
     const originalSettings = (await json<{ settings: Record<string, boolean> }>(await page.request.get("/api/settings"))).settings;
@@ -55,6 +58,7 @@ test.describe("admin release acceptance", () => {
     let mediaId: string | undefined;
     let certificateMediaId: string | undefined;
     let messageId: string | undefined;
+    let pendingTwoFactorSetup = false;
 
     try {
       for (const [path, heading] of [
@@ -69,6 +73,23 @@ test.describe("admin release acceptance", () => {
         await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible({ timeout: 15000 });
       }
 
+      // Exercise the real enrollment wizard without enabling 2FA on the test account.
+      await page.goto("/private/security");
+      await page.getByRole("button", { name: "Start setup" }).click();
+      pendingTwoFactorSetup = true;
+      await expect(page.getByRole("textbox", { name: "Manual entry secret" })).toBeVisible();
+      await page.screenshot({
+        path: "test-results/admin-security-2fa-scan.png",
+        mask: [page.locator(".ctl-sec-qr"), page.locator("input[readonly]")],
+      });
+      await page.getByRole("button", { name: "Continue" }).click();
+      await expect(page.getByRole("textbox", { name: "6-digit code from your app" })).toBeVisible();
+      await page.screenshot({ path: "test-results/admin-security-2fa-verify.png" });
+      await page.getByRole("button", { name: "Cancel setup" }).click();
+      await expect(page.getByRole("button", { name: "Start setup" })).toBeVisible();
+      pendingTwoFactorSetup = false;
+      expect((await page.request.get("/api/auth/2fa/status")).status()).toBe(200);
+
       // Profile edits publish immediately and remain database-backed.
       const profileEdit = {
         ...originalProfile,
@@ -81,10 +102,17 @@ test.describe("admin release acceptance", () => {
 
       const createdProject = await json<{ project: { id: string; slug: string } }>(await mutate(page, "POST", "/api/projects", {
         title: "E2E Release Project", slug, shortDescription: "Temporary release acceptance project", category: "TEST",
-        tier: "experiment", status: "draft", featured: false, year: "2026", order: 0, stack: ["Playwright"],
+        tier: "experiment", status: "draft", featured: true, year: "2026", order: 0, stack: ["Playwright"],
         decisions: [], dataFlow: [], gallery: [],
       }));
       projectId = createdProject.project.id;
+      await page.goto("/private/projects");
+      await expect(page.getByRole("button", { name: "E2E Release Project" })).toBeVisible();
+      const homepageSlots = page.locator(".ctl-curation-slot");
+      await expect(homepageSlots.nth(0)).toContainText("Intelligent Surveillance System · CCTV-X");
+      await expect(homepageSlots.nth(1)).toContainText("OrchestraAI");
+      await expect(homepageSlots.nth(2)).toContainText("QuantumMind");
+      await expect(homepageSlots.nth(3)).toContainText("SkillMatch");
       expect((await page.request.get(`/api/projects/${slug}`)).status()).toBe(404);
       expect((await mutate(page, "POST", "/api/projects", {
         title: "Duplicate", slug, shortDescription: "Duplicate", category: "TEST", tier: "experiment", status: "draft", featured: false, year: "2026", order: 1, stack: [],
@@ -93,6 +121,13 @@ test.describe("admin release acceptance", () => {
       expect((await page.request.get(`/api/projects/${slug}`)).status()).toBe(200);
       await page.goto(`/projects/${slug}`);
       await expect(page.getByRole("heading", { name: "E2E Release Project" })).toBeVisible();
+      await page.goto("/private/projects");
+      for (const [index, title] of [
+        [0, "Intelligent Surveillance System · CCTV-X"], [1, "OrchestraAI"],
+        [2, "QuantumMind"], [3, "SkillMatch"],
+      ] as const) {
+        await expect(page.locator(".ctl-curation-slot").nth(index)).toContainText(title);
+      }
       await json(await mutate(page, "PATCH", `/api/projects/${projectId}`, { status: "archived", featured: false, order: 999 }));
 
       const createdSkill = await json<{ skill: { id: string } }>(await mutate(page, "POST", "/api/skills", {
@@ -131,6 +166,8 @@ test.describe("admin release acceptance", () => {
       messageId = contactBody.id;
       const inbox = await json<{ messages: { id: string }[] }>(await page.request.get("/api/contact?status=NEW"));
       expect(inbox.messages.some((message) => message.id === messageId)).toBe(true);
+      await page.goto(`/private/messages?open=${messageId}`);
+      await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
       await json(await mutate(page, "PATCH", `/api/contact/${messageId}/status`, { status: "READ" }));
       await json(await mutate(page, "POST", "/api/events", { type: "page_view", ref: "e2e-release" }));
       expect((await page.request.get("/api/events/summary")).status()).toBe(200);
@@ -165,6 +202,7 @@ test.describe("admin release acceptance", () => {
     } finally {
       // Restore live settings/profile and remove every temporary record even
       // when an assertion fails midway through this acceptance test.
+      if (pendingTwoFactorSetup) await mutate(page, "POST", "/api/auth/2fa/setup/cancel", {}).catch(() => undefined);
       await mutate(page, "PATCH", "/api/settings", originalSettings).catch(() => undefined);
       await mutate(page, "PATCH", "/api/profile", originalProfile).catch(() => undefined);
       for (const [path, id] of [["/api/projects", projectId], ["/api/certificates", certificateId], ["/api/skills", skillId], ["/api/education", educationId], ["/api/timeline", timelineId], ["/api/media", mediaId]] as const) {
@@ -176,7 +214,14 @@ test.describe("admin release acceptance", () => {
 
     await page.goto("/private");
     await expect(page.locator(".ctl-shell")).toBeVisible();
-    await page.getByRole("button", { name: "Log out" }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(page.getByRole("dialog", { name: "Control navigation" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Control navigation" })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
+    await page.getByRole("button", { name: /^Account:/ }).click();
+    await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Log out" }).click();
     await expect(page.locator(".ctl-login-card")).toBeVisible();
     await signIn(page);
     const sessions = await json<{ sessions: { id: string; current: boolean }[] }>(await page.request.get("/api/auth/sessions"));
