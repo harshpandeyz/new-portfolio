@@ -84,7 +84,7 @@ function DraftRow({ placeholder, onAdd }: { placeholder?: string; onAdd: (draft:
 export function ErrorNote({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div className="ctl-alert" role="alert" style={{ marginTop: 10 }}>
+    <div className="ctl-alert ctl-alert--spaced" role="alert">
       {error}
     </div>
   );

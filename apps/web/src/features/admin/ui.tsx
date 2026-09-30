@@ -1,4 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { useScrollLock } from "../../hooks/useScrollLock";
+import { AdminIcon } from "./Icon";
 
 /* ── Toasts ─────────────────────────────────────────────── */
 
@@ -7,6 +10,7 @@ interface Toast {
   kind: "success" | "error" | "info";
   title: string;
   desc?: string;
+  action?: { label: string; run: () => void };
 }
 
 const ToastCtx = createContext<{ push: (t: Omit<Toast, "id">) => void }>({ push: () => undefined });
@@ -15,11 +19,27 @@ let toastSeq = 1;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timers = useRef(new Map<number, number>());
+  useEffect(() => () => timers.current.forEach((timer) => window.clearTimeout(timer)), []);
+  const dismiss = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer !== undefined) window.clearTimeout(timer);
+    timers.current.delete(id);
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
   const push = useCallback((t: Omit<Toast, "id">) => {
     const id = toastSeq++;
-    setToasts((prev) => [...prev.slice(-3), { ...t, id }]);
-    window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 4200);
-  }, []);
+    setToasts((prev) => {
+      const expired = prev.slice(0, Math.max(0, prev.length - 2));
+      expired.forEach((toast) => {
+        const timer = timers.current.get(toast.id);
+        if (timer !== undefined) window.clearTimeout(timer);
+        timers.current.delete(toast.id);
+      });
+      return [...prev.slice(-2), { ...t, id }];
+    });
+    timers.current.set(id, window.setTimeout(() => dismiss(id), 5200));
+  }, [dismiss]);
   return (
     <ToastCtx.Provider value={{ push }}>
       {children}
@@ -31,7 +51,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div className="ctl-toast-title">{t.title}</div>
               {t.desc && <div className="ctl-toast-desc">{t.desc}</div>}
             </div>
-            <button className="ctl-toast-x" onClick={() => setToasts((p) => p.filter((x) => x.id !== t.id))} aria-label="Dismiss notification">×</button>
+            {t.action && <button className="ctl-toast-action" onClick={() => { t.action?.run(); dismiss(t.id); }}>{t.action.label}</button>}
+            <button className="ctl-toast-x" onClick={() => dismiss(t.id)} aria-label="Dismiss notification"><AdminIcon name="close" size={16} /></button>
           </div>
         ))}
       </div>
@@ -65,39 +86,13 @@ export function Dialog({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const prevFocus = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    prevFocus.current = document.activeElement as HTMLElement | null;
-    const el = ref.current;
-    el?.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]")?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab" && el) {
-        const items = [...el.querySelectorAll<HTMLElement>("button:not([disabled]), input, select, textarea, a[href]")].filter(
-          (n) => n.offsetParent !== null,
-        );
-        if (items.length === 0) return;
-        const first = items[0]!;
-        const last = items[items.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-      prevFocus.current?.focus?.();
-    };
-  }, [open, onClose]);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const close = useCallback(() => closeRef.current(), []);
+  const titleId = useId();
+  const descriptionId = useId();
+  useFocusTrap(ref, open, close);
+  useScrollLock(open);
 
   if (!open) return null;
   return (
@@ -106,15 +101,16 @@ export function Dialog({
         ref={ref}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className={`ctl-dialog${danger ? " ctl-dialog--danger" : ""}${wide ? " ctl-dialog--wide" : ""}`}
       >
         <div className="ctl-dialog-head">
           <div>
-            <h2>{title}</h2>
-            {description && <p>{description}</p>}
+            <h2 id={titleId}>{title}</h2>
+            {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button className="ctl-icon-btn" onClick={onClose} aria-label="Close dialog">×</button>
+          <button className="ctl-icon-btn" onClick={onClose} aria-label="Close dialog"><AdminIcon name="close" /></button>
         </div>
         {children && <div className="ctl-dialog-body">{children}</div>}
         {actions && <div className="ctl-dialog-foot">{actions}</div>}
@@ -184,7 +180,7 @@ export function SkeletonCard() {
 export function EmptyState({ title, desc, action }: { title: string; desc?: string; action?: ReactNode }) {
   return (
     <div className="ctl-empty">
-      <div className="ctl-empty-icon" aria-hidden="true">○</div>
+      <div className="ctl-empty-icon"><AdminIcon name="file" size={24} /></div>
       <h3>{title}</h3>
       {desc && <p>{desc}</p>}
       {action}
@@ -255,8 +251,8 @@ export function Pagination({
     <div className="ctl-pagination">
       <span className="ctl-pagination-info">Page {page} of {pages} · {total} total</span>
       <div className="ctl-pagination-btns">
-        <button className="ctl-btn ctl-btn--ghost ctl-btn--sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>← Prev</button>
-        <button className="ctl-btn ctl-btn--ghost ctl-btn--sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next →</button>
+        <button className="ctl-btn ctl-btn--ghost ctl-btn--sm" disabled={page <= 1} onClick={() => onPage(page - 1)}><AdminIcon name="chevronLeft" size={16} />Previous</button>
+        <button className="ctl-btn ctl-btn--ghost ctl-btn--sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next<AdminIcon name="chevronRight" size={16} /></button>
       </div>
     </div>
   );
@@ -363,7 +359,7 @@ export function Field({
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-err` : undefined;
   return (
-    <div className="ctl-field" style={full ? { gridColumn: "1 / -1" } : undefined}>
+    <div className={`ctl-field${full ? " ctl-field--full" : ""}`}>
       <label htmlFor={id}>
         {label}
         {required && (
@@ -411,7 +407,7 @@ export function SearchInput({
   return (
     <span className="ctl-search-wrap">
       <span aria-hidden="true" className="ctl-search-ico">
-        ⌕
+        <AdminIcon name="search" size={16} />
       </span>
       <input
         className="ctl-input ctl-search"
@@ -423,7 +419,7 @@ export function SearchInput({
       />
       {value && (
         <button type="button" className="ctl-search-clear" onClick={() => onChange("")} aria-label="Clear search">
-          ×
+          <AdminIcon name="close" size={16} />
         </button>
       )}
     </span>
@@ -444,7 +440,7 @@ export function Switch({
   disabled?: boolean;
 }) {
   return (
-    <label className="ctl-switch-row">
+    <div className="ctl-switch-row">
       <span className="ctl-switch-text">
         <b>{label}</b>
         {desc && <span>{desc}</span>}
@@ -460,7 +456,7 @@ export function Switch({
       >
         <span className="ctl-switch-knob" aria-hidden="true" />
       </button>
-    </label>
+    </div>
   );
 }
 
@@ -511,8 +507,19 @@ export function Tabs<T extends string>({
           type="button"
           role="tab"
           aria-selected={value === t.id}
+          tabIndex={value === t.id ? 0 : -1}
           className={`ctl-tab${value === t.id ? " active" : ""}${t.error ? " has-error" : ""}`}
           onClick={() => onChange(t.id)}
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const buttons = [...(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=tab]") ?? [])];
+            const current = buttons.indexOf(event.currentTarget);
+            const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[next]?.focus();
+            const nextId = tabs[next]?.id;
+            if (nextId) onChange(nextId);
+          }}
         >
           {t.label}
           {t.error && (
@@ -546,45 +553,13 @@ export function Drawer({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
-  const prevFocus = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    prevFocus.current = document.activeElement as HTMLElement | null;
-    const el = ref.current;
-    window.setTimeout(() => {
-      el?.querySelector<HTMLElement>("button, input, select, textarea, [tabindex]")?.focus();
-    }, 30);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
-      if (e.key === "Tab" && el) {
-        const items = [...el.querySelectorAll<HTMLElement>("button:not([disabled]), input, select, textarea, a[href]")].filter(
-          (n) => n.offsetParent !== null,
-        );
-        if (items.length === 0) return;
-        const first = items[0]!;
-        const last = items[items.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = "";
-      if (prevFocus.current?.isConnected) prevFocus.current.focus();
-    };
-  }, [open, onClose]);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const close = useCallback(() => closeRef.current(), []);
+  const titleId = useId();
+  const subtitleId = useId();
+  useFocusTrap(ref, open, close);
+  useScrollLock(open);
 
   if (!open) return null;
   return (
@@ -594,16 +569,17 @@ export function Drawer({
         ref={ref}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        aria-describedby={subtitle ? subtitleId : undefined}
         className={`ctl-editor${wide ? " ctl-editor--wide" : ""}`}
       >
         <header className="ctl-editor-head">
           <div>
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
+            <h2 id={titleId}>{title}</h2>
+            {subtitle && <p id={subtitleId}>{subtitle}</p>}
           </div>
           <button type="button" className="ctl-icon-btn" onClick={onClose} aria-label="Close editor">
-            ×
+            <AdminIcon name="close" />
           </button>
         </header>
         {children && <div className="ctl-editor-body">{children}</div>}
@@ -613,39 +589,19 @@ export function Drawer({
   );
 }
 
-/* ── Toasts with action (e.g. Undo) ─────────────────────────── */
-
-interface ToastAction {
-  label: string;
-  run: () => void;
-}
-
-interface RichToast extends Toast {
-  action?: ToastAction;
-}
-
-const RichToastCtx = createContext<{ push: (t: Omit<RichToast, "id">) => void }>({ push: () => undefined });
-
-export function RichToastProvider({ children }: { children: ReactNode }) {
-  return <ToastProvider>{children}</ToastProvider>;
-}
-
+/* ── Toast actions ──────────────────────────────────────────── */
 export function useRichToast() {
   const { push } = useToast();
   return useMemo(
     () => ({
       push,
       pushUndo(title: string, desc: string | undefined, onUndo: () => void) {
-        push({ kind: "success", title, desc });
-        void onUndo;
+        push({ kind: "success", title, desc, action: { label: "Undo", run: onUndo } });
       },
     }),
     [push],
   );
 }
-
-export { RichToastCtx };
-export type { ToastAction, RichToast };
 
 /* ── Command palette ────────────────────────────────────────── */
 
@@ -673,7 +629,10 @@ export function CommandPalette({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const prevFocus = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const close = useCallback(() => closeRef.current(), []);
+  const titleId = useId();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -687,25 +646,16 @@ export function CommandPalette({
 
   useEffect(() => {
     if (!open) return;
-    prevFocus.current = document.activeElement as HTMLElement | null;
     setQuery("");
     setActive(0);
     const t = window.setTimeout(() => inputRef.current?.focus(), 30);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    document.body.style.overflow = "hidden";
     return () => {
       window.clearTimeout(t);
-      document.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = "";
-      prevFocus.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
+
+  useFocusTrap(listRef, open, close);
+  useScrollLock(open);
 
   useEffect(() => {
     setActive(0);
@@ -726,9 +676,10 @@ export function CommandPalette({
   let lastGroup = "";
   return (
     <div className="ctl-palette-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={listRef} role="dialog" aria-modal="true" aria-label="Command palette" className="ctl-palette">
+      <div ref={listRef} role="dialog" aria-modal="true" aria-labelledby={titleId} className="ctl-palette">
         <div className="ctl-palette-inputrow">
-          <span aria-hidden="true">⌕</span>
+          <span aria-hidden="true"><AdminIcon name="search" size={18} /></span>
+          <span id={titleId} className="sr-only">Command palette</span>
           <input
             ref={inputRef}
             className="ctl-palette-input"
@@ -750,6 +701,7 @@ export function CommandPalette({
             aria-label="Command search"
             aria-expanded="true"
             aria-controls="ctl-palette-list"
+            aria-activedescendant={filtered[active] ? `ctl-command-${filtered[active]!.id}` : undefined}
             role="combobox"
             aria-autocomplete="list"
           />
@@ -766,6 +718,7 @@ export function CommandPalette({
               <div key={c.id}>
                 {header && <div className="ctl-palette-group">{header}</div>}
                 <button
+                  id={`ctl-command-${c.id}`}
                   role="option"
                   aria-selected={i === active}
                   data-active={i === active}
