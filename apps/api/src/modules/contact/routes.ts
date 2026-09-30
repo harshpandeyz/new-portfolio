@@ -9,7 +9,8 @@ import { rateLimit } from "../../utils/rate-limit.js";
 import { sendContactNotification, sendMessageReply } from "./mailer.js";
 import { HttpError } from "../../utils/http.js";
 import { getSiteSettings } from "../settings/store.js";
-import { isSmtpConfigured } from "../../config.js";
+import { isEmailConfigured } from "../../config.js";
+import { emailSetupHint } from "./mailer.js";
 
 const CONTACT_WINDOW_MS = 10 * 60 * 1000;
 const CONTACT_MAX = 5;
@@ -138,11 +139,11 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
     const message = await prisma.contactMessage.findUnique({ where: { id } });
     if (!message) throw notFound("Contact message");
 
-    if (!isSmtpConfigured()) {
+    if (!isEmailConfigured()) {
       throw new HttpError(
         503,
-        "SMTP_NOT_CONFIGURED",
-        "Email sending is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD on the server, then try again.",
+        "EMAIL_NOT_CONFIGURED",
+        `Email sending is not configured. ${emailSetupHint()}`,
       );
     }
 

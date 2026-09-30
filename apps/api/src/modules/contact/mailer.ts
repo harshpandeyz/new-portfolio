@@ -1,6 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 
-import { config, isSmtpConfigured } from "../../config.js";
+import { config, isEmailConfigured, isSmtpConfigured } from "../../config.js";
 
 interface ContactMessageLike {
   name: string;
@@ -46,16 +46,106 @@ function cleanAddress(value: string): string {
   return value.replace(/[\r\n]+/g, "").trim().slice(0, 320);
 }
 
+export function emailSetupHint(): string {
+  return "Set RESEND_API_KEY and EMAIL_FROM (recommended, works on Render Free) or SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD, then try again.";
+}
+
+interface OutgoingMail {
+  fromName: string;
+  fromAddress: string;
+  to: string;
+  replyTo: string;
+  subject: string;
+  text: string;
+}
+
+/**
+ * HTTPS email API (Resend) — the production path on hosts that block
+ * outbound SMTP (Render Free blocks 25/465/587). Same templates as SMTP;
+ * only the transport differs. Uses built-in fetch: no new dependency.
+ */
+async function sendViaResend(mail: OutgoingMail): Promise<void> {
+  const from = mail.fromName ? `${mail.fromName} <${mail.fromAddress}>` : mail.fromAddress;
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.email.resendApiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [mail.to],
+        reply_to: mail.replyTo,
+        subject: mail.subject,
+        text: mail.text,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (e) {
+    throw new Error(`Email API request failed: ${e instanceof Error ? e.message : "network error"}`);
+  }
+  if (!res.ok) {
+    let detail = `Email API rejected the message (HTTP ${res.status})`;
+    try {
+      const data = (await res.json()) as { message?: unknown; error?: unknown };
+      const msg = typeof data.message === "string" ? data.message : typeof data.error === "string" ? data.error : null;
+      if (msg) detail = `Email API error: ${msg.slice(0, 200)}`;
+    } catch {
+      /* keep generic detail; never leak the API key */
+    }
+    throw new Error(detail);
+  }
+}
+
+async function sendMail(mail: OutgoingMail): Promise<void> {
+  if (config.email.provider === "resend") {
+    await sendViaResend(mail);
+    return;
+  }
+  const tx = getTransporter();
+  if (!tx) {
+    throw new Error(`SMTP is not configured. ${emailSetupHint()}`);
+  }
+  await tx.sendMail({
+    from: { name: mail.fromName, address: mail.fromAddress },
+    to: mail.to,
+    replyTo: mail.replyTo,
+    subject: mail.subject,
+    text: mail.text,
+  });
+}
+
+function senderAddress(): string {
+  // Resend sends from the verified EMAIL_FROM identity; SMTP authenticates
+  // as the SMTP user, so the envelope must match it.
+  if (config.email.provider === "resend") {
+    const match = config.email.from.match(/<([^<>]+)>\s*$/);
+    return (match?.[1] ?? config.email.from).trim();
+  }
+  return config.smtp.user;
+}
+
+function senderName(fallback: string): string {
+  if (config.email.provider === "resend") {
+    const match = config.email.from.match(/^\s*"?([^"<]*?)"?\s*<[^<>]+>\s*$/);
+    const name = (match?.[1] ?? "").trim();
+    return cleanHeader(name || fallback, 80);
+  }
+  return cleanHeader(fallback, 80);
+}
+
 /** Best-effort email notification. Contact messages are always persisted first. */
 export async function sendContactNotification(message: ContactMessageLike): Promise<void> {
-  const tx = getTransporter();
-  if (!tx || !config.smtp.notifyEmail) {
-    // The message is already persisted. Do not log visitor PII when SMTP is
+  if (!isEmailConfigured() || !config.smtp.notifyEmail) {
+    // The message is already persisted. Do not log visitor PII when email is
     // intentionally not configured; operators can review it in the inbox.
     return;
   }
-  await tx.sendMail({
-    from: { name: "HP//OS", address: config.smtp.user },
+  await sendMail({
+    fromName: "HP//OS",
+    fromAddress: senderAddress(),
     to: cleanAddress(config.smtp.notifyEmail),
     replyTo: cleanAddress(message.email),
     subject: `[Portfolio] ${cleanHeader(message.subject ?? "New message", 140)} — ${cleanHeader(message.name, 80)}`,
@@ -75,21 +165,19 @@ export interface DirectReply {
 
 /**
  * Sends an admin reply directly to the visitor — no mail app involved.
- * Throws when SMTP is not configured so the route can return a clear 503.
+ * Throws when no email provider is configured so the route can return a
+ * clear 503.
  */
 export async function sendMessageReply(reply: DirectReply): Promise<void> {
-  if (!isSmtpConfigured()) {
-    throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD.");
+  if (!isEmailConfigured()) {
+    throw new Error(`Email sending is not configured. ${emailSetupHint()}`);
   }
-  const tx = getTransporter();
-  if (!tx) {
-    throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD.");
-  }
-  const fromName = cleanHeader(config.smtp.replyFromName || "Harsh Pandey", 80);
-  await tx.sendMail({
-    from: { name: fromName, address: config.smtp.user },
+  const fromName = senderName(config.smtp.replyFromName || "Harsh Pandey");
+  await sendMail({
+    fromName,
+    fromAddress: senderAddress(),
     to: cleanAddress(reply.toEmail),
-    replyTo: cleanAddress(config.smtp.notifyEmail || config.smtp.user),
+    replyTo: cleanAddress(config.smtp.notifyEmail || senderAddress()),
     subject: cleanHeader(reply.subject, 140),
     text: [
       `Hi ${reply.toName},`,

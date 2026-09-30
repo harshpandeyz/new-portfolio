@@ -53,7 +53,13 @@ describe("health", () => {
   it("reports system online", async () => {
     const res = await app.inject({ method: "GET", url: "/api/health" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: "ok" });
+    expect(res.json()).toMatchObject({ status: "ok" });
+  });
+
+  it("reports readiness with DB check", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/ready" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: "ready" });
   });
 });
 
@@ -663,5 +669,84 @@ describe("media validation", () => {
       payload: mismatch,
     });
     expect(res2.statusCode).toBe(415);
+  });
+});
+
+describe("ai providers", () => {
+  it("requires auth, masks keys, and enforces ADMIN for writes", async () => {
+    const anon = await app.inject({ method: "GET", url: "/api/ai-providers" });
+    expect(anon.statusCode).toBe(401);
+
+    const { cookies, csrf } = await login();
+    const empty = await app.inject({ method: "GET", url: "/api/ai-providers", cookies });
+    expect(empty.statusCode).toBe(200);
+    const list0 = empty.json() as { providers: unknown[]; envFallback: { provider: string } };
+    expect(Array.isArray(list0.providers)).toBe(true);
+
+    const created = await app.inject({
+      method: "POST", url: "/api/ai-providers", cookies,
+      headers: authHeaders(csrf),
+      payload: {
+        name: "Test OpenRouter",
+        kind: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        model: "meta-llama/llama-3.1-8b-instruct:free",
+        apiKey: "sk-test-secret-value-1234567890",
+        temperature: 0.2,
+        maxTokens: 200,
+        timeoutMs: 8000,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const body = created.json() as { provider: Record<string, unknown> };
+    // Raw key must never appear in any response.
+    expect(JSON.stringify(body)).not.toContain("sk-test-secret-value");
+    expect(body.provider.hasKey).toBe(true);
+    expect(body.provider.keyHint).toMatch(/^\*\*\*\*/);
+    const id = body.provider.id as string;
+
+    const listed = await app.inject({ method: "GET", url: "/api/ai-providers", cookies });
+    expect(JSON.stringify(listed.json())).not.toContain("sk-test-secret-value");
+
+    // Rotate + disable + delete round-trip.
+    const rotated = await app.inject({
+      method: "POST", url: `/api/ai-providers/${id}/rotate`, cookies,
+      headers: authHeaders(csrf), payload: { apiKey: "sk-rotated-secret-0987654321" },
+    });
+    expect(rotated.statusCode).toBe(200);
+    expect(JSON.stringify(rotated.json())).not.toContain("sk-rotated-secret");
+
+    const disabled = await app.inject({
+      method: "PATCH", url: `/api/ai-providers/${id}`, cookies,
+      headers: authHeaders(csrf), payload: { enabled: false },
+    });
+    expect(disabled.statusCode).toBe(200);
+
+    const deleted = await app.inject({
+      method: "DELETE", url: `/api/ai-providers/${id}`, cookies, headers: authHeaders(csrf),
+    });
+    expect(deleted.statusCode).toBe(200);
+  });
+});
+
+describe("interview", () => {
+  it("starts and answers one question at a time without scores", async () => {
+    const start = await app.inject({
+      method: "POST", url: "/api/chat/interview", payload: { action: "start", history: [] },
+    });
+    expect(start.statusCode).toBe(200);
+    const s = start.json() as { question: string | null; done: boolean };
+    expect(typeof s.question === "string" && s.question.length > 10).toBe(true);
+    expect(s.done).toBe(false);
+
+    const ans = await app.inject({
+      method: "POST", url: "/api/chat/interview",
+      payload: { action: "answer", answer: "I care about backend APIs and evidence integrity.", history: [{ role: "ai", text: s.question! }] },
+    });
+    expect(ans.statusCode).toBe(200);
+    const a = ans.json() as { question: string | null; reaction: string | null };
+    expect(a.question || a.reaction).toBeTruthy();
+    // No numeric scores anywhere.
+    expect(JSON.stringify(a)).not.toMatch(/"score"|"rating"|"grade"/i);
   });
 });
