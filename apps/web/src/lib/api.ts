@@ -178,9 +178,9 @@ export const api = {
     ),
   project: (slug: string, signal?: AbortSignal) =>
     request<{ project: Project }>(`/api/projects/${slug}`, { signal }),
-  certificates: (params?: { category?: string; search?: string; page?: number }, signal?: AbortSignal) =>
+  certificates: (params?: { category?: string; search?: string; year?: string; page?: number }, signal?: AbortSignal) =>
     request<{ certificates: Certificate[]; total: number; page: number; pageSize: number }>(
-      `/api/certificates${queryString({ category: params?.category, search: params?.search, page: params?.page === undefined ? undefined : String(params.page) })}`,
+      `/api/certificates${queryString({ category: params?.category, search: params?.search, year: params?.year, page: params?.page === undefined ? undefined : String(params.page) })}`,
       { signal },
     ),
   skills: (signal?: AbortSignal) =>
@@ -229,22 +229,24 @@ export const api = {
   revokeAllSessions: () => request<{ ok: boolean }>("/api/auth/sessions/revoke-all", { method: "POST", json: {} }),
   twofaStatus: () => request<{ enabled: boolean; enabledAt: string | null; recoveryRemaining: number }>("/api/auth/2fa/status"),
   twofaSetup: () => request<{ secret: string; otpauthUrl: string; qrDataUrl: string | null }>("/api/auth/2fa/setup", { method: "POST", json: {} }),
+  twofaCancelSetup: () => request<{ ok: boolean; cancelled: boolean }>("/api/auth/2fa/setup/cancel", { method: "POST", json: {} }),
   twofaEnable: (code: string) => request<{ ok: boolean; recoveryCodes: string[] }>("/api/auth/2fa/enable", { method: "POST", json: { code } }),
   twofaDisable: () => request<{ ok: boolean }>("/api/auth/2fa/disable", { method: "POST", json: {} }),
   twofaRegenCodes: () => request<{ ok: boolean; recoveryCodes: string[] }>("/api/auth/2fa/recovery/regenerate", { method: "POST", json: {} }),
-  securityOverview: () =>
-    request<{ email: string; role: string; displayName: string | null; passwordChangedAt: string | null; totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number; activeSessions: number; lastLoginAt: string | null }>("/api/auth/security/overview"),
+  securityOverview: (signal?: AbortSignal) =>
+    request<{ email: string; role: string; displayName: string | null; passwordChangedAt: string | null; totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number; activeSessions: number; lastLoginAt: string | null }>("/api/auth/security/overview", { signal }),
 
   // admin CRUD
   admin: {
-    projects: () => request<{ projects: Project[] }>("/api/projects"),
+    projects: (signal?: AbortSignal) => request<{ projects: Project[] }>("/api/projects/admin", { signal }),
     createProject: (input: unknown) => request<{ project: Project }>("/api/projects", { method: "POST", json: input }),
     updateProject: (id: string, input: unknown) => request<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", json: input }),
     deleteProject: (id: string) => request(`/api/projects/${id}`, { method: "DELETE" }),
 
-    certificates: (params?: { search?: string; category?: string; page?: number }) =>
-      request<{ certificates: Certificate[]; total: number }>(
-        `/api/certificates${queryString({ search: params?.search, category: params?.category, page: params?.page === undefined ? undefined : String(params.page) })}`,
+    certificates: (params?: { search?: string; category?: string; year?: string; page?: number }, signal?: AbortSignal) =>
+      request<{ certificates: Certificate[]; total: number; page: number; pageSize: number }>(
+        `/api/certificates${queryString({ search: params?.search, category: params?.category, year: params?.year, page: params?.page === undefined ? undefined : String(params.page) })}`,
+        { signal },
       ),
     createCertificate: (input: unknown) => request<{ certificate: Certificate }>("/api/certificates", { method: "POST", json: input }),
     updateCertificate: (id: string, input: unknown) => request<{ certificate: Certificate }>(`/api/certificates/${id}`, { method: "PATCH", json: input }),
@@ -265,13 +267,13 @@ export const api = {
     updateEducation: (id: string, input: unknown) => request<{ item: Education }>(`/api/education/${id}`, { method: "PATCH", json: input }),
     deleteEducation: (id: string) => request(`/api/education/${id}`, { method: "DELETE" }),
 
-    profile: () => request<{ profile: Profile | null }>("/api/profile"),
+    profile: (signal?: AbortSignal) => request<{ profile: Profile | null }>("/api/profile", { signal }),
     updateProfile: (input: unknown) => request<{ profile: Profile }>("/api/profile", { method: "PATCH", json: input }),
     settings: () => request<{ settings: SiteSettings }>("/api/settings"),
     updateSettings: (input: SiteSettings) => request<{ settings: SiteSettings }>("/api/settings", { method: "PATCH", json: input }),
 
-    aiProviders: () =>
-      request<{ providers: AiProvider[]; envFallback: { provider: string; model: string | null; baseUrl: string | null; configured: boolean } }>("/api/ai-providers"),
+    aiProviders: (signal?: AbortSignal) =>
+      request<{ providers: AiProvider[]; envFallback: { provider: string; model: string | null; baseUrl: string | null; configured: boolean } }>("/api/ai-providers", { signal }),
     createAiProvider: (input: unknown) => request<{ provider: AiProvider }>("/api/ai-providers", { method: "POST", json: input }),
     updateAiProvider: (id: string, input: unknown) => request<{ provider: AiProvider }>(`/api/ai-providers/${id}`, { method: "PATCH", json: input }),
     deleteAiProvider: (id: string) => request<{ ok: boolean }>(`/api/ai-providers/${id}`, { method: "DELETE" }),
@@ -302,7 +304,15 @@ export const api = {
         `/api/stats/audit${queryString({ page: params?.page === undefined ? undefined : String(params.page), pageSize: params?.pageSize === undefined ? undefined : String(params.pageSize), q: params?.q, action: params?.action, entity: params?.entity, sort: params?.sort })}`,
       ),
     securityEvents: () => request<{ logs: AuditLogEntry[] }>("/api/stats/security-events"),
-    overview: () => request<{ recentMessages: ContactMessage[]; recentAudit: AuditLogEntry[] }>("/api/stats/overview"),
-    analytics: () => request<{ last30Days: { type: string; count: number }[]; daily: { day: string; count: number }[] }>("/api/events/summary"),
+    overview: (signal?: AbortSignal) => request<{ recentMessages: ContactMessage[]; recentAudit: AuditLogEntry[] }>("/api/stats/overview", { signal }),
+    analytics: (days: 7 | 30 | 90 = 30, signal?: AbortSignal) => request<{
+      days: number;
+      since: string;
+      eventCounts: { type: string; count: number }[];
+      previousEventCounts: { type: string; count: number }[];
+      last30Days: { type: string; count: number }[];
+      daily: { day: string; count: number }[];
+      projectPerformance: { slug: string; title: string; count: number }[];
+    }>(`/api/events/summary?days=${days}`, { signal }),
   },
 };

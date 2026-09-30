@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const configDir = path.dirname(fileURLToPath(import.meta.url));
+const apiPort = process.env.VITE_API_PORT ?? "4000";
 
 export default defineConfig({
   plugins: [react()],
@@ -20,8 +21,8 @@ export default defineConfig({
     // exercise a different process than the one developers intended.
     strictPort: true,
     proxy: {
-      "/api": { target: "http://localhost:4000", changeOrigin: true },
-      "/static": { target: "http://localhost:4000", changeOrigin: true },
+      "/api": { target: `http://127.0.0.1:${apiPort}`, changeOrigin: true },
+      "/static": { target: `http://127.0.0.1:${apiPort}`, changeOrigin: true },
     },
   },
   build: {
