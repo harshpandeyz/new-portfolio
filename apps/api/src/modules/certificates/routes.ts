@@ -15,11 +15,12 @@ const requireEditor = requirePermission("content:write");
 
 export async function certificateRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req) => {
-    const { category, search, page: pageNum } = parseQuery(req, certificateQuerySchema);
+    const { category, search, year, page: pageNum } = parseQuery(req, certificateQuerySchema);
     const pageSize = 24;
 
     const where: Prisma.CertificateWhereInput = {
       ...(category && category !== "ALL" ? { category } : {}),
+      ...(year ? { issuedOn: { startsWith: year } } : {}),
       ...(search
         ? {
             OR: [

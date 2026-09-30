@@ -463,6 +463,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { secret, otpauthUrl: uri, qrDataUrl: qr };
   });
 
+  app.post("/2fa/setup/cancel", { preHandler: [requireAuth, requireCsrf] }, async (req) => {
+    const u = req.admin!;
+    if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
+      throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
+    }
+    const db = await prisma.user.findUnique({ where: { id: u.id }, select: { totpEnabled: true, totpSecret: true } });
+    if (!db) throw new HttpError(404, "NOT_FOUND", "User not found");
+    if (db.totpEnabled) throw new HttpError(409, "CONFLICT", "Two-factor authentication is already enabled");
+    if (!db.totpSecret) return { ok: true, cancelled: false };
+    await prisma.user.update({ where: { id: u.id }, data: { totpSecret: null } });
+    await audit(req, "AUTH_2FA_SETUP_CANCELLED", "user", u.id);
+    return { ok: true, cancelled: true };
+  });
+
   app.post("/2fa/enable", { preHandler: [requireAuth, requireCsrf] }, async (req, reply) => {
     const u = req.admin!;
     if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {

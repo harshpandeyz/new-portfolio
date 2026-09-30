@@ -6,12 +6,13 @@ import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { hasPermission, requirePermission } from "../auth/rbac.js";
 import { resolveSessionUser } from "../auth/session.js";
-import { audit, clientIp, notFound, parseBody, parseQuery } from "../../utils/http.js";
+import { audit, clientIp, noStore, notFound, parseBody, parseQuery } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
 import { invalidateKnowledge } from "../chat/knowledge.js";
 
 const requireEditor = requirePermission("content:write");
+const requireContentRead = requirePermission("content:read");
 
 const PUBLIC_SELECT = {
   id: true,
@@ -59,6 +60,17 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       where,
       orderBy: [{ featured: "desc" }, { order: "asc" }, { updatedAt: "desc" }],
       ...(isStaff ? {} : { select: PUBLIC_SELECT }),
+    });
+    return { projects };
+  });
+
+  // The public listing intentionally excludes drafts for every caller. The
+  // editor needs its own authenticated listing so draft work can be reviewed
+  // and published without ever leaking into a signed-in public-site session.
+  app.get("/admin", { preHandler: [requireContentRead] }, async (_req, reply) => {
+    noStore(reply);
+    const projects = await prisma.project.findMany({
+      orderBy: [{ featured: "desc" }, { order: "asc" }, { updatedAt: "desc" }],
     });
     return { projects };
   });
