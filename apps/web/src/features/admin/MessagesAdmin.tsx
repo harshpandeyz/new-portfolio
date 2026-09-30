@@ -230,8 +230,8 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
     } catch (e) {
       const msg = friendlyError(e);
       setReplyError(
-        /SMTP_NOT_CONFIGURED|not configured/i.test(msg)
-          ? "Email sending isn't configured yet. Add SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD in .env, then try again."
+        /EMAIL_NOT_CONFIGURED|SMTP_NOT_CONFIGURED|not configured/i.test(msg)
+          ? "Email sending isn't configured yet. Add RESEND_API_KEY + EMAIL_FROM (production) or SMTP_* in server env, then try again."
           : msg,
       );
     } finally {
@@ -384,9 +384,11 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
               onKeyDown={(e) => {
                 const tag = (e.target as HTMLElement).tagName;
                 if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-                if (e.key === "ArrowDown") { e.preventDefault(); moveOpen(1); }
-                else if (e.key === "ArrowUp") { e.preventDefault(); moveOpen(-1); }
+                if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); moveOpen(1); }
+                else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); moveOpen(-1); }
                 else if (e.key === "Escape") { setOpen(null); }
+                else if (e.key === "e" && openMsg) { void setStatus(openMsg, "ARCHIVED"); }
+                else if (e.key === "a" && openMsg) { void setStatus(openMsg, openMsg.status === "NEW" ? "READ" : "NEW"); }
               }}
             >
               {visible.map((m) => {
@@ -445,6 +447,29 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
           ) : (
             <>
               <button type="button" className="ctl-back-btn" onClick={() => setOpen(null)}>← All messages</button>
+              <div className="ctl-detail-nav" role="toolbar" aria-label="Conversation navigation">
+                <button
+                  type="button"
+                  className="ctl-mini-btn"
+                  disabled={activeIndex <= 0}
+                  onClick={() => moveOpen(-1)}
+                  aria-label="Previous message (↑ or k)"
+                >
+                  ↑ Prev
+                </button>
+                <span aria-live="polite" style={{ fontSize: 12, color: "#8a93a3" }}>
+                  {activeIndex >= 0 ? `${activeIndex + 1} of ${visible.length}` : ""}
+                </span>
+                <button
+                  type="button"
+                  className="ctl-mini-btn"
+                  disabled={activeIndex < 0 || activeIndex >= visible.length - 1}
+                  onClick={() => moveOpen(1)}
+                  aria-label="Next message (↓ or j)"
+                >
+                  Next ↓
+                </button>
+              </div>
               <div className="ctl-detail-head">
                 <h2>{openMsg.subject || "No subject"}</h2>
                 <Badge tone={toneFor(openMsg.status)}>{openMsg.status}</Badge>
@@ -500,8 +525,18 @@ export function MessagesAdmin({ onChange }: { onChange: () => void }) {
                     disabled={replyBusy || replyBody.trim().length < 2}
                     onClick={() => void sendReply(openMsg)}
                   >
-                    {replyBusy ? "Sending…" : `Send reply to ${openMsg.email}`}
+                    {replyBusy ? "Sending… (do not close)" : `Send reply to ${openMsg.email}`}
                   </button>
+                  {replyError && (
+                    <button
+                      type="button"
+                      className="ctl-btn ctl-btn--secondary ctl-btn--sm"
+                      disabled={replyBusy || replyBody.trim().length < 2}
+                      onClick={() => void sendReply(openMsg)}
+                    >
+                      Retry send
+                    </button>
+                  )}
                 </div>
               </div>
               {repliesLoading ? (

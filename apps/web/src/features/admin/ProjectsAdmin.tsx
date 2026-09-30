@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import type { Project } from "@hp/shared";
+import { FLAGSHIP_SLUGS, SELECTED_SLUGS, isArchiveOnlySlug } from "@hp/shared";
 import {
   Badge, ConfirmDialog, Drawer, EmptyState, ErrorState, Field, PageHead, SearchInput, SkeletonList,
   Tabs, friendlyError, usePersistentState, useToast,
@@ -219,11 +220,15 @@ export function ProjectsAdmin() {
     setEdit({ [key]: arr } as Partial<Project>);
   };
 
+  const signatureSlugs = useMemo(() => new Set([...FLAGSHIP_SLUGS, ...SELECTED_SLUGS] as string[]), []);
+  const isFlagship = (slug: string) => (FLAGSHIP_SLUGS as readonly string[]).includes(slug);
+  const isSelected = (slug: string) => (SELECTED_SLUGS as readonly string[]).includes(slug);
+
   return (
     <>
       <PageHead
         title="Projects"
-        desc={`${filtered.length} of ${projects.length} project${projects.length === 1 ? "" : "s"} · drafts stay hidden from the public site.`}
+        desc={`${filtered.length} of ${projects.length} project${projects.length === 1 ? "" : "s"} · homepage uses explicit slug curation (CCTV-X, OrchestraAI, QuantumMind, SkillMatch) — order/featured never swap signature slots · drafts stay hidden.`}
         actions={
           <>
             <SearchInput value={query} onChange={setQuery} label="Search projects" placeholder="Search title, slug, category…" />
@@ -292,8 +297,13 @@ export function ProjectsAdmin() {
                   <td><input type="checkbox" checked={selected.has(p.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} aria-label={`Select ${p.title}`} /></td>
                   <td>
                     <button type="button" className="ctl-link-btn" onClick={() => openEditor({ ...p }, false)}>{p.title}</button>
-                    {p.featured && <span> </span>}
-                    {p.featured && <Badge tone="amber">FEATURED</Badge>}
+                    {signatureSlugs.has(p.slug) && <span> </span>}
+                    {isFlagship(p.slug) && <Badge tone="amber">HOMEPAGE · FLAGSHIP</Badge>}
+                    {!isFlagship(p.slug) && isSelected(p.slug) && <Badge tone="amber">HOMEPAGE · SELECTED</Badge>}
+                    {!signatureSlugs.has(p.slug) && p.featured && <span> </span>}
+                    {!signatureSlugs.has(p.slug) && p.featured && <Badge tone="neutral">FEATURED</Badge>}
+                    {isArchiveOnlySlug(p.slug) && <span> </span>}
+                    {isArchiveOnlySlug(p.slug) && <Badge tone="gray">ARCHIVE ONLY</Badge>}
                     <div className="ctl-row-sub">/{p.slug}</div>
                   </td>
                   <td><Badge tone="neutral">{p.tier}</Badge></td>

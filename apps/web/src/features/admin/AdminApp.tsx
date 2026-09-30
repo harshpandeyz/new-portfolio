@@ -22,6 +22,7 @@ const MediaAdmin = lazy(() => import("./MediaAdmin").then((m) => ({ default: m.M
 const AuditAdmin = lazy(() => import("./AuditAdmin").then((m) => ({ default: m.AuditAdmin })));
 const SecurityCenter = lazy(() => import("./SecurityCenter").then((m) => ({ default: m.SecurityCenter })));
 const SettingsAdmin = lazy(() => import("./SettingsAdmin").then((m) => ({ default: m.SettingsAdmin })));
+const AiProvidersAdmin = lazy(() => import("./AiProvidersAdmin").then((m) => ({ default: m.AiProvidersAdmin })));
 
 interface AdminUser {
   email: string;
@@ -46,6 +47,7 @@ function NavIcon({ kind }: { kind: string }) {
     case "messages": return (<svg {...p} aria-hidden="true"><rect x="2" y="3.5" width="12" height="9" rx="2" /><path d="M2.5 4.5L8 9l5.5-4.5" /></svg>);
     case "media": return (<svg {...p} aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2" /><circle cx="5.5" cy="6.5" r="1.2" /><path d="M2.5 11.5l3.5-3 2.5 2 2-1.5 3 2.5" /></svg>);
     case "security": return (<svg {...p} aria-hidden="true"><path d="M8 1.8l5 2v4c0 3-2 5.4-5 6.4-3-1-5-3.4-5-6.4v-4z" /><path d="M6 8l1.5 1.5L10.5 6" /></svg>);
+    case "ai": return (<svg {...p} aria-hidden="true"><path d="M8 1.8l1.7 3.6 3.6 1.7-3.6 1.7L8 12.4l-1.7-3.6L2.7 7.1l3.6-1.7z" /><path d="M12 11l.8 1.7 1.7.8-1.7.8L12 16l-.8-1.7-1.7-.8 1.7-.8z" /></svg>);
     case "settings": return (<svg {...p} aria-hidden="true"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4" /></svg>);
     case "audit": return (<svg {...p} aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h6" /><circle cx="12.5" cy="12" r="1.5" /></svg>);
     default: return (<svg {...p} aria-hidden="true"><circle cx="8" cy="8" r="5" /></svg>);
@@ -63,11 +65,11 @@ interface NavItem {
 }
 
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-  { label: "Home", items: [{ path: "/private", label: "Overview", icon: "overview", keywords: "home dashboard attention", end: true }] },
+  { label: "Analytics", items: [{ path: "/private", label: "Overview", icon: "overview", keywords: "home dashboard attention analytics stats", end: true }] },
   {
     label: "Content",
     items: [
-      { path: "/private/projects", label: "Projects", icon: "projects", keywords: "work portfolio case studies" },
+      { path: "/private/projects", label: "Projects", icon: "projects", keywords: "work portfolio case studies curation order" },
       { path: "/private/certificates", label: "Certificates", icon: "certs", keywords: "credentials courses" },
       { path: "/private/skills", label: "Skills", icon: "skills", keywords: "stack capabilities tech" },
       { path: "/private/timeline", label: "Timeline", icon: "timeline", keywords: "journey history milestones" },
@@ -83,9 +85,20 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "System",
+    label: "AI",
+    items: [
+      { path: "/private/ai-providers", label: "AI providers", icon: "ai", keywords: "llm model openrouter nvidia openai assistant config", adminOnly: true },
+    ],
+  },
+  {
+    label: "Security",
     items: [
       { path: "/private/security", label: "Security", icon: "security", keywords: "2fa sessions password auth" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
       { path: "/private/settings", label: "Settings", icon: "settings", keywords: "site feature flags assistant maintenance", adminOnly: true },
       { path: "/private/audit", label: "Audit log", icon: "audit", keywords: "history trail events" },
     ],
@@ -103,6 +116,7 @@ const TITLES: Record<string, string> = {
   "/private/profile": "Profile",
   "/private/media": "Media",
   "/private/security": "Security",
+  "/private/ai-providers": "AI providers",
   "/private/settings": "Settings",
   "/private/audit": "Audit log",
 };
@@ -272,6 +286,7 @@ export default function AdminApp() {
         action: () => triage?.archiveSelected(),
       },
       { id: "open-security", label: "Open security center", group: "System", keywords: "2fa sessions password", action: go("/private/security") },
+      { id: "open-ai", label: "Open AI providers", group: "System", keywords: "llm model provider openrouter assistant", action: go("/private/ai-providers") },
       { id: "open-settings", label: "Open site settings", group: "System", keywords: "feature flags maintenance assistant", action: go("/private/settings") },
       { id: "logout", label: "Log out", group: "System", keywords: "sign out exit", action: () => void logout() },
     ];
@@ -450,6 +465,7 @@ export default function AdminApp() {
                 <Route path="messages" element={<MessagesAdmin onChange={refreshUnread} />} />
                 <Route path="media" element={<MediaAdmin />} />
                 <Route path="security" element={<SecurityCenter onSessionChange={() => undefined} />} />
+                <Route path="ai-providers" element={<AiProvidersAdmin />} />
                 <Route path="settings" element={<SettingsAdmin />} />
                 <Route path="audit" element={<AuditAdmin />} />
                 <Route path="*" element={<Navigate to="/private" replace />} />

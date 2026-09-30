@@ -209,6 +209,31 @@
 
 .chat-head .ai-actions { display: flex; gap: 3px; margin-left: auto; }
 
+.chat-tabs { display: flex; gap: 4px; padding: 10px 18px 0; }
+.chat-tab {
+  flex: 1;
+  min-height: 36px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+}
+.chat-tab.active { border-color: var(--color-line-focus); color: var(--color-text); background: var(--color-accent-subtle); }
+.chat-textarea { resize: vertical; min-height: 44px; max-height: 140px; font-family: inherit; }
+.chat-start-btn {
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-inverse);
+  background: var(--color-accent);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-semibold);
+}
+.chat-start-btn:disabled { opacity: 0.5; }
+.chat-start-btn:not(:disabled):hover { background: var(--color-accent-hover); }
+
 .chat-body {
   display: flex;
   flex: 1;
