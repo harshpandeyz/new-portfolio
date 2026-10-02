@@ -19,32 +19,35 @@ function tokenizeQuery(query: string): string[] {
     .toLowerCase()
     .replace(/[^a-z0-9+#./ -]/g, " ")
     .split(/[\s/-]+/)
-    .filter((t) => t.length > 1 && !STOPWORDS.has(t));
+    .map((term) => term.replace(/^[./]+|[./]+$/g, ""))
+    .filter((t) => t.length > 1 && !STOPWORDS.has(t))
+    .map(normalizeTerm);
+}
+
+function normalizeTerm(term: string): string {
+  if (term.length > 5 && term.endsWith("ies")) return `${term.slice(0, -3)}y`;
+  if (term.length > 4 && term.endsWith("s") && !term.endsWith("ss")) return term.slice(0, -1);
+  return term;
 }
 
 /**
- * Lexical retrieval with field boosting. Deliberately dependency-free —
- * the interface matches a future vector-search retriever (see docs/ARCHITECTURE.md).
+ * Deterministic lexical retrieval with exact normalized token matches and
+ * field boosting. The portfolio is small; this avoids weak substring hits.
  */
 export function retrieve(query: string, docs: KnowledgeDoc[], topK = 5): RetrievedDoc[] {
   const terms = tokenizeQuery(query);
   if (terms.length === 0) return [];
 
   const scored = docs.map((doc) => {
-    const titleLower = doc.title.toLowerCase();
-    const contentLower = doc.content.toLowerCase();
+    const titleTerms = new Set(tokenizeQuery(doc.title));
+    const contentTerms = new Set(tokenizeQuery(doc.content));
+    const keywordTerms = new Set(doc.keywords.map(normalizeTerm));
     let score = 0;
 
     for (const term of terms) {
-      if (doc.keywords.includes(term)) score += 3;
-      if (titleLower.includes(term)) score += 4;
-      if (contentLower.includes(term)) score += 1;
-      // partial match for plural/simple morphological variants
-      if (term.length > 4) {
-        const stem = term.slice(0, Math.max(4, term.length - 2));
-        if (titleLower.includes(stem)) score += 1.5;
-        if (contentLower.includes(stem)) score += 0.5;
-      }
+      if (keywordTerms.has(term)) score += 3;
+      if (titleTerms.has(term)) score += 4;
+      if (contentTerms.has(term)) score += 1;
     }
 
     // slight preference for richer documents
@@ -55,6 +58,6 @@ export function retrieve(query: string, docs: KnowledgeDoc[], topK = 5): Retriev
 
   return scored
     .filter((s) => s.score > 2)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score || a.doc.id.localeCompare(b.doc.id))
     .slice(0, topK);
 }

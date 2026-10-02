@@ -12,7 +12,9 @@
 
 import { config } from "../../config.js";
 import { decryptApiKey } from "../ai-providers/secrets.js";
+import { requestProviderJson } from "../ai-providers/safe-request.js";
 import { enabledProviderRows } from "../ai-providers/store.js";
+import { clearProviderFailure, providerIsCoolingDown, recordProviderFailure } from "../ai-providers/cooldown-state.js";
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -41,35 +43,23 @@ class OpenAiCompatibleProvider implements LlmProvider {
   }
 
   async complete(messages: LlmMessage[], options?: { maxTokens?: number; temperature?: number }): Promise<string> {
-    const baseUrl = this.baseUrl.replace(/\/$/, "");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(this.timeoutMs, 2000), 60000));
-    try {
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
+    const res = await requestProviderJson(this.baseUrl, "chat/completions", {
+      apiKey: this.apiKey,
+      method: "POST",
+      timeoutMs: this.timeoutMs,
+      body: {
           model: this.model,
           messages,
           max_tokens: options?.maxTokens ?? this.defaultMaxTokens,
           temperature: options?.temperature ?? this.defaultTemperature,
           stream: false,
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        throw new Error(`LLM provider error ${res.status}`);
-      }
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) throw new Error("LLM returned empty content");
-      return content.trim();
-    } finally {
-      clearTimeout(timeout);
-    }
+      },
+    });
+    if (res.status < 200 || res.status >= 300) throw new Error(`LLM provider error ${res.status}`);
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error("LLM returned empty content");
+    return content.trim();
   }
 }
 
@@ -142,10 +132,13 @@ export async function completeWithFallback(
   const providers = await getLlmProviders();
   let lastError: unknown = null;
   for (const p of providers) {
+    if (await providerIsCoolingDown(p.name)) continue;
     try {
       const text = await p.complete(messages, options);
+      await clearProviderFailure(p.name).catch(() => undefined);
       return { text, provider: p.name };
     } catch (e) {
+      await recordProviderFailure(p.name).catch(() => undefined);
       lastError = e;
     }
   }

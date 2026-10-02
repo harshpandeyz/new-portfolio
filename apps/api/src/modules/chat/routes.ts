@@ -1,12 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { chatSchema, interviewSchema } from "@hp/shared";
+import { chatSchema } from "@hp/shared";
 
-import { prisma } from "../../db/prisma.js";
-import { clientIp, HttpError, parseBody } from "../../utils/http.js";
+import { clientIp, parseBody } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { answerQuestion } from "./engine.js";
-import { interviewTurn } from "./interview.js";
 import { getSiteSettings } from "../settings/store.js";
+import { trackAnalyticsEvent } from "../analytics/track.js";
 
 const CHAT_WINDOW_MS = 60 * 1000;
 const CHAT_MAX = 12;
@@ -16,7 +15,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!(await getSiteSettings()).chatEnabled) {
       return reply.code(503).send({ error: "CHAT_DISABLED", message: "The portfolio assistant is temporarily unavailable." });
     }
-    const limit = rateLimit(`chat:${clientIp(req)}`, CHAT_MAX, CHAT_WINDOW_MS);
+    const limit = await rateLimit(`chat:${clientIp(req)}`, CHAT_MAX, CHAT_WINDOW_MS);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       return reply.code(429).send({ error: "RATE_LIMITED", message: "The intelligence core needs a moment. Try again shortly." });
@@ -25,18 +24,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { message } = parseBody(req, chatSchema);
     const reply_ = await answerQuestion(message);
 
-    void prisma.chatQueryLog
-      .create({ data: { question: message.slice(0, 500), confidence: reply_.confidence, provider: reply_.provider } })
-      .catch(() => undefined);
-    void prisma.analyticsEvent
-      .create({ data: { type: "chat_query", ref: reply_.confidence } })
-      .catch(() => undefined);
+    void trackAnalyticsEvent("chat_query", reply_.confidence).catch(() => undefined);
 
     return reply_;
   });
 
   app.get("/suggestions", async (req, reply) => {
-    const limit = rateLimit(`chat-sug:${clientIp(req)}`, 30, 60 * 1000);
+    const limit = await rateLimit(`chat-sug:${clientIp(req)}`, 30, 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       return reply.code(429).send({ error: "RATE_LIMITED", message: "Too many requests. Try again shortly." });
@@ -56,26 +50,4 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // ── interview mode: one question at a time, grounded follow-ups ──
-  app.post("/interview", async (req, reply) => {
-    if (!(await getSiteSettings()).chatEnabled) {
-      return reply.code(503).send({ error: "CHAT_DISABLED", message: "The portfolio assistant is temporarily unavailable." });
-    }
-    const limit = rateLimit(`interview:${clientIp(req)}`, CHAT_MAX, CHAT_WINDOW_MS);
-    if (!limit.allowed) {
-      reply.header("retry-after", limit.retryAfterSeconds);
-      return reply.code(429).send({ error: "RATE_LIMITED", message: "The interview room needs a moment. Try again shortly." });
-    }
-    const { action, answer, history } = parseBody(req, interviewSchema);
-    const turns = (history ?? []).slice(-40).map((t) => ({ role: t.role, text: t.text.slice(0, 2000) }));
-    if (action === "end") {
-      return { question: null, reaction: "Thanks for the conversation — the case studies and recruiter view have everything we covered.", done: true, turn: Math.floor(turns.length / 2), provider: "knowledge-base" };
-    }
-    const lastAnswer = action === "answer" ? (answer?.trim() ? answer.trim().slice(0, 2000) : null) : null;
-    if (action === "answer" && !lastAnswer) throw new HttpError(400, "VALIDATION_ERROR", "Write an answer first.");
-    if (action === "answer" && lastAnswer) turns.push({ role: "user", text: lastAnswer });
-    const result = await interviewTurn(turns, lastAnswer);
-    void prisma.analyticsEvent.create({ data: { type: "interview_turn", ref: String(result.turn) } }).catch(() => undefined);
-    return result;
-  });
 }

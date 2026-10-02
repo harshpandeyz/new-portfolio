@@ -2,12 +2,11 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { DataProvider, useData } from "./lib/data";
-import { detectCapabilities, type EnvCapabilities } from "./lib/device";
-import { bindReveals, killTriggers, ScrollTrigger } from "./lib/motion";
+import { scrollBehavior } from "./lib/motion";
 import { unlock } from "./lib/achievements";
 import { api } from "./lib/api";
 import { applyMeta } from "./lib/seo";
-import { SEO } from "./app/constants";
+import { PROFILE, SEO } from "./app/constants";
 
 import { TopBar } from "./components/navigation/TopBar";
 import { SECTION_IDS, type SectionId } from "./components/navigation/nav";
@@ -26,7 +25,6 @@ import { Work } from "./features/home/Work";
 import { TechStack } from "./features/home/TechStack";
 import { Credentials } from "./features/home/Credentials";
 import { Contact } from "./features/contact/Contact";
-import { Closing } from "./features/home/Closing";
 
 // Heavy routes are code-split so the homepage stays lean: case studies,
 // archives and the assistant load only when visited/opened.
@@ -51,7 +49,7 @@ function RouteFallback({ label }: { label: string }) {
   );
 }
 
-function Experience({ caps }: { caps: EnvCapabilities }) {
+function Experience() {
   const { loaded, error, refresh, publicSettings } = useData();
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,83 +57,37 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [privateOpen, setPrivateOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
-  const triggersRef = useRef<ScrollTrigger[]>([]);
-  const imageCleanupsRef = useRef<(() => void)[]>([]);
+  const [chatMounted, setChatMounted] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatSignal, setChatSignal] = useState(0);
+  const chatLauncherRef = useRef<HTMLButtonElement>(null);
   const recruiterMode = location.pathname === "/recruiter";
 
-  const { sectionIndex, scrolled } = useScrollPosition(SECTION_IDS);
+  const { sectionIndex, scrolled } = useScrollPosition(SECTION_IDS, !recruiterMode, location.pathname === "/");
 
   // Track page views on route changes. In the SPA, the Experience component
   // doesn't remount on navigation so we depend on location.pathname.
-  useEffect(() => { void api.track("page_view", location.pathname); }, [location.pathname]);
+  useEffect(() => {
+    if (!loaded || location.pathname === "/private" || location.pathname.startsWith("/private/")) return;
+    const projectSlug = location.pathname.match(/^\/projects\/([a-z0-9][a-z0-9-]{0,119})$/)?.[1];
+    if (projectSlug) void api.track("project_view", projectSlug);
+    else void api.track("page_view", location.pathname);
+  }, [location.pathname, loaded]);
 
   useEffect(() => {
     // Page-specific metadata (defaults for the home shell).
     if (location.pathname === "/recruiter") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Résumé`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education.", url: `${SEO.siteUrl}/recruiter` });
+      applyMeta({ title: `${PROFILE.name} — Recruiter briefing`, description: "Fast, printable summary of Harsh Pandey's experience, selected work, capabilities and education.", url: `${SEO.siteUrl}/recruiter` });
     } else if (location.pathname.startsWith("/projects/")) {
       applyMeta({ title: "Project — Harsh Pandey", description: SEO.description, url: `${SEO.siteUrl}${location.pathname}` });
     } else if (location.pathname === "/projects") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Project archive`, description: "The full archive of Harsh Pandey's projects — flagship, selected work, experiments and internship builds.", url: `${SEO.siteUrl}/projects` });
+      applyMeta({ title: `${PROFILE.name} — Project archive`, description: "The full archive of Harsh Pandey's projects — flagship, selected work, experiments and internship builds.", url: `${SEO.siteUrl}/projects` });
     } else if (location.pathname === "/credentials") {
-      applyMeta({ title: `${SEO.title.split(" | ")[0]} — Credential archive`, description: "The full credential archive for Harsh Pandey — certificates, assessments and major achievements.", url: `${SEO.siteUrl}/credentials` });
+      applyMeta({ title: `${PROFILE.name} — Credential archive`, description: "The full credential archive for Harsh Pandey — certificates, assessments and major achievements.", url: `${SEO.siteUrl}/credentials` });
     } else {
       applyMeta({ title: SEO.title, description: SEO.description, url: SEO.siteUrl });
     }
   }, [location.pathname]);
-
-  // GSAP reveals after content loads (home only). Re-binding on `loaded`
-  // snapshots final geometry, and ScrollTrigger is refreshed again once
-  // fonts/lazy-images settle so trigger positions track real layout — reveal
-  // state never depends on one fragile scroll-crossing happening at the exact
-  // moment a trigger was created (refresh() fires onEnter for anything already
-  // past its start).
-  useEffect(() => {
-    if (location.pathname !== "/") return;
-    let cancelled = false;
-    const t = window.setTimeout(() => {
-      if (cancelled) return;
-      killTriggers(triggersRef.current);
-      triggersRef.current = bindReveals(document, caps);
-      if (caps.reducedMotion) return;
-
-      const refresh = () => ScrollTrigger.refresh();
-      const onWindowLoad = () => refresh();
-      window.addEventListener("load", onWindowLoad, { once: true });
-      if (document.readyState === "complete") onWindowLoad();
-      void document.fonts.ready.then(refresh).catch(() => undefined);
-
-      const lazyImages = [...document.querySelectorAll<HTMLImageElement>("img[loading='lazy']")];
-      const cleanups: (() => void)[] = [];
-      if (lazyImages.length > 0) {
-        let pending = lazyImages.length;
-        const onImageReady = () => {
-          pending -= 1;
-          if (pending === 0) refresh();
-        };
-        lazyImages.forEach((img) => {
-          if (img.complete) onImageReady();
-          else {
-            img.addEventListener("load", onImageReady, { once: true });
-            cleanups.push(() => img.removeEventListener("load", onImageReady));
-          }
-        });
-      }
-      // Store cleanups so the effect cleanup can remove them if it re-runs.
-      imageCleanupsRef.current = cleanups;
-    }, loaded ? 60 : 600);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-      // Clean up any lazy-image listeners from a previous timer fire.
-      imageCleanupsRef.current.forEach((fn) => fn());
-      imageCleanupsRef.current = [];
-      // Tear down home ScrollTriggers on re-run/unmount so they never leak
-      // onto archive/case routes.
-      killTriggers(triggersRef.current);
-      triggersRef.current = [];
-    };
-  }, [caps, loaded, location.pathname]);
 
   // Shared deep links (/#work, /#credentials, …) must land on their section on
   // a fresh load — not just when clicked in-app. Sections render after content
@@ -151,7 +103,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     const handles: number[] = [];
     const scrollToHash = () => {
       const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+      if (el) el.scrollIntoView({ behavior: scrollBehavior() });
     };
 
     const settleAndScroll = () => {
@@ -185,7 +137,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       window.clearTimeout(t);
       handles.forEach((h) => window.clearInterval(h));
     };
-  }, [location.hash, loaded, location.pathname, caps.reducedMotion]);
+  }, [location.hash, loaded, location.pathname]);
 
   useEffect(() => {
     if (location.pathname !== "/") return;
@@ -193,13 +145,11 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       const id = location.hash.replace(/^#/, "");
       if (!id) return;
       const el = document.getElementById(id);
-      if (el) el.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+      if (el) el.scrollIntoView({ behavior: scrollBehavior() });
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [location.pathname, caps.reducedMotion]);
-
-  useEffect(() => () => killTriggers(triggersRef.current), []);
+  }, [location.pathname]);
 
   // private access via exit-section event
   useEffect(() => {
@@ -215,7 +165,8 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
 
   const openChat = useCallback(() => {
     unlock("ai");
-    window.dispatchEvent(new CustomEvent("hp:open-chat"));
+    setChatMounted(true);
+    setChatSignal((signal) => signal + 1);
   }, []);
 
   // five-click logo easter egg → minimal mode (visual only, resets after 2s)
@@ -229,7 +180,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     }, 2000);
     if (logoClicks.current === 1) {
       navigate("/");
-      window.scrollTo({ top: 0, behavior: caps.reducedMotion ? "auto" : "smooth" });
+      window.scrollTo({ top: 0, behavior: scrollBehavior() });
     }
     if (logoClicks.current >= 5) {
       logoClicks.current = 0;
@@ -237,7 +188,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       document.documentElement.classList.toggle("minimal-mode");
       window.dispatchEvent(new CustomEvent("hp:toast", { detail: { title: "INTERFACE MODE", desc: "Minimal mode toggled." } }));
     }
-  }, [navigate, caps.reducedMotion]);
+  }, [navigate]);
 
   useGlobalShortcuts(
     useMemo(
@@ -253,9 +204,9 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
     const go = (id: string) => () => {
       if (location.pathname !== "/") {
         navigate(`/#${id}`);
-        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" }), 220);
+        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() }), 220);
       } else {
-        document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+        document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() });
       }
     };
     return [
@@ -274,7 +225,7 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       { id: "chat", label: "Ask Harsh", icon: "chat" as const, action: openChat, keywords: "ai chat assistant ask" },
       { id: "recruiter-home", label: "Return Home", icon: "home" as const, action: () => navigate("/"), keywords: "home top start hero" },
     ];
-  }, [caps.reducedMotion, location.pathname, navigate, openResume, openChat]);
+  }, [location.pathname, navigate, openResume, openChat]);
 
   const activeSection: SectionId = SECTION_IDS[sectionIndex] ?? "hero";
 
@@ -296,14 +247,13 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
             path="/"
             element={
               <>
-                <Hero caps={caps} onViewResume={openResume} />
+                <Hero onViewResume={openResume} />
                 <About />
                 <Journey />
                 <Work />
                 <TechStack />
                 <Credentials />
                 <Contact onViewResume={openResume} />
-                <Closing onViewResume={openResume} />
               </>
             }
           />
@@ -321,9 +271,16 @@ function Experience({ caps }: { caps: EnvCapabilities }) {
       {!recruiterMode && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
       {!recruiterMode && <PrivateAccess open={privateOpen} onClose={() => setPrivateOpen(false)} />}
       {!recruiterMode && (
-        <Suspense fallback={null}>
-          <ChatWidget />
-        </Suspense>
+        <>
+          {publicSettings?.chatEnabled !== false && !chatOpen && (
+            <button ref={chatLauncherRef} className="chat-fab" onClick={openChat} aria-label="Ask Harsh">
+              <span className="pulse" aria-hidden="true" />
+              <span className="label">Ask Harsh</span>
+              <span aria-hidden="true">✦</span>
+            </button>
+          )}
+          {chatMounted && <Suspense fallback={null}><ChatWidget openSignal={chatSignal} launcherRef={chatLauncherRef} onOpenChange={setChatOpen} /></Suspense>}
+        </>
       )}
       {!recruiterMode && <AchievementToasts />}
     </ErrorBoundary>
@@ -353,20 +310,21 @@ function RecruiterRoute({ onViewResume }: { onViewResume: () => void }) {
 }
 
 export default function App() {
-  const [caps] = useState<EnvCapabilities>(() => detectCapabilities());
   return (
     <ErrorBoundary>
-      <DataProvider>
-        <Routes>
-          <Route path="/private/*" element={<AdminRoute />} />
-          <Route path="*" element={<Experience caps={caps} />} />
-        </Routes>
-      </DataProvider>
+      <Routes>
+        <Route path="/private/*" element={<AdminRoute />} />
+        <Route path="*" element={<PublicExperience />} />
+      </Routes>
     </ErrorBoundary>
   );
 }
 
-// code-split the admin dashboard (three.js + gsap stay out of this chunk)
+function PublicExperience() {
+  return <DataProvider><Experience /></DataProvider>;
+}
+
+// The operational control center loads only on private routes.
 const AdminApp = lazy(() => import("./features/admin/AdminApp"));
 
 function AdminRoute() {

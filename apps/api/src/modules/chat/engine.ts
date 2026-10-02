@@ -49,7 +49,7 @@ type Intent =
 
 function detectIntent(q: string, docs: KnowledgeDoc[] = []): Intent {
   const s = q.toLowerCase();
-  if (/^(hi|hello|hey|yo|hola)\b/.test(s)) return "greeting";
+  if (/^(?:hi|hello|hey|yo|hola)[!.?,\s]*$/.test(s.trim())) return "greeting";
   if (/(contact|email|reach|hire|message)/.test(s)) return "contact";
   if (/(resume|cv)/.test(s)) return "resume";
   if (/(github|repository|repos|source code)/.test(s)) return "github";
@@ -171,7 +171,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], _query: stri
     }
 
     case "skills": {
-      const skillDocs = hits.filter((h) => h.doc.kind === "SKILL");
+      const matchingSkills = hits.filter((h) => h.doc.kind === "SKILL");
+      const skillDocs = matchingSkills.length > 0
+        ? matchingSkills
+        : docs.filter((doc) => doc.kind === "SKILL").map((doc) => ({ doc, score: 0 }));
       if (skillDocs.length === 0) return { ...FALLBACK_REPLY };
       skillDocs.slice(0, 3).forEach((h) => addSource(h.doc));
       const summary = skillDocs.slice(0, 3).map((h) => h.doc.content.split(". ").slice(0, 2).join(". ")).join(" ");
@@ -185,7 +188,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], _query: stri
     }
 
     case "education": {
-      const eduDocs = hits.filter((h) => h.doc.kind === "EDUCATION");
+      const matchingEducation = hits.filter((h) => h.doc.kind === "EDUCATION");
+      const eduDocs = matchingEducation.length > 0
+        ? matchingEducation
+        : docs.filter((doc) => doc.kind === "EDUCATION").map((doc) => ({ doc, score: 0 }));
       if (eduDocs.length === 0) return { ...FALLBACK_REPLY };
       eduDocs.slice(0, 2).forEach((h) => addSource(h.doc));
       return {
@@ -201,7 +207,10 @@ function composeDeterministic(intent: Intent, hits: RetrievedDoc[], _query: stri
     }
 
     case "certificates": {
-      const certDocs = hits.filter((h) => h.doc.kind === "CERTIFICATE");
+      const matchingCertificates = hits.filter((h) => h.doc.kind === "CERTIFICATE");
+      const certDocs = matchingCertificates.length > 0
+        ? matchingCertificates
+        : docs.filter((doc) => doc.kind === "CERTIFICATE").map((doc) => ({ doc, score: 0 }));
       if (certDocs.length === 0) return { ...FALLBACK_REPLY };
       certDocs.slice(0, 5).forEach((h) => addSource(h.doc));
       const summary = certDocs.find((h) => h.doc.id === "certificates:summary");
@@ -345,7 +354,7 @@ export async function answerQuestion(question: string): Promise<ChatReply> {
   if (hits.length === 0 || hits[0]!.score < UNKNOWN_THRESHOLD) {
     // still allow intent-only answers for structural questions (contact/resume/github)
     const intent = detectIntent(question, docs);
-    if (intent === "contact" || intent === "resume" || intent === "github" || intent === "who" || intent === "greeting") {
+    if (["contact", "resume", "github", "who", "greeting", "projects_list", "skills", "education", "certificates", "experience", "learning"].includes(intent)) {
       return composeDeterministic(intent, hits, question, docs);
     }
     return { ...FALLBACK_REPLY };

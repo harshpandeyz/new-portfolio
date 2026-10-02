@@ -1,5 +1,8 @@
 import { prisma } from "../../db/prisma.js";
+import { PUBLIC_PROJECT_SELECT } from "../projects/public-projection.js";
 
+/** Keep this projection aligned with anonymous project responses. Sensitive or
+ * staff-only fields must never enter the retrieval corpus. */
 export interface KnowledgeDoc {
   id: string;
   kind: "PROJECT" | "SKILL" | "CERTIFICATE" | "PROFILE" | "TIMELINE" | "EDUCATION" | "RESUME";
@@ -26,15 +29,16 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
   if (cache && Date.now() - cache.builtAt < CACHE_TTL_MS) return cache.docs;
 
   const [profile, projects, skills, certificates, education, timeline] = await Promise.all([
-    prisma.profile.findFirst({ include: { socials: true } }),
+    prisma.profile.findFirst({ include: { socials: { orderBy: [{ order: "asc" }, { label: "asc" }] } } }),
     prisma.project.findMany({
       where: { status: { not: "draft" } },
       orderBy: [{ order: "asc" }, { updatedAt: "desc" }],
+      select: PUBLIC_PROJECT_SELECT,
     }),
-    prisma.skill.findMany(),
-    prisma.certificate.findMany(),
-    prisma.education.findMany(),
-    prisma.timelineItem.findMany(),
+    prisma.skill.findMany({ orderBy: [{ category: "asc" }, { order: "asc" }, { name: "asc" }] }),
+    prisma.certificate.findMany({ orderBy: [{ order: "asc" }, { issuedOn: "desc" }, { title: "asc" }] }),
+    prisma.education.findMany({ orderBy: [{ primary: "desc" }, { order: "asc" }, { institution: "asc" }] }),
+    prisma.timelineItem.findMany({ orderBy: [{ order: "asc" }, { date: "asc" }, { title: "asc" }] }),
   ]);
 
   const docs: KnowledgeDoc[] = [];
@@ -80,8 +84,10 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
       p.problem ? `Problem: ${p.problem}` : "",
       p.solution ? `Solution: ${p.solution}` : "",
       p.architecture ? `Architecture: ${p.architecture}` : "",
+      p.decisions.length ? `Engineering decisions: ${p.decisions.join("; ")}.` : "",
+      p.challenges ? `Challenges: ${p.challenges}` : "",
+      p.dataFlow.length ? `Data flow: ${p.dataFlow.join("; ")}.` : "",
       p.results ? `Results: ${p.results}` : "",
-      p.securityNotes ? `Security: ${p.securityNotes}` : "",
       p.githubUrl ? `Source: ${p.githubUrl}` : "",
       p.liveUrl ? `Live: ${p.liveUrl}` : "",
     ]
@@ -98,14 +104,16 @@ export async function buildKnowledge(): Promise<KnowledgeDoc[]> {
   }
 
   const byCategory = new Map<string, string[]>();
+  const projectTitles = new Map(projects.map((project) => [project.slug, project.title]));
   for (const s of skills) {
+    const usedProjects = s.usedInProjectSlugs.map((slug) => projectTitles.get(slug)).filter((title): title is string => Boolean(title));
     docs.push({
       id: `skill:${s.id}`,
       kind: "SKILL",
       title: s.name,
       ref: s.name.toLowerCase(),
-      content: `${s.name} — category ${s.category}, level ${s.level}. ${s.description ?? ""} Used in: ${s.usedIn.join(", ")}. Related: ${s.relatedConcepts.join(", ")}.`,
-      keywords: tokenize(`${s.name} ${s.category} ${s.usedIn.join(" ")} ${s.relatedConcepts.join(" ")} skill technology know`),
+      content: `${s.name} — category ${s.category}, level ${s.level}. ${s.description ?? ""} Used in: ${usedProjects.join(", ")}. Related: ${s.relatedConcepts.join(", ")}.`,
+      keywords: tokenize(`${s.name} ${s.category} ${usedProjects.join(" ")} ${s.relatedConcepts.join(" ")} skill technology know`),
     });
     const list = byCategory.get(s.category) ?? [];
     list.push(`${s.name} (${s.level})`);
