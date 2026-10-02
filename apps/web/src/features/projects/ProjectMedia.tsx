@@ -1,10 +1,10 @@
 import { resolveMediaUrl } from "../../lib/api";
 import { formatTaxonomy } from "../../lib/format";
-import type { Project } from "@hp/shared";
+import type { PublicProject } from "@hp/shared";
 import * as React from "react";
 
 interface ProjectMediaProps {
-  project: Project;
+  project: PublicProject;
   compact?: boolean;
 }
 
@@ -19,7 +19,7 @@ function polar(cx: number, cy: number, r: number, deg: number): [number, number]
  * tile reads as a real system spec even before heroImage is uploaded.
  * Center node is the project; orbiting nodes are its primary stack tools.
  */
-function NodeMap({ project, max = 4 }: { project: Project; max?: number }) {
+function NodeMap({ project, max = 4 }: { project: PublicProject; max?: number }) {
   const tools = project.stack.slice(0, max);
   const centerRadius = 26;
   const orbitR = 104;
@@ -76,7 +76,7 @@ function NodeMap({ project, max = 4 }: { project: Project; max?: number }) {
  * from live project fields (category, tier, stack, year, status, gallery) —
  * real visual proof with no extra data dependencies.
  */
-const TIER_LABEL: Record<Project["tier"], string> = {
+const TIER_LABEL: Record<PublicProject["tier"], string> = {
   featured: "Featured",
   secondary: "Secondary",
   experiment: "Experiment",

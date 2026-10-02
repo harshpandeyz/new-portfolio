@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { useData } from "../../lib/data";
 import { unlock } from "../../lib/achievements";
-import type { Project } from "@hp/shared";
+import type { PublicProject } from "@hp/shared";
+import { api } from "../../lib/api";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
+import "../../styles/subspace.css";
+import "../archive.css";
 
-const TIER_LABELS: Record<Project["tier"], string> = {
+const TIER_LABELS: Record<PublicProject["tier"], string> = {
   featured: "Featured",
   secondary: "Secondary",
   experiment: "Experiment",
@@ -15,21 +17,19 @@ const TIER_LABELS: Record<Project["tier"], string> = {
   internship: "Internship",
 };
 
-const DOMAIN_FILTERS = ["All", "Backend", "AI / ML", "Full Stack", "Mobile", "Academic", "Experiments"] as const;
+const DOMAIN_FILTERS = ["All", "Backend", "AI / ML", "Full Stack", "Mobile", "Frontend", "DevOps", "Academic", "Experiments"] as const;
 type DomainFilter = (typeof DOMAIN_FILTERS)[number];
 
-function matchesDomain(p: Project, filter: DomainFilter): boolean {
+function matchesDomain(p: PublicProject, filter: DomainFilter): boolean {
   switch (filter) {
     case "All":
       return true;
-    case "Backend":
-      return /backend|spring|fastapi|node|api|docker|devops|ci-cd|mlops/i.test(p.category);
-    case "AI / ML":
-      return /ai|vision|nlp|rag|ml|mlops|search/i.test(p.category);
-    case "Full Stack":
-      return /full-stack|fullstack|platform|social|recommendation/i.test(p.category);
-    case "Mobile":
-      return /mobile|ios|android|game/i.test(p.category);
+    case "Backend": return p.domains.includes("BACKEND");
+    case "AI / ML": return p.domains.includes("AI_ML");
+    case "Full Stack": return p.domains.includes("FULL_STACK");
+    case "Mobile": return p.domains.includes("MOBILE");
+    case "Frontend": return p.domains.includes("FRONTEND");
+    case "DevOps": return p.domains.includes("DEVOPS");
     case "Academic":
       return p.tier === "academic";
     case "Experiments":
@@ -45,10 +45,24 @@ function matchesDomain(p: Project, filter: DomainFilter): boolean {
  * one link away. Search + domain filters stay because they are genuinely useful.
  */
 export function ProjectArchive() {
-  const { projects, error, refresh } = useData();
+  const [projects, setProjects] = useState<PublicProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const navigate = useNavigate();
   const [domain, setDomain] = useState<DomainFilter>("All");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(false);
+    api.projects(undefined, controller.signal)
+      .then((result) => { if (!controller.signal.aborted) setProjects(result.projects); })
+      .catch(() => { if (!controller.signal.aborted) setError(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [retryKey]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -102,6 +116,7 @@ export function ProjectArchive() {
           </div>
         </header>
 
+        {error && projects.length > 0 && <p className="archive-stale" role="status">Refresh failed. Showing the last loaded project list. <button type="button" onClick={() => setRetryKey((key) => key + 1)}>Try again</button></p>}
         {list.length > 0 ? (
           <ul className="archive-list">
             {list.map((project, index) => (
@@ -135,11 +150,11 @@ export function ProjectArchive() {
             ))}
           </ul>
         ) : error ? (
-          <ErrorState message="Projects couldn't load." onRetry={() => void refresh()} />
+          <ErrorState message="Projects couldn't load." onRetry={() => setRetryKey((key) => key + 1)} />
         ) : query || domain !== "All" ? (
           <EmptyState>No projects match those filters.</EmptyState>
         ) : (
-          <EmptyState>Projects are loading…</EmptyState>
+          <EmptyState>{loading ? "Projects are loading…" : "No projects are published yet."}</EmptyState>
         )}
       </div>
     </div>

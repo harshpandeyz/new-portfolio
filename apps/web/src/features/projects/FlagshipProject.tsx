@@ -1,10 +1,10 @@
-import type { Project } from "@hp/shared";
+import type { PublicProject } from "@hp/shared";
 import { formatTaxonomy } from "../../lib/format";
 import { IconArrowRight, IconExternal } from "../../components/ui/icons";
 import { FLAGSHIP_GALLERY, FLAGSHIP_HERO, FLAGSHIP_SLUG, flagshipFlow } from "./flagshipConfig";
 
 interface FlagshipProjectProps {
-  project: Project;
+  project: PublicProject;
   onOpen: (slug: string) => void;
 }
 
@@ -24,12 +24,12 @@ function FlowIcon({ kind }: { kind: string }) {
   }
 }
 
-function CctvVisual({ project }: { project: Project }) {
+function CctvVisual({ project }: { project: PublicProject }) {
   const strips = FLAGSHIP_GALLERY.slice(1);
   return (
     <>
       <div className="sw-visual" role="img" aria-label={`${project.title} — live operations dashboard`}>
-        <img className="sw-photo" src={FLAGSHIP_HERO.src} alt={FLAGSHIP_HERO.alt} loading="eager" width={1200} height={675} decoding="async" fetchPriority="high" />
+        <img className="sw-photo" src={FLAGSHIP_HERO.src} alt={FLAGSHIP_HERO.alt} loading="eager" width={FLAGSHIP_HERO.width} height={FLAGSHIP_HERO.height} decoding="async" />
         <div className="sw-scrim" aria-hidden="true" />
         <div className="sw-hud" aria-hidden="true">
           <span className="sw-sys">CCTV-X · SECURITY OPS · YOLOv8n</span>
@@ -120,7 +120,7 @@ export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
   const role = ROLE_BY_SLUG[project.slug] ?? project.category;
 
   return (
-    <article className="sw-flag" data-reveal aria-label={`${project.title} — flagship project`}>
+    <article className="sw-flag" aria-label={`${project.title} — flagship project`}>
       {isCctv ? <CctvVisual project={project} /> : <OrchestraVisual />}
       <div className="sw-body">
         <div className="sw-meta">

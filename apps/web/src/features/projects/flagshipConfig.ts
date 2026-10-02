@@ -1,4 +1,4 @@
-import type { Project } from "@hp/shared";
+import type { PublicProject } from "@hp/shared";
 import { FLAGSHIP_SLUGS, SELECTED_SLUGS, SIGNATURE_SLUGS } from "@hp/shared";
 
 /**
@@ -26,36 +26,46 @@ export interface GalleryImage {
   caption: string;
   role: string;
   kicker: string;
+  width: number;
+  height: number;
 }
 
 export const FLAGSHIP_GALLERY: GalleryImage[] = [
   {
-    src: "/projects/cctv-x/overview.png",
+    src: "/projects/cctv-x/overview.webp",
     alt: "CCTV-X Security Ops — Overview dashboard with sources online, active alerts, alert feed with fight and mob detections, and evidence records",
     caption: "Overview — operating picture",
     role: "OPERATIONS",
     kicker: "Overview",
+    width: 1470,
+    height: 803,
   },
   {
-    src: "/projects/cctv-x/analytics.png",
+    src: "/projects/cctv-x/analytics.webp",
     alt: "Analytics — persisted crowd snapshots, global risk index and risk-over-time chart",
     caption: "Analytics — measured history",
     role: "MEASURED HISTORY",
     kicker: "Analytics",
+    width: 1470,
+    height: 800,
   },
   {
-    src: "/projects/cctv-x/zones.png",
+    src: "/projects/cctv-x/zones.webp",
     alt: "Detection zones — polygon editor for occupancy calibration and zone thresholds",
     caption: "Detection zones — spatial config",
     role: "SPATIAL CONFIGURATION",
     kicker: "Detection zones",
+    width: 1470,
+    height: 804,
   },
   {
-    src: "/projects/cctv-x/vault.png",
+    src: "/projects/cctv-x/vault.webp",
     alt: "Evidence vault — sealed artifacts with hash-ledger commitment, custody trail and Bitcoin attestation status",
     caption: "Evidence vault — chain of custody",
     role: "CHAIN OF CUSTODY",
     kicker: "Evidence vault",
+    width: 1470,
+    height: 803,
   },
 ];
 
@@ -77,7 +87,7 @@ export interface FlowStage {
   sub: string;
 }
 
-export function flagshipFlow(project: Project): FlowStage[] {
+export function flagshipFlow(project: PublicProject): FlowStage[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
       { icon: "camera", label: "Capture", sub: "RTSP · webcam · upload" },
@@ -110,7 +120,7 @@ export function flagshipFlow(project: Project): FlowStage[] {
   return [];
 }
 
-export function caseFlowStages(project: Project): { label: string; sub: string; hint: string }[] {
+export function caseFlowStages(project: PublicProject): { label: string; sub: string; hint: string }[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
       { label: "Capture", sub: "RTSP · webcam · upload", hint: "input" },
@@ -139,7 +149,7 @@ export function caseFlowStages(project: Project): { label: string; sub: string; 
   });
 }
 
-export function flagshipFacts(project: Project): { k: string; v: string }[] {
+export function flagshipFacts(project: PublicProject): { k: string; v: string }[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
       { k: "Role", v: "Full-stack · AI pipeline · evidence chain" },
@@ -196,7 +206,7 @@ export function secondaryVisual(slug: string): SecondaryStage[] | null {
 }
 
 // ── Compact homepage facts (fewer, tighter) ────────────────
-export function flagshipCompactFacts(project: Project): { k: string; v: string }[] {
+export function flagshipCompactFacts(project: PublicProject): { k: string; v: string }[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
       { k: "AI", v: "YOLOv8 + OpenCV" },
@@ -232,7 +242,7 @@ export interface SystemMapNode {
   detail: string;
 }
 
-export function systemMap(project: Project): SystemMapNode[] {
+export function systemMap(project: PublicProject): SystemMapNode[] {
   if (project.slug === FLAGSHIP_SLUG) {
     return [
       { icon: "camera", title: "Capture", detail: "CCTV feed" },

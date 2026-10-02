@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import { applyMeta } from "../../lib/seo";
 import { SEO } from "../../app/constants";
 import { formatTaxonomy } from "../../lib/format";
-import type { Project } from "@hp/shared";
+import { prefersReducedMotion, scrollBehavior } from "../../lib/motion";
+import type { PublicProject, PublicProjectIndex } from "@hp/shared";
 import { unlock } from "../../lib/achievements";
 import { useData } from "../../lib/data";
 import { Button } from "../../components/ui/Button";
 import { IconArrowLeft, IconArrowRight, IconExternal } from "../../components/ui/icons";
-import { CctvStory, OrchestraStory, QuantumStory, SkillStory } from "../case/stories";
-import { Canvas, PipeFlow, SecurityStrip } from "../case/visuals";
+import { Canvas, PipeFlow } from "../case/visuals";
+import "../../styles/subspace.css";
+import "../case/case.css";
+
+const STORY_COMPONENTS = {
+  "intelligent-surveillance-system": lazy(() => import("../case/story/CctvStory").then((module) => ({ default: module.CctvStory }))),
+  orchestraai: lazy(() => import("../case/story/OrchestraStory").then((module) => ({ default: module.OrchestraStory }))),
+  quantummind: lazy(() => import("../case/story/QuantumStory").then((module) => ({ default: module.QuantumStory }))),
+  skillmatch: lazy(() => import("../case/story/SkillStory").then((module) => ({ default: module.SkillStory }))),
+};
 
 interface ProjectCaseProps {
   onViewResume: () => void;
 }
 
-function GenericStory({ project }: { project: Project }) {
+function GenericStory({ project }: { project: PublicProject }) {
   return (
     <>
       {(project.problem || project.solution) && (
@@ -72,12 +81,14 @@ function GenericStory({ project }: { project: Project }) {
           <div className="cs-prose" style={{ maxWidth: 680 }}><h3>Result</h3><p>{project.results}</p></div>
         </section>
       )}
-      {(project.challenges || project.securityNotes) && (
+      {project.securityReliability && (
+        <section className="cs-sec" aria-label="Security and reliability">
+          <div className="cs-prose" style={{ maxWidth: 680 }}><h3>Security &amp; reliability</h3><p>{project.securityReliability}</p></div>
+        </section>
+      )}
+      {project.challenges && (
         <section className="cs-sec" aria-label="Limitations and security">
-          <div className="cs-split">
-            {project.challenges && <div className="cs-prose"><h3>Limitations / challenge</h3><p>{project.challenges}</p></div>}
-            {project.securityNotes && <div className="cs-prose"><h3>Security posture</h3><SecurityStrip items={project.securityNotes.split(" · ")} /></div>}
-          </div>
+          <div className="cs-prose"><h3>Limitations / challenge</h3><p>{project.challenges}</p></div>
         </section>
       )}
       <section className="cs-sec" aria-label="Technology used">
@@ -92,7 +103,7 @@ function useReadingProgress(enabled: boolean): number {
   const [progress, setProgress] = useState(0);
   useEffect(() => {
     if (!enabled) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (prefersReducedMotion()) {
       // Still update, but without rAF-driven smoothing.
       const onScroll = () => {
         const el = document.documentElement;
@@ -130,62 +141,81 @@ function useReadingProgress(enabled: boolean): number {
 function useCaseToc(dep: string | undefined): { id: string; title: string }[] {
   const [toc, setToc] = useState<{ id: string; title: string }[]>([]);
   useEffect(() => {
-    // Build TOC from editorial sections only (skip link-only footer sections).
-    const sections = [...document.querySelectorAll(".cs-wrap .cs-sec")];
-    const items: { id: string; title: string }[] = [];
-    sections.forEach((sec) => {
-      const h = sec.querySelector("h2.cs-sec-title");
-      if (!h?.textContent?.trim()) return;
-      if (!sec.id) sec.id = `cs-s${items.length + 1}`;
-      items.push({ id: sec.id, title: h.textContent.trim() });
-    });
-    setToc(items.slice(0, 10));
+    const wrap = document.querySelector(".cs-wrap");
+    if (!wrap) {
+      setToc([]);
+      return;
+    }
+    // Narratives are lazy-loaded; observe the case wrapper until their editorial
+    // sections mount, then build the TOC once and disconnect.
+    let disconnectObserver: () => void = () => {};
+    const buildToc = () => {
+      const sections = [...wrap.querySelectorAll(".cs-sec")];
+      const items: { id: string; title: string }[] = [];
+      sections.forEach((sec) => {
+        const h = sec.querySelector("h2.cs-sec-title");
+        if (!h?.textContent?.trim()) return;
+        if (!sec.id) sec.id = `cs-s${items.length + 1}`;
+        items.push({ id: sec.id, title: h.textContent.trim() });
+      });
+      setToc(items.slice(0, 10));
+      if (items.length > 0) disconnectObserver();
+    };
+    const observer = new MutationObserver(buildToc);
+    disconnectObserver = () => observer.disconnect();
+    observer.observe(wrap, { childList: true, subtree: true });
+    buildToc();
+    return () => observer.disconnect();
   }, [dep]);
   return toc;
 }
 
 export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   const { slug } = useParams<{ slug: string }>();
-  const { projects } = useData();
-  const [project, setProject] = useState<Project | null>(() => projects.find((p) => p.slug === slug) ?? null);
+  const { projects, projectIndex } = useData();
+  const [project, setProject] = useState<PublicProject | null>(() => projects.find((p) => p.slug === slug) ?? null);
   const [loading, setLoading] = useState(!project);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const progress = useReadingProgress(!loading && !notFound && !!project);
-  const toc = useCaseToc(project?.slug);
+  const toc = useCaseToc(!loading && !notFound ? project?.slug : undefined);
 
   useEffect(() => {
-    let live = true;
+    const controller = new AbortController();
     if (!slug) {
       setProject(null);
       setNotFound(true);
       setLoading(false);
-      return () => {
-        live = false;
-      };
+      return () => controller.abort();
     }
     const cached = projects.find((p) => p.slug === slug);
     if (cached) {
       setProject(cached);
       setNotFound(false);
+      setLoadError(false);
       setLoading(false);
     } else {
       setProject(null);
       setNotFound(false);
+      setLoadError(false);
       setLoading(true);
       api
-        .project(slug)
+        .project(slug, controller.signal)
         .then((r) => {
-          if (!live) return;
+          if (controller.signal.aborted) return;
           setProject(r.project);
           setNotFound(false);
         })
-        .catch(() => live && setNotFound(true))
-        .finally(() => live && setLoading(false));
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          if (error && typeof error === "object" && "status" in error && error.status === 404) setNotFound(true);
+          else setLoadError(true);
+        })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }
-    return () => {
-      live = false;
-    };
-  }, [slug, projects]);
+    return () => controller.abort();
+  }, [slug, projects, retryKey]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -197,7 +227,6 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
         image: project.heroImage ?? undefined,
       });
       unlock("explorer");
-      void api.track("project_view", project.slug);
     }
     return () => {
       applyMeta({ title: SEO.title, description: SEO.description, url: SEO.siteUrl, image: undefined });
@@ -205,18 +234,18 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   }, [project]);
 
   const { prev, next, orderedProjects } = useMemo(() => {
-    const ordered = [...projects].sort((a, b) => a.order - b.order);
+    const ordered: PublicProjectIndex[] = [...projectIndex].sort((a, b) => a.order - b.order);
     const idx = project ? ordered.findIndex((p) => p.id === project.id) : -1;
     return {
       orderedProjects: ordered,
       prev: idx > 0 ? ordered[idx - 1] ?? null : null,
       next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] ?? null : null,
     };
-  }, [projects, project]);
+  }, [projectIndex, project]);
 
   if (loading) {
     return (
-      <div className="archive-page" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
+      <div className="case-state" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
         <h1 className="visually-hidden">Loading project</h1>
         <span className="mono mono-dim">Loading project…</span>
       </div>
@@ -224,8 +253,19 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   }
 
   if (notFound || !project) {
+    if (loadError) {
+      return (
+        <div className="case-state" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <h1 className="visually-hidden">Project couldn't load</h1>
+            <div className="mono mono-dim" style={{ marginBottom: 18 }}>Project couldn't load. Check your connection and retry.</div>
+            <Button onClick={() => setRetryKey((key) => key + 1)}>Try again</Button>
+          </div>
+        </div>
+      );
+    }
     return (
-      <div className="archive-page" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
+      <div className="case-state" style={{ minHeight: "60vh", display: "grid", placeItems: "center" }}>
         <div style={{ textAlign: "center" }}>
           <h1 className="visually-hidden">Project not found</h1>
           <div className="mono mono-dim" style={{ marginBottom: 18 }}>Project not found</div>
@@ -239,10 +279,11 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   const storyLabel = storyNo > 0
     ? `CASE ${String(storyNo).padStart(2, "0")} / ${String(orderedProjects.length).padStart(2, "0")}`
     : "CASE STUDY";
+  const Story = STORY_COMPONENTS[project.slug as keyof typeof STORY_COMPONENTS];
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      behavior: scrollBehavior(),
       block: "start",
     });
   };
@@ -294,11 +335,11 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
           </nav>
         )}
 
-        {project.slug === "intelligent-surveillance-system" && <CctvStory project={project} />}
-        {project.slug === "orchestraai" && <OrchestraStory project={project} />}
-        {project.slug === "quantummind" && <QuantumStory project={project} />}
-        {project.slug === "skillmatch" && <SkillStory project={project} />}
-        {!["intelligent-surveillance-system", "orchestraai", "quantummind", "skillmatch"].includes(project.slug) && <GenericStory project={project} />}
+        {Story ? (
+          <Suspense fallback={<div className="case-state" role="status">Loading technical details…</div>}>
+            <Story project={project} />
+          </Suspense>
+        ) : <GenericStory project={project} />}
 
         <section className="cs-sec" aria-label="Project links">
           <div className="cs-links">

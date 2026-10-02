@@ -1,10 +1,10 @@
-import type { Project } from "@hp/shared";
+import type { PublicProject } from "@hp/shared";
 import { formatTaxonomy } from "../../lib/format";
 import { secondaryVisual } from "./flagshipConfig";
 import { IconArrowRight, IconExternal } from "../../components/ui/icons";
 
 interface ProjectCardProps {
-  project: Project;
+  project: PublicProject;
   index: number;
   onOpen: (slug: string) => void;
   compact?: boolean;
@@ -55,7 +55,7 @@ export function ProjectCard({ project, index, onOpen, compact }: ProjectCardProp
   const stages = (MINI[project.slug] ?? fallback) as { label: string; sub: string; icon: string; core?: boolean }[] | null;
   const flowLabel = stages ? stages.map((s) => s.label).join(" → ") : null;
   return (
-    <article className={`sw-sec${compact ? " sw-compact" : ""}`} data-reveal data-reveal-delay={String((index % 3) * 0.08)} aria-label={`${project.title} — selected work`}>
+    <article className={`sw-sec${compact ? " sw-compact" : ""}`} aria-label={`${project.title} — selected work`}>
       <div className="sw-mini" role={flowLabel ? "img" : undefined} aria-label={flowLabel ? `Mini system diagram: ${flowLabel}` : undefined}>
         <div className="sw-mini-k"><span>SYSTEM MAP</span><span>{String(flowLabel ? stages!.length : 0).padStart(2, "0")} STAGES</span></div>
         {stages ? (
