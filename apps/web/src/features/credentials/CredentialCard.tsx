@@ -23,8 +23,8 @@ export function CredentialCard({ certificate: c, index, onOpen }: CredentialCard
   return (
     <article
       className="vault-item"
-      data-reveal
-      data-reveal-delay={String((index % 6) * 0.04)}
+
+
       data-tier={tierAttr}
     >
       <div className="certificate-preview" aria-hidden="true">

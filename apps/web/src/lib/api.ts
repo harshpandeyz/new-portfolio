@@ -1,7 +1,7 @@
 import type {
-  Profile, Project, Certificate, Skill, Education, TimelineItem,
+  AnalyticsEventType, Profile, Project, PublicProject, PublicHomeData, Certificate, Skill, Education, TimelineItem,
   SystemStats, ChatReply, GithubOverview, AuditLogEntry, ContactMessage, MediaAsset, SiteSettings,
-  MessageReply, MessageStatus, AiProvider, InterviewReply,
+  MessageReply, MessageStatus, AiProvider,
 } from "@hp/shared";
 
 export type { MessageReply };
@@ -12,6 +12,7 @@ const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 const DEFAULT_TIMEOUT = 15_000;
 const CHAT_TIMEOUT = 60_000;
+let analyticsEnabled = false;
 
 /** Resolve frontend-owned and API-owned media from one place. */
 export function resolveMediaUrl(url?: string | null, apiOrigin = BASE): string {
@@ -169,15 +170,20 @@ function queryString(params: Record<string, string | undefined>): string {
 
 export const api = {
   // public
+  publicHome: async (signal?: AbortSignal) => {
+    const home = await request<PublicHomeData>("/api/public/home", { signal });
+    analyticsEnabled = home.publicSettings.analyticsEnabled;
+    return home;
+  },
   profile: (signal?: AbortSignal) =>
     request<{ profile: Profile | null }>("/api/profile", { signal }),
   projects: (params?: { tier?: string; featured?: boolean }, signal?: AbortSignal) =>
-    request<{ projects: Project[] }>(
+    request<{ projects: PublicProject[] }>(
       `/api/projects${queryString({ tier: params?.tier, featured: params?.featured === undefined ? undefined : String(params.featured) })}`,
       { signal },
     ),
   project: (slug: string, signal?: AbortSignal) =>
-    request<{ project: Project }>(`/api/projects/${slug}`, { signal }),
+    request<{ project: PublicProject }>(`/api/projects/${slug}`, { signal }),
   certificates: (params?: { category?: string; search?: string; year?: string; page?: number }, signal?: AbortSignal) =>
     request<{ certificates: Certificate[]; total: number; page: number; pageSize: number }>(
       `/api/certificates${queryString({ category: params?.category, search: params?.search, year: params?.year, page: params?.page === undefined ? undefined : String(params.page) })}`,
@@ -195,14 +201,14 @@ export const api = {
     request<SystemStats>("/api/stats", { signal }),
   chat: (message: string, signal?: AbortSignal) =>
     request<ChatReply>("/api/chat", { method: "POST", json: { message }, signal, timeout: CHAT_TIMEOUT }),
-  interview: (input: { action: "start" | "answer" | "end"; answer?: string; history?: { role: "ai" | "user"; text: string }[] }, signal?: AbortSignal) =>
-    request<InterviewReply>("/api/chat/interview", { method: "POST", json: input, signal, timeout: CHAT_TIMEOUT }),
   chatSuggestions: (signal?: AbortSignal) =>
     request<{ suggestions: string[] }>("/api/chat/suggestions", { signal }),
   github: (signal?: AbortSignal) =>
     request<GithubOverview & { error?: string }>("/api/github/overview", { signal }),
-  track: (type: string, ref?: string) =>
-    request("/api/events", { method: "POST", json: { type, ref }, timeout: 5_000 }).catch(() => undefined),
+  track: (type: AnalyticsEventType, ref?: string) =>
+    analyticsEnabled === false
+      ? Promise.resolve(undefined)
+      : request("/api/events", { method: "POST", json: { type, ref }, timeout: 5_000 }).catch(() => undefined),
   contact: (input: { name: string; email: string; subject?: string; message: string; company?: string }) =>
     request<{ ok: boolean }>("/api/contact", { method: "POST", json: input }),
 

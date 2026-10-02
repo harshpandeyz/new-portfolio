@@ -11,7 +11,7 @@ export interface SectionHeaderProps {
 /** Consistent section heading: eyebrow + title + optional subtitle. */
 export function SectionHeader({ eyebrow, title, sub, inline = false }: SectionHeaderProps) {
   return (
-    <div className={`section-head${inline ? " section-head-inline" : ""}`} data-reveal>
+    <div className={`section-head${inline ? " section-head-inline" : ""}`}>
       <div>
         <span className="eyebrow">{eyebrow}</span>
         <h2 className="section-title">{title}</h2>

@@ -1,26 +1,33 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Profile, Project, Certificate, Skill, Education, TimelineItem, SiteSettings } from "@hp/shared";
+import type { PublicHomeData, PublicProject, PublicProjectIndex, TimelineItem, SiteSettings } from "@hp/shared";
 
 import { api } from "./api";
 
+type PublicSettings = Pick<SiteSettings, "chatEnabled" | "contactEnabled" | "maintenanceMode" | "analyticsEnabled">;
+
 interface DataState {
-  profile: Profile | null;
-  projects: Project[];
-  certificates: Certificate[];
+  profile: PublicHomeData["profile"];
+  projects: PublicProject[];
+  projectIndex: PublicProjectIndex[];
+  projectCount: number;
+  certificates: PublicHomeData["certificates"];
   certTotal: number;
-  certPageSize: number;
-  skills: Skill[];
-  education: Education[];
+  skills: PublicHomeData["skills"];
+  education: PublicHomeData["education"];
   timeline: TimelineItem[];
-  publicSettings: Pick<SiteSettings, "chatEnabled" | "contactEnabled" | "maintenanceMode"> | null;
+  timelineLoaded: boolean;
+  timelineError: string | null;
+  loadTimeline: () => Promise<void>;
+  publicSettings: PublicSettings | null;
   loaded: boolean;
   error: string | null;
   refresh: () => Promise<void>;
 }
 
 const DataContext = createContext<DataState>({
-  profile: null, projects: [], certificates: [], certTotal: 0, certPageSize: 24, skills: [],
-  education: [], timeline: [], publicSettings: null, loaded: false, error: null,
+  profile: null, projects: [], projectIndex: [], projectCount: 0, certificates: [], certTotal: 0,
+  skills: [], education: [], timeline: [], timelineLoaded: false, timelineError: null,
+  loadTimeline: async () => undefined, publicSettings: null, loaded: false, error: null,
   refresh: async () => undefined,
 });
 
@@ -29,89 +36,83 @@ export function useData(): DataState {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [certTotal, setCertTotal] = useState(0);
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [education, setEducation] = useState<Education[]>([]);
+  const [home, setHome] = useState<PublicHomeData | null>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
-  const [publicSettings, setPublicSettings] = useState<DataState["publicSettings"]>(null);
+  const [timelineLoaded, setTimelineLoaded] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [certPageSize, setCertPageSize] = useState(24);
+  const homeControllerRef = useRef<AbortController | null>(null);
+  const timelineControllerRef = useRef<AbortController | null>(null);
+  const timelineRequestRef = useRef<Promise<void> | null>(null);
 
-  const controllerRef = useRef<AbortController | null>(null);
-
-  const load = useCallback(async () => {
-    // Cancel any in-flight requests from a previous load cycle.
-    controllerRef.current?.abort();
+  const refresh = useCallback(async () => {
+    homeControllerRef.current?.abort();
     const controller = new AbortController();
-    controllerRef.current = controller;
-    const { signal } = controller;
-
-    const critical = await Promise.allSettled([
-      api.profile(signal),
-      api.projects(undefined, signal),
-    ]);
-
-    if (signal.aborted) return;
-
-    const criticalValue = <T,>(index: number): T | undefined => {
-      const result = critical[index];
-      return result?.status === "fulfilled" ? (result.value as T) : undefined;
-    };
-
-    setProfile(criticalValue<{ profile: Profile }>(0)?.profile ?? null);
-    setProjects(criticalValue<{ projects: Project[] }>(1)?.projects ?? []);
-    setLoaded(true);
-    setError(
-      critical.some((r) => r.status === "rejected") ? "Some content is temporarily unavailable." : null,
-    );
-
-    const deferred = await Promise.allSettled([
-      api.certificates(undefined, signal),
-      api.skills(signal),
-      api.education(signal),
-      api.timeline(signal),
-      api.publicSettings(signal),
-    ]);
-
-    if (signal.aborted) return;
-
-    const deferredValue = <T,>(index: number): T | undefined => {
-      const result = deferred[index];
-      return result?.status === "fulfilled" ? (result.value as T) : undefined;
-    };
-
-    setCertificates(deferredValue<{ certificates: Certificate[] }>(0)?.certificates ?? []);
-    setCertTotal(deferredValue<{ total: number }>(0)?.total ?? 0);
-    setCertPageSize(deferredValue<{ pageSize: number }>(0)?.pageSize ?? 24);
-    setSkills(deferredValue<{ skills: Skill[] }>(1)?.skills ?? []);
-    setEducation(deferredValue<{ items: Education[] }>(2)?.items ?? []);
-    setTimeline(deferredValue<{ items: TimelineItem[] }>(3)?.items ?? []);
-    setPublicSettings(deferredValue<{ settings: DataState["publicSettings"] }>(4)?.settings ?? null);
-    setError(
-      [...critical, ...deferred].some((r) => r.status === "rejected")
-        ? "Some content is temporarily unavailable."
-        : null,
-    );
+    homeControllerRef.current = controller;
+    try {
+      const next = await api.publicHome(controller.signal);
+      if (controller.signal.aborted) return;
+      setHome(next);
+      setError(null);
+    } catch (cause) {
+      if (!controller.signal.aborted) setError("Some content is temporarily unavailable.");
+    } finally {
+      if (!controller.signal.aborted) setLoaded(true);
+    }
   }, []);
 
-  useEffect(() => {
-    void load();
-    return () => {
-      controllerRef.current?.abort();
-    };
-  }, [load]);
+  const loadTimeline = useCallback((): Promise<void> => {
+    if (timelineLoaded) return Promise.resolve();
+    if (timelineRequestRef.current) return timelineRequestRef.current;
+    const controller = new AbortController();
+    timelineControllerRef.current = controller;
+    setTimelineError(null);
+    const request = api.timeline(controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setTimeline(result.items);
+        setTimelineLoaded(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTimelineError("Experience details couldn't load.");
+      })
+      .finally(() => {
+        if (timelineRequestRef.current === request) timelineRequestRef.current = null;
+      });
+    timelineRequestRef.current = request;
+    return request;
+  }, [timelineLoaded]);
 
-  const value = useMemo<DataState>(
-    () => ({
-      profile, projects, certificates, certTotal, certPageSize, skills,
-      education, timeline, publicSettings, loaded, error, refresh: load,
-    }),
-    [profile, projects, certificates, certTotal, certPageSize, skills, education, timeline, publicSettings, loaded, error, load],
-  );
+  useEffect(() => {
+    // React Strict Mode replays effects during development. Defer the initial
+    // request one task so its probe mount can clean up before a request starts.
+    const startTimer = window.setTimeout(() => void refresh(), 0);
+    return () => {
+      window.clearTimeout(startTimer);
+      homeControllerRef.current?.abort();
+      timelineControllerRef.current?.abort();
+    };
+  }, [refresh]);
+
+  const value = useMemo<DataState>(() => ({
+    profile: home?.profile ?? null,
+    projects: home?.projects ?? [],
+    projectIndex: home?.projectIndex ?? [],
+    projectCount: home?.projectCount ?? 0,
+    certificates: home?.certificates ?? [],
+    certTotal: home?.certTotal ?? 0,
+    skills: home?.skills ?? [],
+    education: home?.education ?? [],
+    timeline,
+    timelineLoaded,
+    timelineError,
+    loadTimeline,
+    publicSettings: home?.publicSettings ?? null,
+    loaded,
+    error,
+    refresh,
+  }), [home, timeline, timelineLoaded, timelineError, loadTimeline, loaded, error, refresh]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

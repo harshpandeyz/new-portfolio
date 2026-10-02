@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useData } from "../../lib/data";
 import { PROFILE, WHATSAPP_HREF, WHATSAPP_CONFIGURED } from "../../app/constants";
 import { Button } from "../ui/Button";
+import { scrollBehavior } from "../../lib/motion";
 import { IconGithub, IconLinkedIn, IconMail, IconWhatsApp } from "../ui/icons";
 
 export interface FooterProps {
@@ -19,9 +20,9 @@ export function Footer({ onViewResume }: FooterProps) {
     e.preventDefault();
     if (location.pathname !== "/") {
       navigate(`/#${id}`);
-      window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 220);
+      window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() }), 220);
     } else {
-      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() });
       window.history.replaceState(null, "", `#${id}`);
     }
   };

@@ -29,12 +29,3 @@ export function useScrollLock(active: boolean) {
     return () => releaseLock();
   }, [active]);
 }
-
-// Imperative helpers for components that manage lock without the hook lifecycle
-export function lockScroll() {
-  applyLock();
-}
-
-export function unlockScroll() {
-  releaseLock();
-}

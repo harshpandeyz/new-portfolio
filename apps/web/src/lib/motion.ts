@@ -1,60 +1,12 @@
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
-import type { EnvCapabilities } from "./device";
-
-gsap.registerPlugin(ScrollTrigger);
-
-export { gsap, ScrollTrigger };
-
-/** Level-1 reveal: subtle opacity + translation for elements with [data-reveal]. */
-export function bindReveals(scope: HTMLElement | Document, caps: EnvCapabilities): ScrollTrigger[] {
-  if (caps.reducedMotion) {
-    scope.querySelectorAll?.("[data-reveal]").forEach((el) => {
-      (el as HTMLElement).style.opacity = "1";
-      (el as HTMLElement).style.transform = "none";
-    });
-    return [];
-  }
-  const triggers: ScrollTrigger[] = [];
-  scope.querySelectorAll?.("[data-reveal]").forEach((el) => {
-    const htmlEl = el as HTMLElement;
-    gsap.set(htmlEl, { opacity: 0, y: 28 });
-    const trigger = ScrollTrigger.create({
-      trigger: htmlEl,
-      start: "top 88%",
-      once: true,
-      onEnter: () => {
-        gsap.to(htmlEl, {
-          opacity: 1,
-          y: 0,
-          duration: 0.9,
-          ease: "power3.out",
-          delay: Number(htmlEl.dataset.revealDelay ?? 0),
-          clearProps: "transform",
-        });
-      },
-    });
-    triggers.push(trigger);
-  });
-  // Deferred positional refresh: elements can be added/keep shifting after
-  // this scan (async content), and refresh() also fires onEnter for anything
-  // already past its start — so an element never stays wedged at opacity 0
-  // purely because its crossing happened before the trigger existed.
-  try {
-    requestAnimationFrame(() => ScrollTrigger.refresh());
-  } catch {
-    // ScrollTrigger may be unavailable if GSAP loaded partially.
-  }
-  return triggers;
+export function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(REDUCED_MOTION_QUERY).matches
+    : false;
 }
 
-export function killTriggers(triggers: ScrollTrigger[]): void {
-  triggers.forEach((t) => {
-    try {
-      t.kill();
-    } catch {
-      // Defensive: trigger may already be GC'd.
-    }
-  });
+/** Returns a behavior that honors the current preference, including updates. */
+export function scrollBehavior(): ScrollBehavior {
+  return prefersReducedMotion() ? "auto" : "smooth";
 }

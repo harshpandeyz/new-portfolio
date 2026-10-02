@@ -12,7 +12,7 @@ const FOCUS = ["Backend systems", "Applied AI", "Full-stack applications", "Syst
  */
 export function About() {
   const { profile, education } = useData();
-  const btech = education.find((e) => e.startYear === "2023" && e.field?.includes("Software")) ?? education[0];
+  const primaryEducation = education.find((item) => item.primary);
 
   return (
     <section className="section about-section" id="about" aria-label="About Harsh">
@@ -24,44 +24,28 @@ export function About() {
         />
 
         <div className="id-grid">
-          <figure className="id-photo" data-reveal>
+          <figure className="id-photo">
             {profile?.avatarUrl ? <img src={resolveMediaUrl(profile.avatarUrl)} alt={`Portrait of ${profile.name}`} loading="lazy" width={880} height={1100} /> : <div className="photo-placeholder">HP</div>}
             <figcaption className="id-caption">
               <span>{profile?.location ?? PROFILE.location}</span>
-              {btech && <span>{btech.degree}, {btech.institution} · Class of {btech.endYear ?? "present"}</span>}
+              {primaryEducation && <span>{primaryEducation.degree}, {primaryEducation.institution} · Class of {primaryEducation.endYear ?? "present"}</span>}
             </figcaption>
           </figure>
 
           <div className="id-copy">
-            <blockquote className="id-quote" data-reveal>
+            <blockquote className="id-quote">
               I'd rather trace a bug to its root cause than work around it.
             </blockquote>
 
-            <p data-reveal>
-              I'm a final-year software engineer who carries a system from the first schema to a running
-              deployment. Recent work spans the stack — training a YOLOv8 model, writing the REST API that
-              serves its output, containerizing the whole thing, and pairing it with an evidence pipeline that
-              stands up to scrutiny.
-            </p>
-            <p data-reveal>
-              Comfortable across Java/Spring Boot and Node.js/Express on the backend, React on the frontend,
-              FastAPI for AI-facing services, and SQL/NoSQL stores with CI/CD in between. When a project needs a
-              stack I haven't used, I learn it quickly enough to ship with it — I taught myself Swift/UIKit to
-              build an iOS game end to end.
-            </p>
-            <p data-reveal>
-              Right now I'm completing {btech?.degree ?? "my degree"} in {btech?.field ?? "Information Technology"}
-              at {btech?.institution ?? "university"}, and open to full-stack, backend, and AI/ML engineering
-              roles where the work matters beyond the demo.
-            </p>
+            <p>{profile?.bio ?? "I build backend systems, applied AI products, and thoughtful full-stack applications."}</p>
 
-            <div className="id-facts" data-reveal>
+            <div className="id-facts">
               <div className="fact"><div className="k">Based in</div><div className="v">{profile?.location ?? PROFILE.location}</div></div>
               <div className="fact"><div className="k">Focus</div><div className="v">Backend · AI · Full Stack</div></div>
               <div className="fact"><div className="k">Availability</div><div className="v availability">{profile?.availability ?? PROFILE.availability}</div></div>
             </div>
 
-            <div className="id-focus" data-reveal>
+            <div className="id-focus">
               {FOCUS.map((item) => <span className="tag" key={item}>{item}</span>)}
             </div>
           </div>

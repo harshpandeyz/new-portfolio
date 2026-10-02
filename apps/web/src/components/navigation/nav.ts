@@ -5,7 +5,7 @@
  * Tech Stack → Credentials → Contact. About sits immediately after Hero and
  * the former "capabilities" skill wall is now the multi-domain Tech Stack.
  */
-export const SECTION_IDS = ["hero", "about", "journey", "work", "tech", "credentials", "contact", "exit"] as const;
+export const SECTION_IDS = ["hero", "about", "journey", "work", "tech", "credentials", "contact"] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
 

@@ -45,7 +45,7 @@ function ArchiveVisual({ total }: { total: number }) {
 }
 
 export function Work() {
-  const { projects, error, refresh } = useData();
+  const { projects, projectCount, error, refresh } = useData();
   const navigate = useNavigate();
 
   // Explicit homepage curation — never derived from array order or a
@@ -93,10 +93,10 @@ export function Work() {
         <div className="sw-row-label" aria-hidden="true"><span><b>{String(featuredShown + 1).padStart(2, "0")} — {String(featuredShown + secondaryShown).padStart(2, "0")}</b> · FOCUSED WORK + ARCHIVE</span></div>
         <div className="sw-sec-grid">
           {selectedSecondary.map((project, index) => <ProjectCard key={project.id} project={project} index={index + 2} onOpen={open} />)}
-          <article className="sw-archive" data-reveal data-reveal-delay="0.16" aria-label="View more projects — archive">
-            <ArchiveVisual total={projects.length} />
+          <article className="sw-archive" aria-label="View more projects — archive">
+            <ArchiveVisual total={projectCount} />
             <div className="sw-archive-body">
-              <div className="project-meta" style={{ color: "rgba(238,242,249,0.6)" }}><span>{String(featuredShown + secondaryShown + 1).padStart(2, "0")}</span><span>Archive</span><span>{projects.length} total</span></div>
+              <div className="project-meta" style={{ color: "rgba(238,242,249,0.6)" }}><span>{String(featuredShown + secondaryShown + 1).padStart(2, "0")}</span><span>Archive</span><span>{projectCount} total</span></div>
               <h3>View More Projects</h3>
               <p>Explore the full project archive — experiments, academic builds and internship work.</p>
               <button className="sw-viewall" onClick={() => navigate("/projects")} aria-label="Open project archive" style={{ padding: 0 }}>

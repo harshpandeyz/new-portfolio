@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, } from "react";
 import React from "react";
 import { IconSearch, IconFilter, IconMail, IconGithub, IconLinkedIn, IconStar, IconChevron, IconInfo, IconSpark } from "../../components/ui/icons";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 
 export type CommandIcon =
   | "work"
@@ -66,7 +66,6 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -76,19 +75,12 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     );
   }, [commands, query]);
 
-  useScrollLock(open);
+  useDialogLifecycle(dialogRef, open, onClose, undefined, inputRef);
 
   useEffect(() => {
     if (open) {
-      previousFocusRef.current = document.activeElement as HTMLElement;
       setQuery("");
       setActive(0);
-      window.setTimeout(() => inputRef.current?.focus(), 30);
-    } else {
-      const target = previousFocusRef.current;
-      if (target && target.isConnected) {
-        window.setTimeout(() => target.focus(), 0);
-      }
     }
   }, [open]);
 
@@ -109,22 +101,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === "Tab") {
-        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), a[href]");
-        if (!focusables?.length) return;
-        const first = focusables[0]!;
-        const last = focusables[focusables.length - 1]!;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      } else if (e.key === "ArrowDown") {
+      if (!(e.target instanceof Node) || !dialogRef.current?.contains(e.target)) return;
+      if (e.key === "ArrowDown") {
         e.preventDefault();
         setActive((a) => Math.min(filtered.length - 1, a + 1));
       } else if (e.key === "ArrowUp") {
@@ -137,7 +115,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, filtered, active, run, onClose]);
+  }, [open, filtered, active, run]);
 
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-idx="${active}"]`);
@@ -147,8 +125,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   if (!open) return null;
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label="Command palette" onClick={onClose} onKeyDown={() => undefined}>
-      <div ref={dialogRef} className="palette" onClick={(e) => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div ref={dialogRef} className="palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
         <div className="palette-input-row">
           <span className="prompt" aria-hidden="true">❯</span>
           <input

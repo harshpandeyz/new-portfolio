@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useData } from "../../lib/data";
-import type { Skill, SkillCategory } from "@hp/shared";
+import type { PublicProjectIndex, Skill, SkillCategory } from "@hp/shared";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { TechGlyph } from "../tech/TechIcons";
@@ -24,9 +24,9 @@ const CATEGORY_META: Record<SkillCategory, { title: string; intro: string }> = {
   EXPERIMENTAL: { title: "Experimental", intro: "New tools, tested with intent." },
 };
 
-function SkillTile({ skill, onOpen, interactive }: { skill: Skill; onOpen: (s: Skill) => void; interactive: boolean }) {
+function SkillTile({ skill, onOpen, linkedProjects }: { skill: Skill; onOpen: (s: Skill) => void; linkedProjects: PublicProjectIndex[] }) {
   const context = skill.relatedConcepts.slice(0, 2).join(" · ");
-  if (!interactive) {
+  if (linkedProjects.length === 0) {
     return (
       <div className="tech-tile tech-tile--static" title={context || skill.name} aria-label={skill.name}>
         <TechGlyph name={skill.name} />
@@ -45,7 +45,7 @@ function SkillTile({ skill, onOpen, interactive }: { skill: Skill; onOpen: (s: S
       data-level={skill.level}
       onClick={() => onOpen(skill)}
       title={context || skill.name}
-      aria-label={`${skill.name} — used in ${skill.usedIn.join(", ")}`}
+      aria-label={`${skill.name} — used in ${linkedProjects.map((project) => project.title).join(", ")}`}
     >
       <TechGlyph name={skill.name} />
       <span className="tt-name">{skill.name}</span>
@@ -59,7 +59,7 @@ function SkillTile({ skill, onOpen, interactive }: { skill: Skill; onOpen: (s: S
 }
 
 export function TechStack() {
-  const { skills, projects, error, refresh } = useData();
+  const { skills, projectIndex, error, refresh } = useData();
   const navigate = useNavigate();
 
   const domainData = useMemo(() => {
@@ -74,27 +74,13 @@ export function TechStack() {
 
   const totalDisplayed = useMemo(() => domainData.reduce((n, d) => n + d.items.length, 0), [domainData]);
 
-  const isInteractive = useMemo(() => {
-    const interactiveIds = new Set<string>();
-    for (const d of domainData) {
-      for (const s of d.items) {
-        const resolvesToProject = s.usedIn.some((usedIn) => projects.some((p) =>
-          p.title.toLowerCase().includes(usedIn.toLowerCase()) ||
-          p.slug.includes(usedIn.replace(/\s+/g, "-").toLowerCase()),
-        ));
-        if (resolvesToProject) interactiveIds.add(s.id);
-      }
-    }
-    return (skill: Skill) => interactiveIds.has(skill.id);
-  }, [domainData, projects]);
+  const projectsBySlug = useMemo(() => new Map(projectIndex.map((project) => [project.slug, project])), [projectIndex]);
+  const linkedProjectsBySkill = useMemo(() => new Map(
+    skills.map((skill) => [skill.id, (skill.usedInProjectSlugs ?? []).map((slug) => projectsBySlug.get(slug)).filter((project): project is PublicProjectIndex => Boolean(project))]),
+  ), [skills, projectsBySlug]);
 
   const openSkill = (skill: Skill) => {
-    if (skill.usedIn.length === 0) return;
-    const project = projects.find((p) =>
-      skill.usedIn.some(
-        (u) => p.title.toLowerCase().includes(u.toLowerCase()) || p.slug.includes(u.replace(/\s+/g, "-").toLowerCase()),
-      ),
-    );
+    const project = linkedProjectsBySkill.get(skill.id)?.[0];
     if (project) navigate(`/projects/${project.slug}`);
   };
 
@@ -111,7 +97,7 @@ export function TechStack() {
         {domainData.length > 0 ? (
           <div className="tech-grid tech-grid--taxonomy">
             {domainData.map((domain, index) => (
-              <article className="tech-card" key={domain.title} data-reveal data-reveal-delay={String((index % 3) * 0.06)}>
+              <article className="tech-card" key={domain.title}>
                 <header className="tech-card-head">
                   <span className="tech-num">{String(index + 1).padStart(2, "0")}</span>
                   <h3>{domain.title}</h3>
@@ -122,7 +108,7 @@ export function TechStack() {
                 <p className="tech-intro">{domain.intro}</p>
                 <div className="tech-tiles">
                   {domain.items.map((skill) => (
-                    <SkillTile key={skill.id} skill={skill} onOpen={openSkill} interactive={isInteractive(skill)} />
+                    <SkillTile key={skill.id} skill={skill} onOpen={openSkill} linkedProjects={linkedProjectsBySkill.get(skill.id) ?? []} />
                   ))}
                 </div>
               </article>

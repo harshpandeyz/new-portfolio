@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { IconButton } from "../../components/ui/IconButton";
 import { useKeyboardShortcut } from "../../hooks/useKeyboardShortcut";
 import { IconDownload, IconExternal, IconClose, IconArrowLeft, IconArrowRight } from "../../components/ui/icons";
+import "./viewer.css";
 
 const PDF_LOAD_GRACE_MS = 4000;
 

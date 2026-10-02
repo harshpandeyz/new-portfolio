@@ -1,11 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useData } from "../../lib/data";
-import type { EnvCapabilities } from "../../lib/device";
+import { scrollBehavior } from "../../lib/motion";
 import { Button } from "../../components/ui/Button";
 import { PROFILE } from "../../app/constants";
 
 export interface HeroProps {
-  caps: EnvCapabilities;
   onViewResume: () => void;
 }
 
@@ -14,12 +13,12 @@ export interface HeroProps {
  * Typography only — no photo, no HUD, no WebGL. Progressive enhancement safe:
  * beautiful with reduced motion, on mobile, and on slow networks.
  */
-export function Hero({ caps, onViewResume }: HeroProps) {
+export function Hero({ onViewResume }: HeroProps) {
   const { profile } = useData();
   const navigate = useNavigate();
 
   const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: caps.reducedMotion ? "auto" : "smooth" });
+    document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() });
   };
 
   const name = profile?.name ?? PROFILE.name;
@@ -40,17 +39,17 @@ export function Hero({ caps, onViewResume }: HeroProps) {
 
         <h1 className="hero-name">{name}</h1>
 
-        <p className="hero-role" data-reveal>
+        <p className="hero-role">
           {role} — <span>{positioning}</span>
         </p>
 
-        <p className="hero-brief" data-reveal data-reveal-delay="0.08">
+        <p className="hero-brief">
           I build backend systems and applied-AI products that hold up past the demo —
           reliable APIs and databases, real-time vision pipelines, and interfaces
           that respect the people using them.
         </p>
 
-        <div className="hero-cta" data-reveal data-reveal-delay="0.16">
+        <div className="hero-cta">
           <Button variant="primary" onClick={() => scrollTo("work")}>See selected work</Button>
           <Button onClick={onViewResume}>View résumé</Button>
           <button
@@ -62,7 +61,7 @@ export function Hero({ caps, onViewResume }: HeroProps) {
           </button>
         </div>
 
-        <dl className="hero-proof" data-reveal data-reveal-delay="0.22">
+        <dl className="hero-proof">
           <div>
             <dt>Flagship</dt>
             <dd>CCTV-X · YOLOv8 + evidence ledger</dd>

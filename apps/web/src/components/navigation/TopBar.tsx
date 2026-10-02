@@ -1,8 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import { Button } from "../ui/Button";
 import { IconMenu, IconClose } from "../ui/icons";
@@ -28,15 +27,7 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
   const reducedMotion = useReducedMotion();
 
   const closeMenu = useCallback(() => setMobileOpen(false), []);
-  useFocusTrap(sheetRef, mobileOpen, closeMenu);
-  useScrollLock(mobileOpen);
-
-  // Restore focus to the menu trigger when the sheet closes (not on mount).
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (wasOpen.current && !mobileOpen) triggerRef.current?.focus();
-    wasOpen.current = mobileOpen;
-  }, [mobileOpen]);
+  useDialogLifecycle(sheetRef, mobileOpen, closeMenu, triggerRef.current);
 
   const scrollToId = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });

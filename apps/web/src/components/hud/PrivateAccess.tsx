@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
+import { isEditableTarget } from "../../hooks/useKeyboardShortcut";
 
 interface PrivateAccessProps {
   open: boolean;
@@ -17,44 +19,19 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
 
+  useDialogLifecycle(modalRef, open, onClose);
   useEffect(() => {
-    if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement;
+    if (!open) {
+      setPassword("");
+      setChallenge(null);
+      setCode("");
+      return;
+    }
     setError(null);
     setChallenge(null);
     setCode("");
-    document.body.classList.add("no-scroll");
-    window.setTimeout(() => document.getElementById("pa-email")?.focus(), 40);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusables = modalRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), a[href]");
-      if (!focusables?.length) return;
-      const first = focusables[0]!;
-      const last = focusables[focusables.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.classList.remove("no-scroll");
-      window.removeEventListener("keydown", onKeyDown);
-      window.setTimeout(() => previousFocusRef.current?.focus(), 0);
-    };
-    // The modal lifecycle is controlled by the parent route shell.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
@@ -73,6 +50,7 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
       }
       const res = await api.login(email, password);
       if (res.requires2FA && res.challenge) {
+        setPassword("");
         setChallenge(res.challenge);
         window.setTimeout(() => document.getElementById("pa-code")?.focus(), 40);
         return;
@@ -88,8 +66,8 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
   };
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-label="Private access" onClick={onClose}>
-      <div ref={modalRef} className="private-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div ref={modalRef} className="private-modal" role="dialog" aria-modal="true" aria-label="Private access" onClick={(e) => e.stopPropagation()}>
         <div className="private-lock" aria-hidden="true">⚿</div>
         <h3>Private access</h3>
         <p className="sub">Sign in to manage portfolio content.</p>
@@ -129,6 +107,9 @@ export function PrivateAccess({ open, onClose }: PrivateAccessProps) {
 export function useGlobalShortcuts(opts: { onPalette: () => void; onPrivate: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (isEditableTarget(e.target) || target?.closest("[role='dialog'], [role='alertdialog']")) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         opts.onPalette();

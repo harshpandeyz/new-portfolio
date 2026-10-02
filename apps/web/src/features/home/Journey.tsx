@@ -11,8 +11,9 @@ import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 export function Journey() {
   const { education, error, refresh } = useData();
 
-  const university = education.filter((e) => Number(e.startYear) >= 2022);
-  const btech = university.find((e) => e.field) ?? university[0];
+  const primary = education.find((item) => item.primary);
+  const university = primary ? [primary] : [];
+  const btech = primary;
 
   return (
     <section className="section edu-section" id="journey" aria-label="Education">
@@ -23,7 +24,7 @@ export function Journey() {
           <div className="edu-grid">
             <div className="edu-rows">
               {university.map((item, index) => (
-                <article className="edu-row" key={item.id} data-reveal data-reveal-delay={String(index * 0.06)}>
+                <article className="edu-row" key={item.id}>
                   <div className="edu-main">
                     <h3>{item.degree}</h3>
                     <p className="edu-inst">{item.institution}</p>

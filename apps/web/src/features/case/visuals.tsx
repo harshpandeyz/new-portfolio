@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { prefersReducedMotion } from "../../lib/motion";
 
 /** Scroll reveal — CSS transition via IntersectionObserver, reduced-motion safe. */
 export function Reveal({ children, delay = 0, className = "" }: { children: ReactNode; delay?: number; className?: string }) {
@@ -6,7 +7,7 @@ export function Reveal({ children, delay = 0, className = "" }: { children: Reac
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (prefersReducedMotion()) {
       el.classList.add("is-in");
       return;
     }

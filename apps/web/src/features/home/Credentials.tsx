@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { api } from "../../lib/api";
 import { useData } from "../../lib/data";
-import { unlock } from "../../lib/achievements";
+import { api } from "../../lib/api";
 import type { Certificate } from "@hp/shared";
+import { unlock } from "../../lib/achievements";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { CredentialCard } from "../credentials/CredentialCard";
-import { CredentialViewer } from "../credentials/CredentialViewer";
+
+const CredentialViewer = lazy(() => import("../credentials/CredentialViewer").then((module) => ({ default: module.CredentialViewer })));
 
 /**
  * Credentials: five selected first (3 + 2), then one "Others" tile that leads
@@ -16,30 +17,13 @@ import { CredentialViewer } from "../credentials/CredentialViewer";
  * never a route that pulls the visitor away from the portfolio.
  */
 export function Credentials() {
-  const { certTotal } = useData();
+  const { certificates, certTotal, loaded, error, refresh } = useData();
   const navigate = useNavigate();
-  const [items, setItems] = useState<Certificate[]>([]);
-  const [total, setTotal] = useState(certTotal);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
-  const [viewer, setViewer] = useState<Certificate | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    setLoading(true);
-    setError(false);
-    api
-      .certificates({ category: "ALL", search: "", page: 1 })
-      .then((r) => { if (!live) return; setItems(r.certificates); setTotal(r.total); })
-      .catch(() => { if (live) setError(true); })
-      .finally(() => live && setLoading(false));
-    return () => { live = false; };
-  }, [retryKey]);
+  const [viewer, setViewer] = useState<(typeof certificates)[number] | null>(null);
 
   const selected = useMemo(
-    () => [...items].sort((a, b) => (Number(b.featured) - Number(a.featured)) || a.order - b.order).filter((c) => c.featured).slice(0, 5),
-    [items],
+    () => certificates.filter((c) => c.featured).slice(0, 5),
+    [certificates],
   );
 
   const openViewer = (c: Certificate) => {
@@ -55,7 +39,7 @@ export function Credentials() {
     if (next) setViewer(next);
   };
 
-  const othersCount = Math.max(0, total - selected.length);
+  const othersCount = Math.max(0, certTotal - selected.length);
 
   return (
     <section className="section credentials-section" id="credentials" aria-label="Credentials">
@@ -66,11 +50,13 @@ export function Credentials() {
           sub="The courses, assessments and milestones most relevant to how I build today. The full collection lives in the archive."
         />
 
-        {loading ? (
+        {!loaded ? (
           <EmptyState>Loading credentials…</EmptyState>
-        ) : error ? (
-          <ErrorState message="Credentials couldn't load." onRetry={() => setRetryKey((k) => k + 1)} />
+        ) : error && certificates.length === 0 ? (
+          <ErrorState message="Credentials couldn't load." onRetry={() => void refresh()} />
         ) : (
+          <>
+          {error && <p className="credentials-stale" role="status">Refresh failed. Showing saved credentials. <button type="button" onClick={() => void refresh()}>Try again</button></p>}
           <div className="vault-grid">
             {selected.map((c, i) => (
               <CredentialCard key={c.id} certificate={c} index={i} onOpen={(cert) => openViewer(cert)} />
@@ -78,8 +64,8 @@ export function Credentials() {
             <button
               className="vault-others"
               onClick={() => navigate("/credentials")}
-              data-reveal
-              data-reveal-delay="0.16"
+
+
               aria-label={`Others — ${othersCount} more credentials in the archive`}
             >
               <span className="vo-label">Others</span>
@@ -88,10 +74,11 @@ export function Credentials() {
               <span className="vo-go">Open archive <span aria-hidden="true">→</span></span>
             </button>
           </div>
+          </>
         )}
       </div>
 
-      <CredentialViewer certificate={viewer} onClose={() => setViewer(null)} onNavigate={navigateViewer} hasNeighbors={selected.length > 1} />
+      {viewer && <Suspense fallback={null}><CredentialViewer certificate={viewer} onClose={() => setViewer(null)} onNavigate={navigateViewer} hasNeighbors={selected.length > 1} /></Suspense>}
     </section>
   );
 }

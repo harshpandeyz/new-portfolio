@@ -3,11 +3,14 @@ import { Link } from "react-router-dom";
 
 import { api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
+import { scrollBehavior } from "../../lib/motion";
 import type { Certificate } from "@hp/shared";
 import { Button } from "../../components/ui/Button";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
 import { CredentialCard } from "./CredentialCard";
 import { CredentialViewer } from "./CredentialViewer";
+import "../../styles/subspace.css";
+import "../archive.css";
 
 const FILTERS = ["ALL", "AI", "BACKEND", "CLOUD", "DATABASE", "DATA", "DEVELOPMENT", "SECURITY", "OTHER"] as const;
 const labelFor = (value: string) => (value === "ALL" ? "All" : value.charAt(0) + value.slice(1).toLowerCase());
@@ -42,9 +45,8 @@ export function CredentialArchive() {
     api
       .certificates({ category: filter === "ALL" ? undefined : filter, search: debouncedSearch || undefined, page }, controller.signal)
       .then((r) => { setItems(r.certificates); setTotal(r.total); setPageSize(r.pageSize ?? 24); })
-      .catch((e) => {
+      .catch(() => {
         if (controller.signal.aborted) return;
-        setItems([]);
         setError(true);
       })
       .finally(() => {
@@ -112,9 +114,10 @@ export function CredentialArchive() {
           </div>
 
           <div className="vault-grid">
-            {loading && <EmptyState>Loading credentials…</EmptyState>}
-            {!loading && error && <ErrorState message="Credentials couldn't load." onRetry={() => setRetryKey((k) => k + 1)} />}
-            {!loading && !error && displayList.map((c, i) => (
+            {loading && items.length === 0 && <EmptyState>Loading credentials…</EmptyState>}
+            {!loading && error && items.length === 0 && <ErrorState message="Credentials couldn't load." onRetry={() => setRetryKey((k) => k + 1)} />}
+            {!loading && error && items.length > 0 && <p className="archive-stale" role="status">Refresh failed; showing the last loaded results, which may not match the current filters. <button type="button" onClick={() => setRetryKey((k) => k + 1)}>Try again</button></p>}
+            {!loading && displayList.map((c, i) => (
               <CredentialCard key={c.id} certificate={c} index={i} onOpen={(cert) => openViewer(cert)} />
             ))}
             {!loading && !error && displayList.length === 0 && (
@@ -124,9 +127,9 @@ export function CredentialArchive() {
 
           {!loading && pages > 1 && (
             <div className="vault-pagination" aria-label="Credential pages">
-              <Button size="sm" disabled={page <= 1} onClick={() => { setPage((p) => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>← Prev</Button>
+              <Button size="sm" disabled={page <= 1} onClick={() => { setPage((p) => p - 1); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }}>← Prev</Button>
               <span className="mono mono-dim">{page} / {pages}</span>
-              <Button size="sm" disabled={page >= pages} onClick={() => { setPage((p) => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Next →</Button>
+              <Button size="sm" disabled={page >= pages} onClick={() => { setPage((p) => p + 1); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }}>Next →</Button>
             </div>
           )}
         </div>

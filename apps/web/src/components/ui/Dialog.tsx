@@ -1,7 +1,6 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
-import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 
 export interface DialogProps {
   open: boolean;
@@ -35,17 +34,7 @@ export function Dialog({
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useFocusTrap(panelRef, open, onClose);
-  useScrollLock(open);
-
-  // useFocusTrap already moves focus into the panel on open. Only honor an
-  // explicit initialFocusRef here to avoid a focus race.
-  useEffect(() => {
-    if (!open) return;
-    if (initialFocusRef?.current) {
-      initialFocusRef.current.focus();
-    }
-  }, [open, initialFocusRef]);
+  useDialogLifecycle(panelRef, open, onClose, undefined, initialFocusRef);
 
   if (!open) return null;
 
