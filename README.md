@@ -10,13 +10,13 @@ admin area.
 ```
 portfolio/
 ├── apps/
-│   ├── web/        React 18 + Vite + TS · GSAP ScrollTrigger
+│   ├── web/        React 18 + Vite + TypeScript · lazy public/admin routes
 │   └── api/        Fastify 5 + TS · Prisma · PostgreSQL
 ├── packages/
 │   └── shared/     Domain types + zod schemas (single source of truth)
 ├── e2e/            Playwright end-to-end specs
-├── scripts/        admin-create, docker init SQL
-├── docs/           ARCHITECTURE · DEPLOYMENT · SECURITY
+├── scripts/        database, test, build-budget, and admin tooling
+├── docs/           deployment and operating notes
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -73,7 +73,7 @@ npm run admin:create -- --email you@domain.com --password "a-long-random-passphr
 | `npm run build` | production build (all workspaces; run `npm run typecheck` first for strict TS) |
 | `npm run typecheck` / `lint` | strict TS (`tsc --noEmit`) across the monorepo |
 | `npm run test` | web unit tests + API security suite |
-| `npm run test:api` | API suite only (needs `TEST_DATABASE_URL`, provided by compose) |
+| `npm run test:api` | API suite only (resets the isolated `hp_os_test` database) |
 | `npm run e2e` | Playwright browser tests |
 | `npm run db:migrate` / `db:seed` | Prisma migrate deploy / verified seed |
 | `npm run admin:create` | create or reset the admin operator |
@@ -84,8 +84,8 @@ npm run admin:create -- --email you@domain.com --password "a-long-random-passphr
 HERO → ABOUT → JOURNEY → SELECTED WORK → CAPABILITIES → CREDENTIALS → CONTACT
 ```
 
-- **Quiet atmosphere** — a low-contrast ambient layer that supports the
-  hero without competing with the content; animation pauses when the page is hidden
+- **Reduced motion** — shared motion preferences keep navigation, reveals, and
+  scroll behavior responsive to the visitor's system setting
 - **Command palette** (⌘K / Ctrl+K) — an advanced shortcut for destinations, résumé, links,
   AI, and private access
 - **Selected work** — one flagship project, secondary work, and compact additional entries;
@@ -108,6 +108,4 @@ and privacy-safe analytics.
 
 ## Documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design, data model, chat pipeline
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Netlify/Vercel + Render/Railway, managed Postgres
-- [`docs/SECURITY.md`](docs/SECURITY.md) — auth model, CSRF, rate limits, threat notes
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Oracle Cloud deployment and release workflow
