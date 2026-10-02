@@ -1,0 +1,94 @@
+{
+  "pages": [
+    {
+      "path": "/",
+      "title": "Harsh Pandey — Software Engineer | Backend · AI · Full Stack",
+      "description": "Harsh Pandey is a software engineer in Pune, India building backend systems, applied AI products and thoughtful full-stack experiences. Explore selected work, capabilities, credentials and an AI assistant."
+    },
+    {
+      "path": "/recruiter",
+      "title": "Harsh Pandey — Recruiter briefing",
+      "description": "A concise professional profile for Harsh Pandey: software engineering focus, selected projects, capabilities, education, résumé and contact details."
+    },
+    {
+      "path": "/projects",
+      "title": "Project archive — Harsh Pandey",
+      "description": "Explore Harsh Pandey's software projects, including backend systems, applied AI, computer vision, full-stack applications and deployment work."
+    },
+    {
+      "path": "/credentials",
+      "title": "Credential archive — Harsh Pandey",
+      "description": "Browse Harsh Pandey's credential archive across backend development, databases, AI, cloud technologies, software engineering and security."
+    },
+    {
+      "path": "/projects/intelligent-surveillance-system",
+      "title": "Intelligent Surveillance System — Harsh Pandey",
+      "description": "A microservices security operations platform with real-time YOLOv8 detection, evidence chain-of-custody and an investigation copilot."
+    },
+    {
+      "path": "/projects/intelligent-mob-surveillance-system",
+      "title": "Intelligent Mob Surveillance System — Harsh Pandey",
+      "description": "An AI CCTV system for real-time crowd activity detection, encrypted video evidence and Ethereum-based integrity verification."
+    },
+    {
+      "path": "/projects/orchestraai",
+      "title": "OrchestraAI — Harsh Pandey",
+      "description": "An adaptive agent runtime for model routing, tool execution, memory, telemetry and streamed task execution."
+    },
+    {
+      "path": "/projects/quantummind",
+      "title": "QuantumMind — Harsh Pandey",
+      "description": "A multimodal RAG platform with semantic search over research PDFs, streamed chat and vision analysis of quantum circuits."
+    },
+    {
+      "path": "/projects/skillmatch",
+      "title": "SkillMatch — Harsh Pandey",
+      "description": "A full-stack learning recommendation system ranking skill paths by category, role relevance and difficulty progression."
+    },
+    {
+      "path": "/projects/brainmatch-game",
+      "title": "BrainMatch — Harsh Pandey",
+      "description": "A native iOS memory game with card matching, a rules screen and saved game state for resuming later."
+    },
+    {
+      "path": "/projects/studentlink",
+      "title": "StudentLink — Harsh Pandey",
+      "description": "A Spring Boot student social platform with JWT security, email flows and a separate frontend."
+    },
+    {
+      "path": "/projects/gamehub-cicd",
+      "title": "GameHub CI/CD — Harsh Pandey",
+      "description": "A React application delivered through a Jenkins, Docker and container deployment pipeline."
+    },
+    {
+      "path": "/projects/flask-api-docker-demo",
+      "title": "Flask API + Docker Demo — Harsh Pandey",
+      "description": "A small Flask REST API packaged in Docker, demonstrating a lightweight containerized Python service."
+    },
+    {
+      "path": "/projects/mlops-lifecycle",
+      "title": "MLOps Lifecycle Blueprint — Harsh Pandey",
+      "description": "A documented design for the MLOps lifecycle, covering data validation, training, deployment and monitoring."
+    },
+    {
+      "path": "/projects/mit-java-qualifier",
+      "title": "Bajaj Finserv Health Qualifier — Harsh Pandey",
+      "description": "A Spring Boot hiring challenge solution with a webhook handshake, JWT-authenticated submission and SQL answer flow."
+    },
+    {
+      "path": "/projects/skillnexus",
+      "title": "SkillNexus — Harsh Pandey",
+      "description": "An early responsive learning platform frontend with a course catalog, cart and demonstration authentication."
+    },
+    {
+      "path": "/projects/coffeeshop",
+      "title": "CoffeeShop Landing Page — Harsh Pandey",
+      "description": "A static landing page experiment for a local coffee shop concept."
+    },
+    {
+      "path": "/projects/codsoft-tasks",
+      "title": "CodSoft Internship Tasks — Harsh Pandey",
+      "description": "A web development internship submission containing a portfolio site, landing page and calculator."
+    }
+  ]
+}
