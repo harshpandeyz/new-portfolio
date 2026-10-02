@@ -15,6 +15,7 @@ const EMPTY: Partial<Education> = {
   endYear: "",
   grade: "",
   description: "",
+  primary: false,
   order: 99,
 };
 
@@ -84,6 +85,7 @@ export function EducationAdmin() {
         endYear: editing.endYear?.trim() || null,
         grade: editing.grade?.trim() || null,
         description: editing.description?.trim() || null,
+        primary: Boolean(editing.primary),
         order: Number(editing.order ?? 99),
       };
       if (editing.id) await api.admin.updateEducation(editing.id, payload);
@@ -137,7 +139,7 @@ export function EducationAdmin() {
         view === "cards" ? <div className="ctl-education-list">
           {filtered.map((item) => <article className="ctl-education-card" key={item.id}>
             <div className="ctl-education-mark"><AdminIcon name="education" size={19} /></div>
-            <div className="ctl-education-main"><h2>{item.degree}</h2><p>{item.institution}{item.field ? ` · ${item.field}` : ""}</p>{item.description && <p className="ctl-education-description">{item.description}</p>}{item.grade && <span className="ctl-education-grade">{item.grade}</span>}</div>
+            <div className="ctl-education-main"><h2>{item.degree}{item.primary && <span className="ctl-row-sub"> · Primary</span>}</h2><p>{item.institution}{item.field ? ` · ${item.field}` : ""}</p>{item.description && <p className="ctl-education-description">{item.description}</p>}{item.grade && <span className="ctl-education-grade">{item.grade}</span>}</div>
             <div className="ctl-education-side"><span className="ctl-education-years">{item.startYear} – {item.endYear ?? "Present"}</span><div className="ctl-row-actions"><button className="ctl-mini-btn" onClick={() => { setEditing({ ...item }); setDirty(false); }}>Edit</button><button className="ctl-mini-btn danger" onClick={() => setToDelete(item)}>Delete</button></div></div>
           </article>)}
         </div> : <div className="ctl-table-wrap">
@@ -169,6 +171,7 @@ export function EducationAdmin() {
             <div className="ctl-field"><label htmlFor="ed-start">Start year</label><input id="ed-start" className="ctl-input" value={editing.startYear ?? ""} onChange={(e) => setEdit({ startYear: e.target.value })} placeholder="2023" /></div>
             <div className="ctl-field"><label htmlFor="ed-end">End year (optional)</label><input id="ed-end" className="ctl-input" value={editing.endYear ?? ""} onChange={(e) => setEdit({ endYear: e.target.value })} placeholder="2027" /></div>
             <div className="ctl-field"><label htmlFor="ed-order">Order (lower shows first)</label><input id="ed-order" className="ctl-input" type="number" min="0" value={String(editing.order ?? 99)} onChange={(e) => setEdit({ order: Number(e.target.value) })} /></div>
+            <div className="ctl-field"><label>Recruiter view</label><label className="ctl-featured-check"><input type="checkbox" checked={!!editing.primary} onChange={(e) => setEdit({ primary: e.target.checked })} /> Primary education</label></div>
             <div className="ctl-field full"><label htmlFor="ed-description">Description</label><textarea id="ed-description" className="ctl-textarea" rows={4} value={editing.description ?? ""} onChange={(e) => setEdit({ description: e.target.value })} /></div>
           </div>
         )}

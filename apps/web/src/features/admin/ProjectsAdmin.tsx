@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { api, resolveMediaUrl } from "../../lib/api";
 import type { Project } from "@hp/shared";
+import { projectDomainValues } from "@hp/shared";
 import { FLAGSHIP_SLUGS, SELECTED_SLUGS, isArchiveOnlySlug } from "@hp/shared";
 import { AdminIcon } from "./Icon";
 import {
@@ -13,10 +14,11 @@ import {
 const EMPTY: Partial<Project> = {
   title: "", slug: "", codename: "", shortDescription: "", longDescription: "",
   category: "AI / Computer Vision", tier: "featured", status: "draft", featured: false,
+  domains: [],
   year: String(new Date().getFullYear()), order: 99, stack: [], githubUrl: "", liveUrl: "",
   heroImage: "", gallery: [],
   problem: "", solution: "", architecture: "", decisions: [], challenges: "", results: "",
-  securityNotes: "", dataFlow: [],
+  securityNotes: "", securityReliability: "", dataFlow: [],
 };
 
 type SortKey = "order" | "title" | "updated";
@@ -470,6 +472,9 @@ export function ProjectsAdmin() {
                 <Field label="Security notes (admin only — never public)" full hint="Stored but hidden from the public site.">
                   {(id) => <textarea id={id} className="ctl-textarea" rows={2} value={editing.securityNotes ?? ""} onChange={(e) => setEdit({ securityNotes: e.target.value })} />}
                 </Field>
+                <Field label="Security and reliability" full hint="Public project information about safeguards, resilience, and known limitations.">
+                  {(id) => <textarea id={id} className="ctl-textarea" rows={3} value={editing.securityReliability ?? ""} onChange={(e) => setEdit({ securityReliability: e.target.value })} />}
+                </Field>
               </div>
             )}
             {tab === "media" && (
@@ -493,6 +498,21 @@ export function ProjectsAdmin() {
             )}
             {tab === "publish" && (
               <div className="ctl-form-grid">
+                <fieldset className="ctl-field full">
+                  <legend>Project domains</legend>
+                  <span className="ctl-field-hint">Used by archive filters and public discovery.</span>
+                  <div className="ctl-form-grid">
+                    {projectDomainValues.map((domain) => (
+                      <label className="ctl-featured-check" key={domain}>
+                        <input type="checkbox" checked={(editing.domains ?? []).includes(domain)} onChange={(event) => {
+                          const domains = editing.domains ?? [];
+                          setEdit({ domains: event.target.checked ? [...domains, domain] : domains.filter((value) => value !== domain) } as Partial<Project>);
+                        }} />
+                        {domain.replaceAll("_", " / ")}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <Field label="Tier">
                   {(id) => (
                     <select id={id} className="ctl-select" value={editing.tier ?? "featured"} onChange={(e) => setEdit({ tier: e.target.value as Project["tier"] })}>

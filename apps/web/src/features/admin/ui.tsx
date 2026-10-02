@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 import { AdminIcon } from "./Icon";
 
 /* ── Toasts ─────────────────────────────────────────────── */
@@ -91,8 +90,7 @@ export function Dialog({
   const close = useCallback(() => closeRef.current(), []);
   const titleId = useId();
   const descriptionId = useId();
-  useFocusTrap(ref, open, close);
-  useScrollLock(open);
+  useDialogLifecycle(ref, open, close);
 
   if (!open) return null;
   return (
@@ -558,8 +556,7 @@ export function Drawer({
   const close = useCallback(() => closeRef.current(), []);
   const titleId = useId();
   const subtitleId = useId();
-  useFocusTrap(ref, open, close);
-  useScrollLock(open);
+  useDialogLifecycle(ref, open, close);
 
   if (!open) return null;
   return (
@@ -648,14 +645,9 @@ export function CommandPalette({
     if (!open) return;
     setQuery("");
     setActive(0);
-    const t = window.setTimeout(() => inputRef.current?.focus(), 30);
-    return () => {
-      window.clearTimeout(t);
-    };
   }, [open]);
 
-  useFocusTrap(listRef, open, close);
-  useScrollLock(open);
+  useDialogLifecycle(listRef, open, close, undefined, inputRef);
 
   useEffect(() => {
     setActive(0);

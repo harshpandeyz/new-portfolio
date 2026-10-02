@@ -8,7 +8,7 @@ import { Badge, ConfirmDialog, Dialog, EmptyState, ErrorState, PageHead, SearchI
 
 const EMPTY: Partial<Skill> = {
   name: "", category: "LANGUAGES", level: "working", description: "",
-  usedIn: [], relatedConcepts: [], featured: false, order: 99,
+  usedInProjectSlugs: [], relatedConcepts: [], featured: false, recruiterPriority: 0, order: 99,
 };
 
 export function SkillsAdmin() {
@@ -37,7 +37,7 @@ export function SkillsAdmin() {
       const r = await api.admin.skills();
       setItems(r.skills);
       setSelected(new Set());
-      void api.projects().then((result) => setProjects(result.projects)).catch(() => setProjects([]));
+      void api.admin.projects().then((result) => setProjects(result.projects)).catch(() => undefined);
     } catch (e) {
       setError(friendlyError(e));
     } finally {
@@ -118,13 +118,7 @@ export function SkillsAdmin() {
   };
 
   const allChecked = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
-  const projectByReference = useMemo(() => {
-    const map = new Map<string, Project>();
-    projects.forEach((project) => [project.title, project.slug, project.codename].forEach((value) => {
-      if (value?.trim()) map.set(value.trim().toLowerCase(), project);
-    }));
-    return map;
-  }, [projects]);
+  const projectBySlug = useMemo(() => new Map(projects.map((project) => [project.slug, project])), [projects]);
   const groups = useMemo(() => [...new Set(filtered.map((skill) => skill.category))], [filtered]);
   const categoryLabel = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
   const levelRank: Record<string, number> = { experimental: 1, exploring: 2, working: 3, core: 4 };
@@ -202,9 +196,9 @@ export function SkillsAdmin() {
                       {skill.description && <p className="ctl-skill-description">{skill.description}</p>}
                       <div className="ctl-skill-evidence">
                         <strong>Project evidence</strong>
-                        {skill.usedIn.length ? <ul>{skill.usedIn.map((reference) => {
-                          const project = projectByReference.get(reference.trim().toLowerCase());
-                          return <li key={`${skill.id}:${reference}`}>{project ? <a href={`/projects/${project.slug}`} target="_blank" rel="noopener noreferrer">{reference}</a> : <span className="is-orphan" title="This stored reference does not match a current project title, slug, or codename">Unmatched: {reference}</span>}</li>;
+                        {skill.usedInProjectSlugs.length ? <ul>{skill.usedInProjectSlugs.map((slug) => {
+                          const project = projectBySlug.get(slug);
+                          return <li key={`${skill.id}:${slug}`}>{project ? <a href={`/projects/${project.slug}`} target="_blank" rel="noopener noreferrer">{project.title}</a> : <span className="is-orphan">Unknown project: {slug}</span>}</li>;
                         })}</ul> : <span className="ctl-hint">No project evidence recorded.</span>}
                       </div>
                       {skill.relatedConcepts.length > 0 && <div className="ctl-tech-list">{skill.relatedConcepts.slice(0, 4).map((concept) => <span key={concept}>{concept}</span>)}{skill.relatedConcepts.length > 4 && <span>+{skill.relatedConcepts.length - 4}</span>}</div>}
@@ -241,6 +235,7 @@ export function SkillsAdmin() {
           <div className="ctl-form-grid">
             <div className="ctl-field"><label htmlFor="sk-name">Name</label><input id="sk-name" className="ctl-input" value={editing.name ?? ""} onChange={(e) => setEdit({ name: e.target.value })} /></div>
             <div className="ctl-field"><label htmlFor="sk-order">Order (lower shows first)</label><input id="sk-order" className="ctl-input" type="number" value={String(editing.order ?? 99)} onChange={(e) => setEdit({ order: Number(e.target.value) })} /></div>
+            <div className="ctl-field"><label htmlFor="sk-recruiter-priority">Recruiter priority (0 hides)</label><input id="sk-recruiter-priority" className="ctl-input" type="number" min="0" max="999" value={String(editing.recruiterPriority ?? 0)} onChange={(e) => setEdit({ recruiterPriority: Number(e.target.value) })} /></div>
             <div className="ctl-field"><label htmlFor="sk-cat">Category</label>
               <select id="sk-cat" className="ctl-select" value={editing.category ?? "LANGUAGES"} onChange={(e) => setEdit({ category: e.target.value as Skill["category"] })}>
                 {["LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML", "CLOUD_DEVOPS", "SECURITY", "MOBILE", "BLOCKCHAIN", "EXPERIMENTAL"].map((c) => (<option key={c} value={c}>{c}</option>))}
@@ -252,7 +247,7 @@ export function SkillsAdmin() {
               </select>
             </div>
             <div className="ctl-field full"><label htmlFor="sk-desc">Description</label><textarea id="sk-desc" className="ctl-textarea" rows={2} value={editing.description ?? ""} onChange={(e) => setEdit({ description: e.target.value })} /></div>
-            <div className="ctl-field full"><label htmlFor="sk-used-in">Project evidence labels</label><textarea id="sk-used-in" className="ctl-textarea" rows={2} value={(editing.usedIn ?? []).join("\n")} onChange={(e) => setEdit({ usedIn: e.target.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean) })} placeholder="One stored project title or codename per line" /><span className="ctl-field-hint">These are text labels in the current schema. Matching titles, slugs and codenames link to projects.</span></div>
+            <fieldset className="ctl-field full"><legend>Project evidence</legend><span className="ctl-field-hint">Choose projects linked to this skill. Links use stable project slugs.</span><div className="ctl-form-grid">{projects.map((project) => <label className="ctl-featured-check" key={project.slug}><input type="checkbox" checked={(editing.usedInProjectSlugs ?? []).includes(project.slug)} onChange={(e) => { const refs = editing.usedInProjectSlugs ?? []; setEdit({ usedInProjectSlugs: e.target.checked ? [...refs, project.slug] : refs.filter((slug) => slug !== project.slug) }); }} />{project.title}{project.status === "draft" ? " · Draft" : ""}</label>)}</div></fieldset>
             <div className="ctl-field full"><label htmlFor="sk-concepts">Related concepts</label><input id="sk-concepts" className="ctl-input" value={(editing.relatedConcepts ?? []).join(", ")} onChange={(e) => setEdit({ relatedConcepts: e.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="e.g. Retrieval augmented generation, vector search" /></div>
             <div className="ctl-field"><label>Flags</label><label className="ctl-featured-check"><input type="checkbox" checked={!!editing.featured} onChange={(e) => setEdit({ featured: e.target.checked })} /> Featured</label></div>
           </div>

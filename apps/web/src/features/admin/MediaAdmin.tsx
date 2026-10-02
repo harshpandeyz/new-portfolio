@@ -5,6 +5,7 @@ import type { MediaAsset } from "@hp/shared";
 import { AdminIcon } from "./Icon";
 import { ConfirmDialog, EmptyState, ErrorState, PageHead, SearchInput, Segmented, SkeletonList, friendlyError, usePersistentState, useToast } from "./ui";
 import { adminBus } from "./bus";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf,video/mp4,video/webm";
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -34,11 +35,14 @@ export function MediaAdmin() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lightbox, setLightbox] = useState<MediaAsset | null>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
   const { push } = useToast();
+  const closeLightbox = useCallback(() => setLightbox(null), []);
+  useDialogLifecycle(lightboxRef, Boolean(lightbox), closeLightbox);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setError(null);
@@ -144,17 +148,22 @@ export function MediaAdmin() {
     setBusy(true);
     try {
       let n = 0;
+      const kept = new Set<string>();
       for (const id of selected) {
         try {
           await api.admin.deleteMedia(id);
           n += 1;
         } catch {
-          /* continue with the rest */
+          kept.add(id);
         }
       }
-      push({ kind: "success", title: `Deleted ${n} asset${n === 1 ? "" : "s"}` });
+      if (kept.size > 0) {
+        push({ kind: "error", title: `Deleted ${n}; kept ${kept.size} in-use asset${kept.size === 1 ? "" : "s"}`, desc: "Remove their content references before deleting them." });
+      } else {
+        push({ kind: "success", title: `Deleted ${n} asset${n === 1 ? "" : "s"}` });
+      }
       setConfirmBulkDelete(false);
-      setSelected(new Set());
+      setSelected(kept);
       void load();
     } finally {
       setBusy(false);
@@ -184,11 +193,11 @@ export function MediaAdmin() {
   const allIds = filtered.map((a) => a.id);
   const allChecked = allIds.length > 0 && allIds.every((id) => selected.has(id));
 
-  // Lightbox keyboard: Escape closes, arrows move.
+  // The shared dialog lifecycle owns Escape, focus trapping, and scroll lock.
+  // This listener only handles the lightbox's left/right browsing shortcut.
   useEffect(() => {
     if (!lightbox) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightbox(null);
       if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
         const idx = filtered.findIndex((a) => a.id === lightbox.id);
         const next = filtered[(idx + (e.key === "ArrowRight" ? 1 : -1) + filtered.length) % filtered.length];
@@ -350,12 +359,13 @@ export function MediaAdmin() {
                     />
                     <span className="ctl-media-name" title={`${a.filename} · ${a.mimeType} · ${(a.sizeBytes / 1024).toFixed(1)}KB`}>
                       {a.filename} {!a.referenced && <small className="ctl-orphan-mark">ORPHAN</small>}
+                      {(a.versions?.length ?? 0) > 0 && <small className="ctl-orphan-mark">{a.versions!.length} prior</small>}
                     </span>
                   </label>
                   <span className="ctl-media-actions">
                     <button type="button" className="ctl-mini-btn" onClick={() => void copyUrl(a)} aria-label={`Copy URL for ${a.filename}`}>Copy</button>
                     <button type="button" className="ctl-mini-btn" onClick={() => { setReplaceTarget(a.id); replaceRef.current?.click(); }} aria-label={`Replace ${a.filename}`}>Replace</button>
-                    <button type="button" className="ctl-mini-btn danger" onClick={() => setToDelete(a)} aria-label={`Delete ${a.filename}`}>Delete</button>
+                    <button type="button" className="ctl-mini-btn danger" onClick={() => setToDelete(a)} disabled={a.referenced} title={a.referenced ? "Remove this asset from content before deleting it." : undefined} aria-label={a.referenced ? `${a.filename} is in use and cannot be deleted` : `Delete ${a.filename}`}>{a.referenced ? "In use" : "Delete"}</button>
                   </span>
                 </div>
               </div>
@@ -365,7 +375,7 @@ export function MediaAdmin() {
       )}
 
       {lightbox && (
-        <div className="ctl-lightbox" role="dialog" aria-modal="true" aria-label={`Preview ${lightbox.filename}`} onClick={() => setLightbox(null)}>
+        <div ref={lightboxRef} className="ctl-lightbox" role="dialog" tabIndex={0} aria-modal="true" aria-label={`Preview ${lightbox.filename}`} onClick={closeLightbox}>
           <div onClick={(e) => e.stopPropagation()}>
             {lightbox.kind === "image" ? (
               <img src={resolveMediaUrl(lightbox.url)} alt={lightbox.filename} />

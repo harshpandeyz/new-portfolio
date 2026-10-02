@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../lib/api";
 import type { AiProvider } from "@hp/shared";
-import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 import { AdminIcon } from "./Icon";
 import {
   Badge, ConfirmDialog, EmptyState, ErrorState, Field, PageHead,
@@ -27,7 +26,6 @@ interface FormState {
   temperature: string;
   maxTokens: string;
   timeoutMs: string;
-  systemPrompt: string;
   enabled: boolean;
   priority: string;
   isFallback: boolean;
@@ -42,7 +40,6 @@ const EMPTY_FORM: FormState = {
   temperature: "0.2",
   maxTokens: "500",
   timeoutMs: "20000",
-  systemPrompt: "",
   enabled: true,
   priority: "0",
   isFallback: false,
@@ -59,7 +56,6 @@ function toForm(p?: AiProvider): FormState {
     temperature: String(p.temperature),
     maxTokens: String(p.maxTokens),
     timeoutMs: String(p.timeoutMs),
-    systemPrompt: p.systemPrompt ?? "",
     enabled: p.enabled,
     priority: String(p.priority),
     isFallback: p.isFallback,
@@ -92,9 +88,8 @@ export function AiProvidersAdmin() {
   const rotateDialogRef = useRef<HTMLDivElement>(null);
   const closeProviderDialog = useCallback(() => setCreating(false), []);
   const closeRotateDialog = useCallback(() => setRotateTarget(null), []);
-  useFocusTrap(providerDialogRef, creating, closeProviderDialog);
-  useFocusTrap(rotateDialogRef, Boolean(rotateTarget), closeRotateDialog);
-  useScrollLock(creating || Boolean(rotateTarget));
+  useDialogLifecycle(providerDialogRef, creating, closeProviderDialog);
+  useDialogLifecycle(rotateDialogRef, Boolean(rotateTarget), closeRotateDialog);
   const { push } = useToast();
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -163,7 +158,6 @@ export function AiProvidersAdmin() {
         temperature: Number(form.temperature) || 0,
         maxTokens: Math.max(32, Number(form.maxTokens) || 500),
         timeoutMs: Math.max(2000, Number(form.timeoutMs) || 20000),
-        systemPrompt: form.systemPrompt.trim() || null,
         enabled: form.enabled,
         priority: Math.max(0, Number(form.priority) || 0),
         isFallback: form.isFallback,
@@ -348,7 +342,6 @@ export function AiProvidersAdmin() {
                 <Field label="Max tokens" hint="32 – 8000">{(id) => <input id={id} className="ctl-input" inputMode="numeric" value={form.maxTokens} onChange={(e) => set("maxTokens", e.target.value)} />}</Field>
                 <Field label="Timeout (ms)" hint="2000 – 120000">{(id) => <input id={id} className="ctl-input" inputMode="numeric" value={form.timeoutMs} onChange={(e) => set("timeoutMs", e.target.value)} />}</Field>
               </div>
-              <Field label="System prompt (optional)" hint="Overrides the default grounded-assistant prompt for this provider.">{(id) => <textarea id={id} className="ctl-textarea" rows={3} value={form.systemPrompt} onChange={(e) => set("systemPrompt", e.target.value)} placeholder="Leave blank for the default grounded prompt…" />}</Field>
               <div className="ctl-ai-form-flags">
                 <label className="ctl-check"><input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} /> Enabled</label>
                 <label className="ctl-check"><input type="checkbox" checked={form.isFallback} onChange={(e) => set("isFallback", e.target.checked)} /> Fallback (tried last)</label>

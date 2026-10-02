@@ -7,6 +7,7 @@ import { ErrorState, PageHead, friendlyError, useToast } from "./ui";
 
 const DRAFT_KEY = "ctl:profile:draft";
 const BIO_LIMIT = 1200;
+const RECRUITER_SUMMARY_LIMIT = 500;
 
 function readDraft(): Partial<Profile> | null {
   try {
@@ -21,7 +22,7 @@ function readDraft(): Partial<Profile> | null {
 function comparable(profile: Partial<Profile>) {
   return JSON.stringify({
     name: profile.name ?? "", headline: profile.headline ?? "", subHeadline: profile.subHeadline ?? "",
-    bio: profile.bio ?? "", location: profile.location ?? "", email: profile.email ?? "",
+    bio: profile.bio ?? "", recruiterSummary: profile.recruiterSummary ?? "", location: profile.location ?? "", email: profile.email ?? "",
     availability: profile.availability ?? "", avatarUrl: profile.avatarUrl ?? null,
     resumeUrl: profile.resumeUrl ?? null, resumeLabel: profile.resumeLabel ?? null,
     socials: (profile.socials ?? []).map((s, i) => ({ label: s.label, url: s.url, handle: s.handle ?? null, order: s.order ?? i })),
@@ -70,7 +71,7 @@ export function ProfileAdmin() {
   const dirty = useMemo(() => Boolean(profile && baseline && comparable(profile) !== comparable(baseline)), [profile, baseline]);
   const completeness = useMemo(() => {
     if (!profile) return { complete: 0, total: 8, percent: 0 };
-    const checks = [profile.name, profile.headline, profile.bio, profile.location, profile.email, profile.avatarUrl, profile.resumeUrl, profile.socials?.length];
+    const checks = [profile.name, profile.headline, profile.bio, profile.recruiterSummary, profile.location, profile.email, profile.avatarUrl, profile.resumeUrl, profile.socials?.length];
     const complete = checks.filter((value) => typeof value === "string" ? value.trim().length > 0 : Boolean(value)).length;
     return { complete, total: checks.length, percent: Math.round(complete / checks.length * 100) };
   }, [profile]);
@@ -116,7 +117,7 @@ export function ProfileAdmin() {
     try {
       await api.admin.updateProfile({
         name: profile.name.trim(), headline: profile.headline?.trim() ?? "", subHeadline: profile.subHeadline?.trim() ?? "",
-        bio: profile.bio?.trim() ?? "", location: profile.location?.trim() ?? "", email: profile.email.trim(),
+        bio: profile.bio?.trim() ?? "", recruiterSummary: profile.recruiterSummary?.trim() ?? "", location: profile.location?.trim() ?? "", email: profile.email.trim(),
         availability: profile.availability ?? "", avatarUrl: profile.avatarUrl || null,
         resumeUrl: profile.resumeUrl || null, resumeLabel: profile.resumeLabel || null,
         socials: (profile.socials ?? []).map((s, i) => ({ label: s.label.trim(), url: s.url.trim(), handle: s.handle ?? null, order: i })),
@@ -150,6 +151,7 @@ export function ProfileAdmin() {
             <div className="ctl-field"><label htmlFor="pf-head">Headline</label><input id="pf-head" className="ctl-input" value={profile.headline ?? ""} onChange={(e) => update({ headline: e.target.value })} maxLength={160} /></div>
             <div className="ctl-field"><label htmlFor="pf-sub">Supporting headline</label><input id="pf-sub" className="ctl-input" value={profile.subHeadline ?? ""} onChange={(e) => update({ subHeadline: e.target.value })} maxLength={180} /></div>
             <div className="ctl-field full"><label htmlFor="pf-bio">Biography <span className="ctl-field-count">{(profile.bio ?? "").length}/{BIO_LIMIT}</span></label><textarea id="pf-bio" className="ctl-textarea" rows={6} maxLength={BIO_LIMIT} value={profile.bio ?? ""} onChange={(e) => update({ bio: e.target.value })} /></div>
+            <div className="ctl-field full"><label htmlFor="pf-recruiter-summary">Recruiter summary <span className="ctl-field-count">{(profile.recruiterSummary ?? "").length}/{RECRUITER_SUMMARY_LIMIT}</span></label><textarea id="pf-recruiter-summary" className="ctl-textarea" rows={3} maxLength={RECRUITER_SUMMARY_LIMIT} value={profile.recruiterSummary ?? ""} onChange={(e) => update({ recruiterSummary: e.target.value })} aria-describedby="pf-recruiter-summary-hint" /><span className="ctl-field-hint" id="pf-recruiter-summary-hint">A standalone two sentence summary for the recruiter view.</span></div>
             <div className="ctl-field"><label htmlFor="pf-email">Public email</label><input id="pf-email" className="ctl-input" type="email" autoComplete="email" value={profile.email ?? ""} onChange={(e) => update({ email: e.target.value })} /></div>
             <div className="ctl-field"><label htmlFor="pf-avail">Availability</label><input id="pf-avail" className="ctl-input" value={profile.availability ?? ""} onChange={(e) => update({ availability: e.target.value })} maxLength={120} /></div>
           </div>

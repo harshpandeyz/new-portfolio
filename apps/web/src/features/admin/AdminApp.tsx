@@ -5,9 +5,10 @@ import { api } from "../../lib/api";
 import { CommandPalette, ToastProvider } from "./ui";
 import type { PaletteCommand } from "./ui";
 import { adminBus } from "./bus";
-import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { useScrollLock } from "../../hooks/useScrollLock";
+import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
+import { isEditableTarget } from "../../hooks/useKeyboardShortcut";
 import { AdminIcon } from "./Icon";
+import "../../styles/admin.css";
 
 import { Login } from "./Login";
 import { Overview } from "./Overview";
@@ -204,16 +205,20 @@ export default function AdminApp() {
   useEffect(() => {
     if (!user) return;
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      const inField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.defaultPrevented) return;
+      const target = e.target instanceof Element ? e.target : null;
+      const inField = isEditableTarget(e.target);
+      const inDialog = Boolean(target?.closest("[role='dialog'], [role='alertdialog']"));
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        if (inField || inDialog) return;
         e.preventDefault();
         setPaletteOpen((o) => !o);
       } else if (e.key === "Escape" && !paletteOpen) {
+        if (inDialog) return;
         setDrawer(false);
         setUserMenu(false);
         setNewMenu(false);
-      } else if (!inField && e.key === "/") {
+      } else if (!inField && !inDialog && e.key === "/") {
         e.preventDefault();
         setPaletteOpen(true);
       }
@@ -235,8 +240,7 @@ export default function AdminApp() {
   }, [userMenu, newMenu]);
 
   const closeDrawer = useCallback(() => setDrawer(false), []);
-  useFocusTrap(drawerRef as React.RefObject<HTMLElement | null>, drawer, closeDrawer, menuButtonRef.current);
-  useScrollLock(drawer);
+  useDialogLifecycle(drawerRef as React.RefObject<HTMLElement | null>, drawer, closeDrawer, menuButtonRef.current);
 
   const commands: PaletteCommand[] = useMemo(() => {
     const go = (path: string) => () => navigate(path);

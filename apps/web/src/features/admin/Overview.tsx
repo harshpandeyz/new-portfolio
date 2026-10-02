@@ -225,7 +225,7 @@ export function Overview({ onUnreadChange }: { onUnreadChange: () => void }) {
   const eventLabels: Record<string, string> = {
     page_view: "Page views", project_view: "Project views", certificate_view: "Certificate views",
     contact_submit: "Contact submissions", recruiter_view: "Recruiter briefings", resume_download: "Résumé downloads",
-    resume_view: "Résumé views", chat_query: "Assistant questions", interview_turn: "Interview turns",
+    resume_view: "Résumé views", chat_query: "Assistant questions",
   };
   const breakdown = (events ?? []).filter((event) => event.count > 0).sort((a, b) => b.count - a.count);
 
