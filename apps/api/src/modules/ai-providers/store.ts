@@ -13,7 +13,6 @@ export interface DbProviderRow {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
-  systemPrompt: string | null;
   enabled: boolean;
   priority: number;
   isFallback: boolean;
@@ -54,7 +53,6 @@ export function toPublicProvider(row: DbProviderRow): AiProvider {
     temperature: row.temperature,
     maxTokens: row.maxTokens,
     timeoutMs: row.timeoutMs,
-    systemPrompt: row.systemPrompt,
     enabled: row.enabled,
     priority: row.priority,
     isFallback: row.isFallback,

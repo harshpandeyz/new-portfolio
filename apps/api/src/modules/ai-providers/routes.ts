@@ -9,6 +9,7 @@ import { audit, clientIp, HttpError, noStore, notFound, parseBody } from "../../
 import { rateLimit } from "../../utils/rate-limit.js";
 import { decryptApiKey, encryptApiKey, keyHintFor } from "./secrets.js";
 import { aiProviderTableReady, listProviderRows, toPublicProvider } from "./store.js";
+import { normalizeProviderBaseUrl, requestProviderJson } from "./safe-request.js";
 
 const DEFAULT_BASE_URL: Record<string, string> = {
   openai: "https://api.openai.com/v1",
@@ -37,43 +38,30 @@ async function probeProvider(opts: {
   mode: "connection" | "model";
 }): Promise<{ latencyMs: number; modelEcho?: string }> {
   const started = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(opts.timeoutMs, 2000), 60000));
-  try {
-    if (opts.mode === "connection") {
-      // Prefer /models (cheap, no tokens). Fall back to a minimal completion
-      // for providers that hide the models endpoint.
-      const res = await fetch(`${opts.baseUrl.replace(/\/$/, "")}/models`, {
-        headers: { authorization: `Bearer ${opts.apiKey}` },
-        signal: controller.signal,
-      });
-      if (res.ok) return { latencyMs: Date.now() - started };
-      if (res.status === 404 || res.status === 405) {
-        // fall through to completion probe
-      } else if (!res.ok) {
-        throw new Error(`Provider responded with HTTP ${res.status}`);
-      } else {
-        return { latencyMs: Date.now() - started };
-      }
-    }
-    const res = await fetch(`${opts.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
-      body: JSON.stringify({
+  if (opts.mode === "connection") {
+    // Prefer /models (cheap, no tokens). Fall back only when unsupported.
+    const models = await requestProviderJson(opts.baseUrl, "models", {
+      apiKey: opts.apiKey,
+      timeoutMs: opts.timeoutMs,
+    });
+    if (models.status >= 200 && models.status < 300) return { latencyMs: Date.now() - started };
+    if (models.status !== 404 && models.status !== 405) throw new Error(`Provider responded with HTTP ${models.status}`);
+  }
+  const res = await requestProviderJson(opts.baseUrl, "chat/completions", {
+    apiKey: opts.apiKey,
+    method: "POST",
+    timeoutMs: opts.timeoutMs,
+    body: {
         model: opts.model,
         messages: [{ role: "user", content: "Reply with exactly: ok" }],
         max_tokens: 8,
         temperature: 0,
         stream: false,
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`Provider responded with HTTP ${res.status}`);
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; model?: string };
-    return { latencyMs: Date.now() - started, modelEcho: (data.choices?.[0]?.message?.content ?? "").slice(0, 200) || data.model };
-  } finally {
-    clearTimeout(timeout);
-  }
+    },
+  });
+  if (res.status < 200 || res.status >= 300) throw new Error(`Provider responded with HTTP ${res.status}`);
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; model?: string };
+  return { latencyMs: Date.now() - started, modelEcho: (data.choices?.[0]?.message?.content ?? "").slice(0, 200) || data.model };
 }
 
 export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
@@ -106,11 +94,16 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
 
   // ── create (ADMIN only — writes secrets) ──
   app.post("/", { preHandler: [requireAdminRole, requireCsrf] }, async (req, reply) => {
-    const wl = rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    const wl = await rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     await requireTable();
     const input = parseBody(req, aiProviderCreateSchema);
-    const baseUrl = (input.baseUrl || DEFAULT_BASE_URL[input.kind]!).replace(/\/$/, "");
+    let baseUrl: string;
+    try {
+      baseUrl = normalizeProviderBaseUrl(input.baseUrl || DEFAULT_BASE_URL[input.kind]!);
+    } catch {
+      throw new HttpError(400, "INVALID_PROVIDER_URL", "Use a public HTTPS provider URL. Private and reserved addresses are not allowed.");
+    }
     try {
       const created = (await db().create({
         data: {
@@ -123,7 +116,6 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
           temperature: input.temperature ?? 0.2,
           maxTokens: input.maxTokens ?? 500,
           timeoutMs: input.timeoutMs ?? 20000,
-          systemPrompt: input.systemPrompt?.trim() ? input.systemPrompt.trim() : null,
           enabled: input.enabled ?? true,
           priority: input.priority ?? 0,
           isFallback: input.isFallback ?? false,
@@ -140,7 +132,7 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
 
   // ── update (ADMIN only) ──
   app.patch("/:id", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    const wl = await rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
@@ -151,12 +143,17 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
     const data: Record<string, unknown> = {};
     if (input.name !== undefined) data.name = input.name;
     if (input.kind !== undefined) data.kind = input.kind;
-    if (input.baseUrl !== undefined) data.baseUrl = input.baseUrl.replace(/\/$/, "");
+    if (input.baseUrl !== undefined) {
+      try {
+        data.baseUrl = normalizeProviderBaseUrl(input.baseUrl);
+      } catch {
+        throw new HttpError(400, "INVALID_PROVIDER_URL", "Use a public HTTPS provider URL. Private and reserved addresses are not allowed.");
+      }
+    }
     if (input.model !== undefined) data.model = input.model;
     if (input.temperature !== undefined) data.temperature = input.temperature;
     if (input.maxTokens !== undefined) data.maxTokens = input.maxTokens;
     if (input.timeoutMs !== undefined) data.timeoutMs = input.timeoutMs;
-    if (input.systemPrompt !== undefined) data.systemPrompt = input.systemPrompt?.trim() ? input.systemPrompt.trim() : null;
     if (input.enabled !== undefined) {
       data.enabled = input.enabled;
       if (!input.enabled) data.health = "disabled";
@@ -192,7 +189,7 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
 
   // ── test connection / test model (ADMIN only, never returns key) ──
   app.post("/:id/test", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`ai-test:${clientIp(req)}`, 20, 10 * 60 * 1000);
+    const wl = await rateLimit(`ai-test:${clientIp(req)}`, 20, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many tests. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
