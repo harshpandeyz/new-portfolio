@@ -9,7 +9,7 @@ services:
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the stack}
       POSTGRES_DB: hp_os
     volumes:
       - hp_pgdata:/var/lib/postgresql/data
@@ -36,9 +36,9 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 4000
-      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_URL: ${APP_URL:?Set APP_URL to the public site origin}
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/hp_os
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the stack}@db:5432/hp_os
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET before starting the production stack}
       AI_CONFIG_KEY: ${AI_CONFIG_KEY:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -89,6 +89,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_SITE_URL: ${VITE_SITE_URL:?Set VITE_SITE_URL to the public site origin before building}
     restart: unless-stopped
     depends_on:
       api:

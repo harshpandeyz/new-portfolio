@@ -1,100 +1,60 @@
-# Harsh Pandey Portfolio — Deployment
+# Production deployment
 
-## Topology
+The production stack is Docker Compose: NGINX serves the Vite build, Fastify
+serves the API, and PostgreSQL is reachable only on the Compose network (with a
+loopback port for host maintenance). Put TLS termination and the public DNS
+record at the Oracle Cloud reverse proxy or load balancer.
 
-| Piece | Host | Notes |
-| --- | --- | --- |
-| Web (static SPA) | Netlify / Vercel / any static host | `apps/web/dist` |
-| API | Render / Railway / Fly.io | Monorepo Node service, `node apps/api/dist/apps/api/src/server.js` |
-| PostgreSQL | Managed (Neon / Supabase / Render) | `DATABASE_URL` |
-| Uploads | Persistent disk or S3-compatible | local driver by default |
+## Required configuration
 
-## Web (Netlify example)
+Create a host-only `.env` from `.env.example` and set:
 
-Build command: `npm run build --workspace @hp/web` · Publish dir: `apps/web/dist`
+- `POSTGRES_PASSWORD`: a unique database password.
+- `SESSION_SECRET`: `openssl rand -hex 32` output.
+- `APP_URL`: the public site origin, such as `https://portfolio.your-domain`.
+- `VITE_SITE_URL`: the same public origin, used when building SEO metadata.
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD` only for the explicit first seed or admin
+  bootstrap operation.
+- `AI_CONFIG_KEY` (recommended): `openssl rand -hex 32` output for encrypted
+  provider credentials. If omitted, the key is derived from `SESSION_SECRET`.
 
-`netlify.toml`:
-```toml
-[build]
-  command = "npm run build --workspace @hp/web"
-  publish = "apps/web/dist"
+The optional LLM and email variables are listed in `.env.example`. Keep `.env`
+out of source control and provide production values through the host's secret
+management facilities.
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
+## Release procedure
 
-Set the optional web build variable `VITE_API_URL` to the API origin when the static
-site and API are on different origins. Leave it empty when a same-origin reverse
-proxy serves `/api` and `/static`. Frontend-owned `/files/*` assets stay on the web
-origin; API-owned `/static/*` assets use the API origin. CORS on the API accepts the
-configured `APP_URL` origin list with credentials.
+Run these commands from the repository checkout on the Oracle instance. The
+API entrypoint does not run migrations or seeds; those are explicit release
+operations.
 
-## API (managed host)
-
-- Root directory: repository root
-- Build: `npm ci && npm run db:generate --workspace @hp/api && npm run build`
-- Start: `node apps/api/dist/apps/api/src/server.js`
-- Health check: `/api/health`
-- Env: `DATABASE_URL`, `SESSION_SECRET`, `APP_URL`, `NODE_ENV=production`, optional
-  `LLM_*`, `GITHUB_TOKEN`, `MAX_UPLOAD_MB`, `TRUST_PROXY` (default `1`,
-  see `docs/SECURITY.md`)
-- Email (HTTPS API — Render Free blocks outbound SMTP ports 25/465/587):
-  `RESEND_API_KEY` + `EMAIL_FROM` (verified sender, e.g.
-  `Harsh Pandey <hello@yourdomain.com>`). SMTP (`SMTP_*`) remains as a
-  local-dev fallback only and is never used in production when the Resend
-  key is present. Without either, contact messages still persist and the
-  inbox Reply button reports `EMAIL_NOT_CONFIGURED`.
-- Attach a persistent disk mounted at `apps/api/uploads` (or switch `STORAGE_DRIVER`
-  to an S3-compatible adapter in `src/modules/media`)
-
-Run migrations and seed as explicit release operations; API startup never resets
-content:
-
-```bash
-npm run db:migrate
-npm run db:seed
-```
-
-## Database
-
-```bash
-# against the production DATABASE_URL
-npm run db:migrate          # prisma migrate deploy
-npm run db:seed             # verified content (idempotent; SEED_FORCE=1 to reset)
-npm run admin:create -- --email you@domain.com --password "long-random-passphrase"
-```
-
-Migrations live in `apps/api/prisma/migrations` and are applied verbatim — no
-`db push` in production.
-
-## Docker Compose (same-origin production shape)
-
-The repository includes a complete stack: Postgres on the internal `db` network,
-Fastify on `api:4000`, and nginx serving the built SPA on port 8080 while proxying
-`/api/*` and `/static/*` to the API. This keeps cookies and media same-origin.
-
-```bash
-export SESSION_SECRET="$(openssl rand -hex 32)"
-export ADMIN_PASSWORD="use-a-strong-password-at-least-12-chars"
-docker compose build
-docker compose run --rm api npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-docker compose run --rm -e ADMIN_PASSWORD="$ADMIN_PASSWORD" api npm run db:seed --workspace @hp/api
+```sh
+docker compose build --no-cache
+docker compose up -d db
+docker compose run --rm api node /app/node_modules/.bin/prisma migrate deploy --schema /app/apps/api/prisma/schema.prisma
 docker compose up -d
+docker compose ps
+docker compose logs --tail=100 api
+curl --fail http://127.0.0.1:4000/api/health
+curl --fail http://127.0.0.1:4000/api/ready
+curl --fail http://127.0.0.1:8080/
 ```
 
-Open `http://localhost:8080`. The `hp_uploads` volume is the source of truth for
-runtime media; back it up alongside Postgres.
+On the first deployment only, seed explicitly after migrations and before the
+API is started:
 
-## Production checklist
+```sh
+docker compose run --rm api node /app/node_modules/.bin/tsx /app/apps/api/prisma/seed.ts
+```
 
-- [ ] `SESSION_SECRET` is a fresh 32-byte random hex string
-- [ ] `ADMIN_PASSWORD` supplied only for the initial seed, then managed with `admin:create`
-- [ ] `APP_URL` matches the deployed web origin (CORS + cookies)
-- [ ] `VITE_API_URL` is set on the web build only when the API is cross-origin
-- [ ] HTTPS terminated at the platform (cookies flip to `secure` when `NODE_ENV=production`)
-- [ ] `SMTP_*` only for local dev; production email is `RESEND_API_KEY` + `EMAIL_FROM` (messages always persist regardless)
-- [ ] `LLM_PROVIDER` left `none` unless a key is configured (chat works either way)
-- [ ] Uploads disk mounted / storage driver chosen
-- [ ] Backups scheduled on Postgres
+Seeding is not part of routine releases. Back up PostgreSQL and the uploads
+volume before schema or media changes. Do not use `docker compose down -v` on a
+production host.
+
+## Database and media
+
+Prisma changes ship as checked-in migrations. Review the SQL, take a database
+backup, then run `prisma migrate deploy` before restarting the API. Do not use
+`prisma db push` in production. PostgreSQL data is stored in `hp_pgdata`; local
+media currently uses the persistent `hp_uploads` volume. The storage driver is
+local today, so Oracle Object Storage is not yet wired into the application.
