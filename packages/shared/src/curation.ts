@@ -104,3 +104,14 @@ export function isSignatureSlug(slug: string): slug is SignatureSlug {
 export function isArchiveOnlySlug(slug: string): boolean {
   return (ARCHIVE_ONLY_SLUGS as readonly string[]).includes(slug);
 }
+
+/** Resolve skill evidence by stored project slug, preserving the entered order. */
+export function resolveSkillProjects<T extends CuratableProject>(
+  skill: { usedInProjectSlugs?: readonly string[] },
+  projects: readonly T[],
+): T[] {
+  const bySlug = new Map(projects.map((project) => [project.slug, project]));
+  return (skill.usedInProjectSlugs ?? [])
+    .map((slug) => bySlug.get(slug))
+    .filter((project): project is T => project !== undefined);
+}

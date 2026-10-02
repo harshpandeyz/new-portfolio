@@ -28,6 +28,8 @@ export type LoginInput = z.infer<typeof loginSchema>;
 /** ── Admin CRUD payloads ────────────────────────────────────── */
 export const tierValues = ["featured", "secondary", "experiment", "academic", "legacy", "internship"] as const;
 export const projectStatusValues = ["active", "complete", "maintained", "archived", "draft"] as const;
+export const projectDomainValues = ["BACKEND", "AI_ML", "FULL_STACK", "MOBILE", "FRONTEND", "DEVOPS"] as const;
+export const analyticsEventValues = ["page_view", "project_view", "certificate_view", "chat_query", "contact_submit", "resume_download", "resume_view", "recruiter_view"] as const;
 export const skillLevelValues = ["core", "working", "exploring", "experimental"] as const;
 export const skillCategoryValues = [
   "LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML",
@@ -169,6 +171,7 @@ export const projectInputSchema = z.object({
   shortDescription: z.string().trim().min(2).max(400),
   longDescription: optionalText,
   category: z.string().trim().min(2).max(80),
+  domains: z.array(z.enum(projectDomainValues)).max(6).default([]),
   tier: z.enum(tierValues),
   status: z.enum(projectStatusValues),
   featured: z.boolean(),
@@ -181,6 +184,7 @@ export const projectInputSchema = z.object({
   challenges: optionalText,
   results: optionalText,
   securityNotes: optionalText,
+  securityReliability: optionalText,
   dataFlow: z.array(z.string().trim().max(600)).max(24).optional(),
   stack: z.array(z.string().trim().min(1).max(60)).max(40),
   githubUrl: urlish,
@@ -209,9 +213,10 @@ export const skillInputSchema = z.object({
   category: z.enum(skillCategoryValues),
   level: z.enum(skillLevelValues),
   description: optionalText,
-  usedIn: z.array(z.string().trim().max(120)).max(24).optional(),
+  usedInProjectSlugs: z.array(z.string().trim().min(2).max(120)).max(24).refine((slugs) => new Set(slugs).size === slugs.length, "Project references must be unique").default([]),
   relatedConcepts: z.array(z.string().trim().max(80)).max(24).optional(),
   featured: z.boolean(),
+  recruiterPriority: z.number().int().min(0).max(999).default(0),
   order: z.number().int().min(0).max(9999),
 });
 export type SkillInput = z.infer<typeof skillInputSchema>;
@@ -235,6 +240,7 @@ export const educationInputSchema = z.object({
   endYear: z.string().trim().max(9).optional().nullable(),
   grade: z.string().trim().max(40).optional().nullable(),
   description: optionalText,
+  primary: z.boolean().default(false),
   order: z.number().int().min(0).max(9999),
 });
 export type EducationInput = z.infer<typeof educationInputSchema>;
@@ -244,6 +250,7 @@ export const profileInputSchema = z.object({
   headline: z.string().trim().min(2).max(160),
   subHeadline: z.string().trim().min(2).max(160),
   bio: z.string().trim().min(10).max(4000),
+  recruiterSummary: z.string().trim().min(10).max(1000),
   location: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(160),
   availability: z.string().trim().max(160),
@@ -290,7 +297,6 @@ const aiProviderBase = z.object({
   temperature: z.coerce.number().min(0).max(2).default(0.2),
   maxTokens: z.coerce.number().int().min(32).max(8000).default(500),
   timeoutMs: z.coerce.number().int().min(2000).max(120000).default(20000),
-  systemPrompt: z.string().trim().max(8000).optional().nullable().or(z.literal("")),
   enabled: z.boolean().default(true),
   priority: z.coerce.number().int().min(0).max(999).default(0),
   isFallback: z.boolean().default(false),
@@ -305,19 +311,3 @@ export const aiProviderUpdateSchema = aiProviderBase.partial().extend({
   apiKey: z.string().trim().min(8).max(5000).optional().or(z.literal("")),
 });
 export type AiProviderUpdateInput = z.infer<typeof aiProviderUpdateSchema>;
-
-export const interviewSchema = z.object({
-  action: z.enum(["start", "answer", "end"]),
-  answer: z.string().trim().max(4000).optional().or(z.literal("")),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(["ai", "user"]),
-        text: z.string().trim().max(4000),
-      }),
-    )
-    .max(40)
-    .optional()
-    .default([]),
-});
-export type InterviewInput = z.infer<typeof interviewSchema>;

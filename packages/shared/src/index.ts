@@ -8,6 +8,8 @@ export * from "./curation.js";
 
 export type ProjectTier = "featured" | "secondary" | "experiment" | "academic" | "legacy" | "internship";
 export type ProjectStatus = "active" | "complete" | "maintained" | "archived" | "draft";
+export type ProjectDomain = (typeof import("./schemas.js").projectDomainValues)[number];
+export type AnalyticsEventType = (typeof import("./schemas.js").analyticsEventValues)[number];
 export type SkillLevel = "core" | "working" | "exploring" | "experimental";
 export type SkillCategory =
   | "LANGUAGES"
@@ -80,6 +82,7 @@ export interface Profile {
   headline: string;
   subHeadline: string;
   bio: string;
+  recruiterSummary: string;
   location: string;
   email: string;
   availability: string;
@@ -98,6 +101,7 @@ export interface Project {
   shortDescription: string;
   longDescription: string | null;
   category: string;
+  domains: ProjectDomain[];
   tier: ProjectTier;
   status: ProjectStatus;
   featured: boolean;
@@ -110,6 +114,7 @@ export interface Project {
   challenges: string | null;
   results: string | null;
   securityNotes: string | null;
+  securityReliability: string | null;
   dataFlow: string[];
   stack: string[];
   githubUrl: string | null;
@@ -118,6 +123,35 @@ export interface Project {
   gallery: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** Anonymous project API shape. Internal security notes never cross this boundary. */
+export type PublicProject = Omit<Project, "securityNotes">;
+
+export interface PublicProjectIndex {
+  id: string;
+  slug: string;
+  title: string;
+  tier: ProjectTier;
+  status: ProjectStatus;
+  order: number;
+}
+
+export type PublicProfile = Pick<Profile,
+  "id" | "name" | "headline" | "subHeadline" | "bio" | "recruiterSummary" | "location" | "email" |
+  "availability" | "avatarUrl" | "resumeUrl" | "resumeLabel" | "socials" | "updatedAt"
+>;
+
+export interface PublicHomeData {
+  profile: PublicProfile | null;
+  projects: PublicProject[];
+  projectIndex: PublicProjectIndex[];
+  projectCount: number;
+  skills: Skill[];
+  education: Education[];
+  certificates: Certificate[];
+  certTotal: number;
+  publicSettings: Pick<SiteSettings, "chatEnabled" | "contactEnabled" | "maintenanceMode" | "analyticsEnabled">;
 }
 
 export interface Certificate {
@@ -141,8 +175,9 @@ export interface Skill {
   category: SkillCategory;
   level: SkillLevel;
   description: string | null;
-  usedIn: string[];
+  usedInProjectSlugs: string[];
   relatedConcepts: string[];
+  recruiterPriority: number;
   featured: boolean;
   order: number;
 }
@@ -156,6 +191,7 @@ export interface Education {
   endYear: string | null;
   grade: string | null;
   description: string | null;
+  primary: boolean;
   order: number;
 }
 
@@ -255,6 +291,21 @@ export interface MediaAsset {
   title: string | null;
   createdAt: string;
   referenced: boolean;
+  versions?: MediaAssetVersion[];
+}
+
+export interface MediaAssetVersion {
+  id: string;
+  assetId: string | null;
+  filename: string;
+  storedName: string;
+  url: string;
+  mimeType: string;
+  sizeBytes: number;
+  kind: string;
+  title: string | null;
+  createdAt: string;
+  deleteAfter: string;
 }
 
 export interface SiteSettings {
@@ -279,7 +330,6 @@ export interface AiProvider {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
-  systemPrompt: string | null;
   enabled: boolean;
   priority: number;
   isFallback: boolean;
@@ -289,14 +339,6 @@ export interface AiProvider {
   lastCheckedAt: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface InterviewReply {
-  question: string | null;
-  reaction: string | null;
-  done: boolean;
-  turn: number;
-  provider: string;
 }
 
 export interface AchievementDef {

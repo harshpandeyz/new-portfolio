@@ -1,0 +1,33 @@
+import type { Prisma } from "@prisma/client";
+
+/** Single allowlist for all anonymous project responses and public retrieval. */
+export const PUBLIC_PROJECT_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  codename: true,
+  shortDescription: true,
+  longDescription: true,
+  category: true,
+  domains: true,
+  tier: true,
+  status: true,
+  featured: true,
+  year: true,
+  order: true,
+  problem: true,
+  solution: true,
+  architecture: true,
+  decisions: true,
+  challenges: true,
+  results: true,
+  securityReliability: true,
+  dataFlow: true,
+  stack: true,
+  githubUrl: true,
+  liveUrl: true,
+  heroImage: true,
+  gallery: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProjectSelect;
