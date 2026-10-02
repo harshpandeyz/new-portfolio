@@ -7,6 +7,7 @@ import {
   SIGNATURE_SLUGS,
   resolveHomepageCuration,
   resolveRecruiterProjects,
+  resolveSkillProjects,
 } from "@hp/shared";
 
 function proj(slug: string, order = 0, status = "complete") {
@@ -105,5 +106,14 @@ describe("homepage curation — explicit source of truth", () => {
       "quantummind",
       "skillmatch",
     ]);
+  });
+
+  it("links skill evidence by exact project slug, independent of title wording", () => {
+    const projects = [
+      { ...proj("quantummind"), title: "An unrelated display label" },
+      { ...proj("intelligent-surveillance-system"), title: "CCTV-X" },
+    ];
+    const linked = resolveSkillProjects({ usedInProjectSlugs: ["intelligent-surveillance-system", "quantummind", "missing"] }, projects);
+    expect(linked.map((project) => project.slug)).toEqual(["intelligent-surveillance-system", "quantummind"]);
   });
 });

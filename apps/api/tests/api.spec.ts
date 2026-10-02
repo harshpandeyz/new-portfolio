@@ -2,12 +2,13 @@
  * HP//OS API security & behavior suite.
  * Run: npm run test:api  (requires TEST_DATABASE_URL, see global-setup)
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 
 import { buildApp } from "../src/app.js";
 import { prisma } from "../src/db/prisma.js";
 import { resetRateLimits } from "../src/utils/rate-limit.js";
+import { buildKnowledge, invalidateKnowledge } from "../src/modules/chat/knowledge.js";
 
 let app: FastifyInstance;
 const ADMIN = { email: "admin@harshpandey.dev", password: "test-admin-password-123" };
@@ -45,8 +46,8 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-beforeEach(() => {
-  resetRateLimits();
+beforeEach(async () => {
+  await resetRateLimits();
 });
 
 describe("health", () => {
@@ -106,6 +107,75 @@ describe("analytics summaries", () => {
   });
 });
 
+describe("analytics feature flag", () => {
+  it("drops free-form references and metadata, and observes flag changes without replica-cache delay", async () => {
+    const { DEFAULT_SITE_SETTINGS, saveSiteSettings } = await import("../src/modules/settings/store.js");
+    await prisma.analyticsEvent.deleteMany();
+    await saveSiteSettings(DEFAULT_SITE_SETTINGS);
+    try {
+      await prisma.siteSetting.upsert({
+        where: { key: "feature.analytics" },
+        update: { value: "false" },
+        create: { key: "feature.analytics", value: "false" },
+      });
+      const disabled = await app.inject({ method: "POST", url: "/api/events", payload: { type: "page_view", ref: "/" } });
+      expect(disabled.json()).toEqual({ ok: true, disabled: true });
+      expect(await prisma.analyticsEvent.count()).toBe(0);
+
+      await prisma.siteSetting.update({ where: { key: "feature.analytics" }, data: { value: "true" } });
+      const accepted = await app.inject({
+        method: "POST", url: "/api/events",
+        payload: { type: "page_view", ref: "visitor@example.com", meta: { email: "visitor@example.com", prompt: "private note" } },
+      });
+      expect(accepted.statusCode).toBe(202);
+      const event = await prisma.analyticsEvent.findFirst({ where: { type: "page_view" } });
+      expect(event?.ref).toBeNull();
+      expect(event?.meta).toBeNull();
+    } finally {
+      await saveSiteSettings(DEFAULT_SITE_SETTINGS);
+      await prisma.analyticsEvent.deleteMany();
+    }
+  });
+
+  it("disables public and server-side analytics writes consistently", async () => {
+    const { cookies, csrf } = await login();
+    const { DEFAULT_SITE_SETTINGS, saveSiteSettings } = await import("../src/modules/settings/store.js");
+    await prisma.analyticsEvent.deleteMany();
+    await saveSiteSettings({ ...DEFAULT_SITE_SETTINGS, analyticsEnabled: false });
+
+    const project = await prisma.project.create({
+      data: {
+        title: "Analytics flag fixture", slug: "analytics-flag-fixture", shortDescription: "Public fixture",
+        category: "TEST", tier: "experiment", status: "complete", featured: false, year: "2026", order: 901,
+        stack: ["Fastify"],
+      },
+    });
+    const certificate = await prisma.certificate.create({
+      data: { title: "Analytics flag certificate", issuer: "Test", category: "OTHER", featured: false, order: 901 },
+    });
+
+    try {
+      expect((await app.inject({ method: "POST", url: "/api/events", payload: { type: "page_view", ref: "/" } })).statusCode).toBe(202);
+      expect((await app.inject({ method: "POST", url: "/api/chat", payload: { message: "What does Harsh build?" } })).statusCode).toBe(200);
+      expect((await app.inject({ method: "GET", url: `/api/projects/${project.slug}` })).statusCode).toBe(200);
+      expect((await app.inject({ method: "GET", url: `/api/certificates/${certificate.id}` })).statusCode).toBe(200);
+
+      const settings = await app.inject({
+        method: "PATCH", url: "/api/settings", cookies, headers: authHeaders(csrf),
+        payload: { ...DEFAULT_SITE_SETTINGS, analyticsEnabled: false },
+      });
+      expect(settings.statusCode).toBe(200);
+
+      const events = await prisma.analyticsEvent.count();
+      expect(events).toBe(0);
+    } finally {
+      await saveSiteSettings(DEFAULT_SITE_SETTINGS);
+      await prisma.project.delete({ where: { id: project.id } });
+      await prisma.certificate.delete({ where: { id: certificate.id } });
+    }
+  });
+});
+
 describe("authentication", () => {
   it("rejects bad credentials without user enumeration", async () => {
     const wrongPass = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: ADMIN.email, password: "definitely-wrong-pass" } });
@@ -148,6 +218,16 @@ describe("authentication", () => {
   it("rejects malformed login payloads", async () => {
     const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "not-an-email", password: "x" } });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects login attempts from untrusted browser origins", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/api/auth/login",
+      headers: { origin: "https://attacker.example" },
+      payload: ADMIN,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("FORBIDDEN_ORIGIN");
   });
 
   it("/api/auth/me requires a session", async () => {
@@ -368,6 +448,19 @@ describe("chat engine", () => {
     expect(["VERIFIED", "INFERRED"]).toContain(body.confidence);
   });
 
+  it("answers greeting-only messages naturally", async () => {
+    const res = await app.inject({ method: "POST", url: "/api/chat", payload: { message: "Hi!" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().answer).toMatch(/what would you like to know/i);
+  });
+
+  it("answers the request when a greeting comes first", async () => {
+    const res = await app.inject({ method: "POST", url: "/api/chat", payload: { message: "Hi, tell me about his projects." } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().answer).toMatch(/project|selected work/i);
+    expect(res.json().confidence).not.toBe("UNKNOWN");
+  });
+
   it("admits ignorance instead of hallucinating", async () => {
     const res = await app.inject({ method: "POST", url: "/api/chat", payload: { message: "What is Harsh's salary at Google?" } });
     const body = res.json();
@@ -380,6 +473,114 @@ describe("chat engine", () => {
       Array.from({ length: 15 }, () => app.inject({ method: "POST", url: "/api/chat", payload: { message: "who is harsh" } })),
     );
     expect(results.some((r) => r.statusCode === 429)).toBe(true);
+  });
+});
+
+describe("public AI knowledge boundary", () => {
+  it("never indexes staff-only project security notes", async () => {
+    const secret = "INTERNAL-ONLY-SECURITY-NOTE-7f2a";
+    const project = await prisma.project.create({
+      data: {
+        title: "Knowledge boundary fixture",
+        slug: "knowledge-boundary-fixture",
+        shortDescription: "A public description for retrieval.",
+        category: "TEST",
+        tier: "experiment",
+        status: "complete",
+        featured: false,
+        year: "2026",
+        order: 900,
+        stack: ["Fastify"],
+        domains: ["DEVOPS"],
+        securityNotes: secret,
+      },
+    });
+    invalidateKnowledge();
+    try {
+      const anonymous = await app.inject({ method: "GET", url: `/api/projects/${project.slug}` });
+      expect(anonymous.statusCode).toBe(200);
+      expect(JSON.stringify(anonymous.json())).not.toContain(secret);
+
+      const { cookies } = await login();
+      const signedInPublic = await app.inject({ method: "GET", url: `/api/projects/${project.slug}`, cookies });
+      expect(signedInPublic.statusCode).toBe(200);
+      expect(signedInPublic.headers["cache-control"]).toContain("public");
+      expect(JSON.stringify(signedInPublic.json())).not.toContain(secret);
+      const signedInList = await app.inject({ method: "GET", url: "/api/projects", cookies });
+      expect(JSON.stringify(signedInList.json())).not.toContain(secret);
+      const privateList = await app.inject({ method: "GET", url: "/api/projects/admin", cookies });
+      expect(privateList.headers["cache-control"]).toContain("no-store");
+      expect(JSON.stringify(privateList.json())).toContain(secret);
+
+      const docs = await buildKnowledge();
+      const corpus = JSON.stringify(docs);
+      expect(corpus).toContain("A public description for retrieval.");
+      expect(corpus).not.toContain(secret);
+
+      const home = await app.inject({ method: "GET", url: "/api/public/home" });
+      expect(home.statusCode).toBe(200);
+      expect(home.headers["cache-control"]).toContain("no-store");
+      expect(JSON.stringify(home.json())).not.toContain(secret);
+      expect(home.json().projectIndex).toContainEqual(expect.objectContaining({ slug: project.slug, status: "complete" }));
+      expect(Buffer.byteLength(home.body, "utf8")).toBeLessThan(50 * 1024);
+
+      const homeAlias = await app.inject({ method: "GET", url: "/api/home" });
+      expect(homeAlias.statusCode).toBe(200);
+      expect(homeAlias.headers["cache-control"]).toContain("no-store");
+      expect(homeAlias.json().projectCount).toBe(home.json().projectCount);
+    } finally {
+      await prisma.project.delete({ where: { id: project.id } });
+      invalidateKnowledge();
+    }
+  });
+});
+
+describe("semantic skill project references", () => {
+  it("validates, renames, and removes project slug relationships", async () => {
+    const { cookies, csrf } = await login();
+    const createProject = await app.inject({
+      method: "POST", url: "/api/projects", cookies, headers: authHeaders(csrf),
+      payload: {
+        title: "Skill reference fixture", slug: "skill-reference-fixture", shortDescription: "Reference lifecycle fixture",
+        category: "TEST", tier: "experiment", status: "complete", featured: false, year: "2026", order: 903, stack: ["Fastify"],
+      },
+    });
+    expect(createProject.statusCode).toBe(201);
+    const projectId = createProject.json().project.id as string;
+
+    const invalid = await app.inject({
+      method: "POST", url: "/api/skills", cookies, headers: authHeaders(csrf),
+      payload: {
+        name: "Bad reference fixture", category: "BACKEND", level: "working", featured: false, order: 903,
+        usedInProjectSlugs: ["missing-project-fixture"],
+      },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().error).toBe("INVALID_PROJECT_REFERENCE");
+
+    const createdSkill = await app.inject({
+      method: "POST", url: "/api/skills", cookies, headers: authHeaders(csrf),
+      payload: {
+        name: "Project reference fixture", category: "BACKEND", level: "working", featured: false, order: 903,
+        usedInProjectSlugs: ["skill-reference-fixture"], recruiterPriority: 0,
+      },
+    });
+    expect(createdSkill.statusCode).toBe(201);
+    const skillId = createdSkill.json().skill.id as string;
+
+    const renamed = await app.inject({
+      method: "PATCH", url: `/api/projects/${projectId}`, cookies, headers: authHeaders(csrf),
+      payload: { slug: "skill-reference-renamed" },
+    });
+    expect(renamed.statusCode).toBe(200);
+    let skills = (await app.inject({ method: "GET", url: "/api/skills" })).json().skills as { id: string; usedInProjectSlugs: string[] }[];
+    expect(skills.find((skill) => skill.id === skillId)?.usedInProjectSlugs).toEqual(["skill-reference-renamed"]);
+
+    const removed = await app.inject({ method: "DELETE", url: `/api/projects/${projectId}`, cookies, headers: authHeaders(csrf) });
+    expect(removed.statusCode).toBe(200);
+    skills = (await app.inject({ method: "GET", url: "/api/skills" })).json().skills as { id: string; usedInProjectSlugs: string[] }[];
+    expect(skills.find((skill) => skill.id === skillId)?.usedInProjectSlugs).toEqual([]);
+    await app.inject({ method: "DELETE", url: `/api/skills/${skillId}`, cookies, headers: authHeaders(csrf) });
   });
 });
 
@@ -489,15 +690,7 @@ describe("security headers & misc", () => {
   });
 });
 
-describe("rbac (role boundaries are server-enforced)", () => {
-  async function loginAs(email: string, password: string) {
-    const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
-    expect(res.statusCode).toBe(200);
-    const cookies: Record<string, string> = {};
-    for (const c of res.cookies) cookies[c.name] = c.value;
-    return { cookies, csrf: cookies["hp_csrf"]! };
-  }
-
+describe("private area is owner-only", () => {
   beforeAll(async () => {
     const { bcryptHash } = await import("../src/modules/auth/password.js");
     await prisma.user.upsert({
@@ -512,41 +705,13 @@ describe("rbac (role boundaries are server-enforced)", () => {
     });
   });
 
-  it("VIEWER can read admin lists but cannot mutate content", async () => {
-    const { cookies } = await loginAs("viewer@test.local", "viewer-pass-1234");
-    const read = await app.inject({ method: "GET", url: "/api/contact", cookies });
-    expect([200, 403]).toContain(read.statusCode);
-    // VIEWER lacks content:write — project creation must be 403
-    const { csrf } = await (async () => {
-      const csrfRes = await app.inject({ method: "GET", url: "/api/auth/csrf", cookies });
-      const jar: Record<string, string> = { ...cookies };
-      for (const c of csrfRes.cookies) jar[c.name] = c.value;
-      return { csrf: csrfRes.json().csrfToken as string, jar };
-    })();
-    const write = await app.inject({
-      method: "POST", url: "/api/projects", cookies,
-      headers: authHeaders(csrf),
-      payload: { title: "Viewer Hack", slug: "viewer-hack-x", shortDescription: "x", category: "T", tier: "experiment", status: "draft", featured: false, year: "2026", order: 1, stack: [] },
-    });
-    expect(write.statusCode).toBe(403);
-  });
-
-  it("EDITOR can manage content but cannot hard-delete messages", async () => {
-    const { cookies, csrf } = await loginAs("editor@test.local", "editor-pass-1234");
-    const create = await app.inject({
-      method: "POST", url: "/api/projects", cookies, headers: authHeaders(csrf),
-      payload: { title: "Editor Project", slug: "editor-proj-x", shortDescription: "ok content", category: "TEST", tier: "experiment", status: "draft", featured: false, year: "2026", order: 5, stack: [] },
-    });
-    expect(create.statusCode).toBe(201);
-    const id = create.json().project.id as string;
-    await app.inject({ method: "DELETE", url: `/api/projects/${id}`, cookies, headers: authHeaders(csrf) });
-
-    const msg = await prisma.contactMessage.create({
-      data: { name: "RBAC", email: "rbac@test.local", message: "Boundary check message here.", status: "NEW" },
-    });
-    const del = await app.inject({ method: "DELETE", url: `/api/contact/${msg.id}`, cookies, headers: authHeaders(csrf) });
-    expect(del.statusCode).toBe(403);
-    await prisma.contactMessage.delete({ where: { id: msg.id } }).catch(() => undefined);
+  it("legacy editor and viewer accounts cannot create private sessions", async () => {
+    for (const [email, password] of [["editor@test.local", "editor-pass-1234"], ["viewer@test.local", "viewer-pass-1234"]]) {
+      const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+      expect(login.statusCode).toBe(401);
+      expect(login.cookies.some((cookie) => cookie.name === "hp_session")).toBe(false);
+      expect((await app.inject({ method: "GET", url: "/api/auth/me" })).statusCode).toBe(401);
+    }
   });
 
   it("expired and revoked sessions are rejected", async () => {
@@ -561,6 +726,27 @@ describe("rbac (role boundaries are server-enforced)", () => {
     expect(del.statusCode).toBe(200);
     const me = await app.inject({ method: "GET", url: "/api/auth/me", cookies });
     expect(me.statusCode).toBe(401);
+  });
+
+  it("reports a session revoke write failure instead of claiming success", async () => {
+    const { cookies } = await login();
+    const list = await app.inject({ method: "GET", url: "/api/auth/sessions", cookies });
+    const current = (list.json().sessions as { id: string; current: boolean }[]).find((session) => session.current);
+    expect(current).toBeTruthy();
+
+    const update = vi.spyOn(prisma.session, "update").mockRejectedValueOnce(new Error("database unavailable"));
+    try {
+      const response = await app.inject({
+        method: "DELETE",
+        url: `/api/auth/sessions/${current!.id}`,
+        cookies,
+        headers: authHeaders(cookies["hp_csrf"]!),
+      });
+      expect(response.statusCode).toBe(500);
+      expect(response.body).not.toContain("database unavailable");
+    } finally {
+      update.mockRestore();
+    }
   });
 });
 
@@ -617,7 +803,7 @@ describe("2fa totp + recovery codes", () => {
     const password = "Cancel-setup-password-123!";
     await prisma.user.upsert({
       where: { email },
-      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null },
+      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null, totpLastCounter: null },
       create: { email, passwordHash: await bcryptHash(password), role: "ADMIN" },
     });
 
@@ -651,7 +837,7 @@ describe("2fa totp + recovery codes", () => {
     const password = "Twofa-password-123!";
     await prisma.user.upsert({
       where: { email },
-      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null },
+      update: { passwordHash: await bcryptHash(password), role: "ADMIN", totpEnabled: false, totpSecret: null, totpLastCounter: null },
       create: { email, passwordHash: await bcryptHash(password), role: "ADMIN" },
     });
     await prisma.recoveryCode.deleteMany({ where: { user: { email } } });
@@ -682,9 +868,16 @@ describe("2fa totp + recovery codes", () => {
     const badCode = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge, code: "000000" } });
     expect(badCode.statusCode).toBe(401);
 
-    const goodCode = authenticator.generate(secret);
+    const nextCounterEpoch = (Math.floor(Date.now() / 30_000) + 1) * 30_000 + 100;
+    const goodCode = authenticator.clone({ epoch: nextCounterEpoch, window: 1 }).generate(secret);
     const step2 = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge, code: goodCode } });
     expect(step2.statusCode).toBe(200);
+    const reusedChallenge = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge, code: goodCode } });
+    expect(reusedChallenge.statusCode).toBe(401);
+
+    const replayChallenge = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
+    const replay = await app.inject({ method: "POST", url: "/api/auth/login/2fa", payload: { challenge: replayChallenge.json().challenge, code: goodCode } });
+    expect(replay.statusCode).toBe(401);
 
     // recovery code single-use
     const step1b = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
@@ -703,7 +896,7 @@ describe("2fa totp + recovery codes", () => {
     expect([403, 400]).toContain(denyDisable.statusCode);
     const reauth = await app.inject({
       method: "POST", url: "/api/auth/reauth", cookies: jar2,
-      headers: authHeaders(jar2["hp_csrf"]!), payload: { password, code: authenticator.generate(secret) },
+      headers: authHeaders(jar2["hp_csrf"]!), payload: { password, code: codes[1]! },
     });
     expect(reauth.statusCode).toBe(200);
     // refresh jar cookies are unchanged; reauth touched server-side, retry disable with fresh /me session
@@ -716,6 +909,72 @@ describe("2fa totp + recovery codes", () => {
 });
 
 describe("media validation", () => {
+  it("keeps referenced assets stable and blocks deletion or MIME-changing replacement", async () => {
+    const { cookies, csrf } = await login();
+    const boundary = "hp-media-reference-test";
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const pdf = Buffer.from("%PDF-1.4\n1234");
+    const multipart = (name: string, mime: string, data: Buffer) => Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: ${mime}\r\n\r\n`),
+      data,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const sendFile = (url: string, name: string, mime: string, data: Buffer) => app.inject({
+      method: "POST", url, cookies, headers: { ...authHeaders(csrf), "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: multipart(name, mime, data),
+    });
+
+    const uploaded = await sendFile("/api/media", "project-image.png", "image/png", png);
+    expect(uploaded.statusCode).toBe(201);
+    const asset = uploaded.json().asset as { id: string; url: string; storedName: string };
+    const project = await prisma.project.create({
+      data: {
+        title: "Media reference fixture", slug: "media-reference-fixture", shortDescription: "Referenced image fixture",
+        category: "TEST", tier: "experiment", status: "complete", featured: false, year: "2026", order: 902,
+        stack: ["Vitest"], heroImage: asset.url,
+      },
+    });
+
+    try {
+      const listing = await app.inject({ method: "GET", url: "/api/media", cookies });
+      expect(listing.json().assets.find((row: { id: string }) => row.id === asset.id).referenced).toBe(true);
+
+      const blockedDelete = await app.inject({ method: "DELETE", url: `/api/media/${asset.id}`, cookies, headers: authHeaders(csrf) });
+      expect(blockedDelete.statusCode).toBe(409);
+      expect(blockedDelete.json().error).toBe("ASSET_REFERENCED");
+
+      const blockedReplace = await sendFile(`/api/media/${asset.id}/replace`, "replacement.pdf", "application/pdf", pdf);
+      expect(blockedReplace.statusCode).toBe(409);
+
+      const sameTypeReplace = await sendFile(`/api/media/${asset.id}/replace`, "replacement.png", "image/png", png);
+      expect(sameTypeReplace.statusCode).toBe(200);
+      expect(sameTypeReplace.json().asset.url).toBe(asset.url);
+      expect(sameTypeReplace.json().asset.storedName).toBe(asset.storedName);
+      const versions = await prisma.mediaAssetVersion.findMany({ where: { assetId: asset.id } });
+      expect(versions).toHaveLength(1);
+      expect(versions[0]).toMatchObject({ mimeType: "image/png", deleteAfter: expect.any(Date) });
+      expect(versions[0]!.url).toMatch(/^\/static\/media\/history-/);
+
+      await prisma.project.delete({ where: { id: project.id } });
+      const removed = await app.inject({ method: "DELETE", url: `/api/media/${asset.id}`, cookies, headers: authHeaders(csrf) });
+      expect(removed.statusCode).toBe(200);
+      const staleReference = await app.inject({
+        method: "POST", url: "/api/projects", cookies, headers: authHeaders(csrf),
+        payload: {
+          title: "Stale media reference", slug: "stale-media-reference", shortDescription: "Must not reference removed media",
+          category: "TEST", tier: "experiment", status: "complete", featured: false, year: "2026", order: 903,
+          stack: [], heroImage: asset.url, gallery: [],
+        },
+      });
+      expect(staleReference.statusCode).toBe(409);
+      expect(staleReference.json().error).toBe("MEDIA_NOT_FOUND");
+    } finally {
+      await prisma.project.deleteMany({ where: { slug: project.slug } });
+      const remaining = await prisma.mediaAsset.findUnique({ where: { id: asset.id } });
+      if (remaining) await app.inject({ method: "DELETE", url: `/api/media/${asset.id}`, cookies, headers: authHeaders(csrf) });
+    }
+  });
+
   it("rejects content-spoofed uploads and extension mismatches", async () => {
     const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "admin@harshpandey.dev", password: "test-admin-password-123" } });
     const cookies: Record<string, string> = {};
@@ -746,6 +1005,30 @@ describe("media validation", () => {
       payload: mismatch,
     });
     expect(res2.statusCode).toBe(415);
+
+    const ftypFile = (brand: string) => {
+      const bytes = Buffer.alloc(16);
+      bytes.writeUInt32BE(bytes.length, 0);
+      bytes.write("ftyp", 4, "ascii");
+      bytes.write(brand, 8, "ascii");
+      return bytes;
+    };
+    const sendContainer = (name: string, mime: string, content: Buffer) => app.inject({
+      method: "POST", url: "/api/media", cookies,
+      headers: { "x-csrf-token": csrf, "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: ${mime}\r\n\r\n`),
+        content,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]),
+    });
+    const falseAvif = await sendContainer("wrong.avif", "image/avif", ftypFile("mp42"));
+    expect(falseAvif.statusCode).toBe(415);
+    const validAvif = await sendContainer("valid.avif", "image/avif", ftypFile("avif"));
+    expect(validAvif.statusCode).toBe(201);
+    const uploadedAssetId = validAvif.json().asset.id as string;
+    const removedAsset = await app.inject({ method: "DELETE", url: `/api/media/${uploadedAssetId}`, cookies, headers: authHeaders(csrf) });
+    expect(removedAsset.statusCode).toBe(200);
   });
 });
 
@@ -806,24 +1089,9 @@ describe("ai providers", () => {
   });
 });
 
-describe("interview", () => {
-  it("starts and answers one question at a time without scores", async () => {
-    const start = await app.inject({
-      method: "POST", url: "/api/chat/interview", payload: { action: "start", history: [] },
-    });
-    expect(start.statusCode).toBe(200);
-    const s = start.json() as { question: string | null; done: boolean };
-    expect(typeof s.question === "string" && s.question.length > 10).toBe(true);
-    expect(s.done).toBe(false);
-
-    const ans = await app.inject({
-      method: "POST", url: "/api/chat/interview",
-      payload: { action: "answer", answer: "I care about backend APIs and evidence integrity.", history: [{ role: "ai", text: s.question! }] },
-    });
-    expect(ans.statusCode).toBe(200);
-    const a = ans.json() as { question: string | null; reaction: string | null };
-    expect(a.question || a.reaction).toBeTruthy();
-    // No numeric scores anywhere.
-    expect(JSON.stringify(a)).not.toMatch(/"score"|"rating"|"grade"/i);
+describe("retired routes", () => {
+  it("does not expose the retired chat interview route", async () => {
+    const response = await app.inject({ method: "POST", url: "/api/chat/interview", payload: {} });
+    expect(response.statusCode).toBe(404);
   });
 });

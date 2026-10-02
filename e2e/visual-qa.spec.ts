@@ -23,9 +23,8 @@ const VIEWPORTS = process.env.QA_VIEWPORTS === "all" ? ALL_VIEWPORTS : CORE_VIEW
 
 /**
  * One capture per page *segment*. Each home section is captured by navigating
- * to its hash with prefers-reduced-motion: reduce, which the motion system
- * honors by rendering every [data-reveal] fully visible (lib/motion.ts). So:
- * content is always visible when animations are disabled, and a screenshot for
+ * to its hash with prefers-reduced-motion: reduce. Scroll-triggered reveals
+ * are intentionally omitted, so content is visible before hydration and a screenshot for
  * one route can never accidentally show another — it is a viewport of the
  * exact element the hash targets, with no force-scrolling.
  */
@@ -73,6 +72,30 @@ for (const viewport of VIEWPORTS) {
   }
 }
 
+// A full responsive sweep is kept separate from visual baselines so routine
+// checks cover every target width without committing dozens of near-duplicate
+// screenshots. Captures remain available under test-results for visual review.
+test.describe("Responsive inspection", () => {
+  const responsiveRoutes = ["/", "/recruiter", "/projects", "/projects/quantummind", "/credentials"];
+  for (const viewport of ALL_VIEWPORTS) {
+    test(`home, recruiter and public routes @ ${viewport.name}`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      for (const route of responsiveRoutes) {
+        await openRoute(page, route);
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+        expect(overflow, `Horizontal overflow detected at ${viewport.name} for ${route}`).toBe(false);
+        if (route === "/" || route === "/recruiter") {
+          await page.screenshot({
+            path: testInfo.outputPath(`${route === "/" ? "home" : "recruiter"}.png`),
+            fullPage: true,
+            animations: "disabled",
+          });
+        }
+      }
+    });
+  }
+});
+
 test.describe("Interactive surfaces", () => {
   for (const viewport of VIEWPORTS) {
     test(`command palette @ ${viewport.name}`, async ({ page }) => {
@@ -91,10 +114,41 @@ test.describe("Interactive surfaces", () => {
       await openRoute(page, "/");
       await page.locator(".chat-fab").click();
       await expect(page.locator(".chat-panel")).toBeVisible();
+      await expect(page.locator(".chat-input")).toBeFocused();
+      await expect(page.locator(".chat-suggest-btn")).toHaveCount(5);
       await expect(page.locator(".chat-panel")).toHaveScreenshot(`chat-widget-${viewport.name}.png`, {
         animations: "disabled",
       });
       await page.keyboard.press("Escape");
+    });
+  }
+});
+
+test.describe("Responsive keyboard surfaces", () => {
+  for (const viewport of ALL_VIEWPORTS) {
+    test(`palette and assistant keyboard lifecycle @ ${viewport.name}`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await openRoute(page, "/");
+
+      await page.keyboard.press("ControlOrMeta+k");
+      const palette = page.locator(".palette");
+      await expect(palette).toBeVisible();
+      await expect(palette.locator("input")).toBeFocused();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("palette.png"), animations: "disabled" });
+      await page.keyboard.press("Escape");
+      await expect(palette).toBeHidden();
+
+      const launcher = page.locator(".chat-fab");
+      await launcher.focus();
+      await page.keyboard.press("Enter");
+      const assistant = page.locator(".chat-panel");
+      await expect(assistant).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("assistant.png"), animations: "disabled" });
+      await page.keyboard.press("Escape");
+      await expect(assistant).toBeHidden();
+      await expect(launcher).toBeFocused();
     });
   }
 });

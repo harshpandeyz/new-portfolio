@@ -36,7 +36,7 @@ const OUT = process.env.QA_OUT || "test-results/qa";
   await page.waitForTimeout(1600);
   await page.screenshot({ path: `${OUT}/10-contact.png` });
 
-  await page.evaluate(() => document.getElementById("exit").scrollIntoView());
+  await page.evaluate(() => document.getElementById("contact").scrollIntoView());
   await page.waitForTimeout(1600);
   await page.screenshot({ path: `${OUT}/12-closing.png` });
 

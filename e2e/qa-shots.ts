@@ -67,7 +67,7 @@ await desktop.screenshot({ path: `${OUT}/11-palette.png` });
 await desktop.keyboard.press("Escape");
 
 // closing
-await desktop.evaluate(() => document.getElementById("exit")?.scrollIntoView());
+await desktop.evaluate(() => document.getElementById("contact")?.scrollIntoView());
 await desktop.waitForTimeout(1500);
 await desktop.screenshot({ path: `${OUT}/12-closing.png` });
 

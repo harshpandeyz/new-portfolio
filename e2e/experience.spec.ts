@@ -134,7 +134,8 @@ test.describe("public experience", () => {
   test("assistant closes with Escape and returns focus", async ({ page }) => {
     await page.goto("/");
     const fab = page.locator(".chat-fab");
-    await fab.click();
+    await fab.focus();
+    await page.keyboard.press("Enter");
     await expect(page.locator(".chat-panel")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator(".chat-panel")).toBeHidden();

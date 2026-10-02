@@ -40,7 +40,7 @@ describe("shared validation schemas", () => {
   it("rejects executable public URLs in managed content", () => {
     const base = {
       name: "Harsh Pandey", headline: "Software Engineer", subHeadline: "Backend · AI",
-      bio: "A sufficiently long biography for schema validation.", location: "Pune, India",
+      bio: "A sufficiently long biography for schema validation.", recruiterSummary: "A concise recruiter summary with verified engineering focus.", location: "Pune, India",
       email: "harsh@example.com", availability: "Open", avatarUrl: null, resumeUrl: null, resumeLabel: null,
       socials: [{ label: "GitHub", url: "javascript:alert(1)", handle: null, order: 0 }],
     };
