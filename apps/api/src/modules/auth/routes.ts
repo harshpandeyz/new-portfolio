@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
@@ -37,7 +37,7 @@ import {
   totpQrDataUrl,
   totpUri,
   verifyRecoveryCodeHash,
-  verifyTotp,
+  verifyTotpCounter,
 } from "./totp.js";
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -51,7 +51,7 @@ export async function requireAdmin(req: FastifyRequest, _reply: FastifyReply): P
   await requireAdminRole(req, _reply);
 }
 
-/** Any authenticated user (ADMIN | EDITOR | VIEWER). */
+/** The private control area is restricted to the owner administrator. */
 export async function requireAuth(req: FastifyRequest, _reply: FastifyReply): Promise<void> {
   const user = await resolveSessionUser(req);
   if (!user) throw new HttpError(401, "UNAUTHENTICATED", "Authentication required");
@@ -73,50 +73,106 @@ export async function requireCsrf(req: FastifyRequest, _reply: FastifyReply): Pr
 export { requireAdminRole, normalizeRole };
 export { bcryptHash };
 
-// ── login challenge (password step -> 2FA step), stateless HMAC ──
-// Challenges are single-use: consumed nonces are remembered until expiry
-// so a captured challenge+code cannot mint a second session in the TOTP window.
-const consumedChallenges = new Map<string, number>();
+// ── login challenge (password step -> 2FA step) ──
+// HMAC protects challenge integrity; PostgreSQL tracks expiry and one-time use
+// so replay protection works across API replicas and restarts.
 
 function signChallenge(payload: string): string {
   return createHmac("sha256", config.sessionSecret).update(`login-challenge:${payload}`).digest("hex");
 }
 
-function issueLoginChallenge(userId: string): string {
+async function issueLoginChallenge(userId: string): Promise<string> {
   const expires = Date.now() + 5 * 60 * 1000;
   const nonce = randomBytes(16).toString("hex");
+  const nonceHash = createHash("sha256").update(nonce).digest("hex");
   const payload = `${userId}.${expires}.${nonce}`;
+  await prisma.loginChallenge.create({
+    data: { nonceHash, userId, expiresAt: new Date(expires) },
+  });
   return `${payload}.${signChallenge(payload)}`;
 }
 
-function verifyLoginChallenge(challenge: string): string | null {
+async function verifyLoginChallenge(challenge: string): Promise<{ userId: string; nonceHash: string } | null> {
   const parts = challenge.split(".");
   if (parts.length !== 4) return null;
   const [userId, expiresRaw, nonce, sig] = parts as [string, string, string, string];
   if (!userId || !expiresRaw || !nonce || !sig) return null;
-  if (userId.length > 64 || nonce.length !== 32) return null;
+  if (userId.length > 64 || !/^[a-f0-9]{32}$/.test(nonce)) return null;
   const expires = Number(expiresRaw);
-  if (!Number.isFinite(expires) || expires < Date.now()) return null;
-  if (consumedChallenges.has(nonce)) return null;
+  if (!Number.isFinite(expires)) return null;
   const payload = `${userId}.${expires}.${nonce}`;
   const expected = signChallenge(payload);
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  return userId;
+  const nonceHash = createHash("sha256").update(nonce).digest("hex");
+  const [stored] = await prisma.$queryRaw<{ userId: string; expiresAt: Date }[]>`
+    SELECT "userId", "expiresAt" FROM "LoginChallenge"
+    WHERE "nonceHash" = ${nonceHash} AND "usedAt" IS NULL AND "expiresAt" > NOW()
+    LIMIT 1
+  `;
+  if (!stored || stored.userId !== userId || stored.expiresAt.getTime() !== expires) {
+    return null;
+  }
+  return { userId, nonceHash };
 }
 
-function consumeLoginChallenge(challenge: string): void {
-  const nonce = challenge.split(".")[2];
-  if (!nonce) return;
-  consumedChallenges.set(nonce, Date.now() + 5 * 60 * 1000);
-  // opportunistic cleanup
-  if (consumedChallenges.size > 1000) {
-    const now = Date.now();
-    for (const [k, exp] of consumedChallenges) {
-      if (exp < now) consumedChallenges.delete(k);
+/** Claims a challenge and its credential atomically. A replayed TOTP counter
+ * or concurrently consumed recovery code cannot mint another session. */
+async function consumeLoginCredential(input: {
+  nonceHash: string;
+  userId: string;
+  totpCounter?: bigint;
+  recoveryCodeId?: string;
+}): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const challenge = await tx.$executeRaw`
+      UPDATE "LoginChallenge" SET "usedAt" = NOW()
+      WHERE "nonceHash" = ${input.nonceHash} AND "userId" = ${input.userId}
+        AND "usedAt" IS NULL AND "expiresAt" > NOW()
+    `;
+    if (challenge !== 1) return false;
+
+    if (input.totpCounter !== undefined) {
+      const claimed = await tx.user.updateMany({
+        where: {
+          id: input.userId,
+          OR: [{ totpLastCounter: null }, { totpLastCounter: { lt: input.totpCounter } }],
+        },
+        data: { totpLastCounter: input.totpCounter },
+      });
+      if (claimed.count !== 1) return false;
     }
-  }
+
+    if (input.recoveryCodeId) {
+      const claimed = await tx.recoveryCode.updateMany({
+        where: { id: input.recoveryCodeId, userId: input.userId, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) return false;
+    }
+    return true;
+  });
+}
+
+async function recordLoginFailure(userId: string): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "User"
+    SET "failedLoginAttempts" = "failedLoginAttempts" + 1,
+        "lockedUntil" = CASE
+          WHEN "failedLoginAttempts" + 1 >= 10 THEN NOW() + INTERVAL '15 minutes'
+          ELSE "lockedUntil"
+        END
+    WHERE "id" = ${userId}
+  `;
+}
+
+async function claimTotpCounter(userId: string, counter: bigint): Promise<boolean> {
+  const result = await prisma.user.updateMany({
+    where: { id: userId, OR: [{ totpLastCounter: null }, { totpLastCounter: { lt: counter } }] },
+    data: { totpLastCounter: counter },
+  });
+  return result.count === 1;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -130,8 +186,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/login", async (req, reply) => {
+    assertAllowedOrigin(req);
     const ip = clientIp(req);
-    const ipLimit = rateLimit(`login:${ip}`, LOGIN_MAX_IP, LOGIN_WINDOW_MS);
+    const ipLimit = await rateLimit(`login:${ip}`, LOGIN_MAX_IP, LOGIN_WINDOW_MS);
     if (!ipLimit.allowed) {
       reply.header("retry-after", ipLimit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", `Too many attempts. Retry in ${ipLimit.retryAfterSeconds}s.`);
@@ -140,7 +197,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const { email, password } = parseBody(req, loginSchema);
     const normalizedEmail = email.toLowerCase();
 
-    const acctLimit = rateLimit(`login:acct:${normalizedEmail}`, LOGIN_MAX_ACCOUNT, LOGIN_WINDOW_MS);
+    const acctLimit = await rateLimit(`login:acct:${normalizedEmail}`, LOGIN_MAX_ACCOUNT, LOGIN_WINDOW_MS);
     if (!acctLimit.allowed) {
       reply.header("retry-after", acctLimit.retryAfterSeconds);
       // Generic message — do not reveal per-account throttle state distinctly.
@@ -157,31 +214,23 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const hash = user?.passwordHash ?? "$2a$12$C6UzMDM.H6dfI/f/IKcEeO7ZBpQ0N1Jtq8mz1d1mZQ1eVRnFQF9mS";
     const ok = await bcryptCompare(password, hash);
 
-    if (!user || !ok) {
+    if (!user || !ok || user.role !== "ADMIN") {
       // Small uniform delay blunts online brute force without harming UX.
       await sleep(350);
-      if (user) {
-        const attempts = (user.failedLoginAttempts ?? 0) + 1;
-        const lockedUntil = attempts >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-        await prisma.user
-          .update({ where: { id: user.id }, data: { failedLoginAttempts: attempts, lockedUntil } })
-          .catch(() => undefined);
-      }
-      await audit(req, "AUTH_LOGIN_FAILURE", "user", null, { email: normalizedEmail });
+      if (user?.role === "ADMIN") await recordLoginFailure(user.id);
+      await audit(req, "AUTH_LOGIN_FAILURE", "user", user?.id ?? null);
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
 
     if (user.totpEnabled) {
-      const challenge = issueLoginChallenge(user.id);
+      const challenge = await issueLoginChallenge(user.id);
       await audit(req, "AUTH_LOGIN_2FA_REQUIRED", "user", user.id);
       reply.code(202);
       return { ok: false, requires2FA: true, challenge };
     }
 
     const csrfToken = await createSession(user.id, req, reply);
-    await prisma.user
-      .update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() } })
-      .catch(() => undefined);
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() } });
     await audit(req, "AUTH_LOGIN_SUCCESS", "user", user.id);
     await audit(req, "AUTH_SESSION_CREATED", "session", null, { email: user.email });
     return {
@@ -192,56 +241,56 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/login/2fa", async (req, reply) => {
+    assertAllowedOrigin(req);
     const ip = clientIp(req);
     const { code, challenge } = parseBody(req, twoFactorVerifySchema);
     if (!challenge) throw new HttpError(400, "VALIDATION_ERROR", "Login challenge is required");
-    const userId = verifyLoginChallenge(challenge);
-    if (!userId) throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+    const verifiedChallenge = await verifyLoginChallenge(challenge);
+    if (!verifiedChallenge) throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+    const { userId, nonceHash } = verifiedChallenge;
 
-    const limit = rateLimit(`2fa:${ip}:${userId}`, TOTP_MAX, TOTP_WINDOW_MS);
-    if (!limit.allowed) {
-      reply.header("retry-after", limit.retryAfterSeconds);
-      throw new HttpError(429, "RATE_LIMITED", `Too many attempts. Retry in ${limit.retryAfterSeconds}s.`);
+    const [userLimit, ipLimit] = await Promise.all([
+      rateLimit(`2fa:user:${userId}`, TOTP_MAX, TOTP_WINDOW_MS),
+      rateLimit(`2fa:ip:${ip}`, TOTP_MAX * 3, TOTP_WINDOW_MS),
+    ]);
+    const blockedLimit = [userLimit, ipLimit].find((limit) => !limit.allowed);
+    if (blockedLimit) {
+      reply.header("retry-after", blockedLimit.retryAfterSeconds);
+      throw new HttpError(429, "RATE_LIMITED", `Too many attempts. Retry in ${blockedLimit.retryAfterSeconds}s.`);
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, include: { recoveryCodes: true } });
-    if (!user || !user.totpEnabled || !user.totpSecret) {
+    if (!user || user.role !== "ADMIN" || !user.totpEnabled || !user.totpSecret || (user.lockedUntil && user.lockedUntil.getTime() > Date.now())) {
       await sleep(350);
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
     const secret = decryptSecret(user.totpSecret);
-    let ok = secret ? verifyTotp(code, secret) : false;
-    let usedRecoveryId: string | null = null;
-    if (!ok) {
+    const totpCounter = secret ? verifyTotpCounter(code, secret) : null;
+    let recoveryCodeId: string | undefined;
+    if (totpCounter === null) {
       const normalized = code.trim().toUpperCase();
       for (const rc of user.recoveryCodes) {
         if (!rc.usedAt && verifyRecoveryCodeHash(normalized, rc.codeHash)) {
-          // Conditional claim — concurrent uses of the same code: only one wins.
-          const claimed = await prisma.recoveryCode
-            .updateMany({ where: { id: rc.id, usedAt: null }, data: { usedAt: new Date() } })
-            .catch(() => ({ count: 0 }));
-          if (claimed.count > 0) {
-            ok = true;
-            usedRecoveryId = rc.id;
-          }
+          recoveryCodeId = rc.id;
           break;
         }
       }
     }
-    if (!ok) {
+    const claimed = (totpCounter !== null || recoveryCodeId !== undefined)
+      ? await consumeLoginCredential({ nonceHash, userId, ...(totpCounter !== null ? { totpCounter } : {}), ...(recoveryCodeId ? { recoveryCodeId } : {}) })
+      : false;
+    if (!claimed) {
       await sleep(350);
+      await recordLoginFailure(user.id);
       await audit(req, "AUTH_LOGIN_FAILURE", "user", user.id, { reason: "2fa" });
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
-    consumeLoginChallenge(challenge);
-    if (usedRecoveryId) {
+    if (recoveryCodeId) {
       await audit(req, "AUTH_RECOVERY_CODE_USED", "user", user.id);
     }
     const csrfToken = await createSession(user.id, req, reply);
-    await prisma.user
-      .update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() } })
-      .catch(() => undefined);
-    await audit(req, "AUTH_LOGIN_SUCCESS", "user", user.id, { method: usedRecoveryId ? "recovery-code" : "totp" });
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    await audit(req, "AUTH_LOGIN_SUCCESS", "user", user.id, { method: recoveryCodeId ? "recovery-code" : "totp" });
     await audit(req, "AUTH_SESSION_CREATED", "session", null, { email: user.email });
     return {
       ok: true,
@@ -287,7 +336,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // ── password ──
   app.post("/change-password", { preHandler: [requireAuth, requireCsrf] }, async (req, reply) => {
     const u = req.admin!;
-    const limit = rateLimit(`pwd:${u.id}`, 5, 15 * 60 * 1000);
+    const limit = await rateLimit(`pwd:${u.id}`, 5, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many password attempts. Try again later.");
@@ -321,7 +370,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // ── step-up reauthentication ──
   app.post("/reauth", { preHandler: [requireAuth, requireCsrf] }, async (req, reply) => {
     const u = req.admin!;
-    const limit = rateLimit(`reauth:${u.id}:${clientIp(req)}`, 5, 15 * 60 * 1000);
+    const limit = await rateLimit(`reauth:${u.id}:${clientIp(req)}`, 5, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many attempts. Try again later.");
@@ -338,7 +387,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (db.totpEnabled) {
       const code = typeof body.code === "string" ? body.code : "";
       const secret = db.totpSecret ? decryptSecret(db.totpSecret) : null;
-      let ok = secret ? verifyTotp(code, secret) : false;
+      const totpCounter = secret ? verifyTotpCounter(code, secret) : null;
+      let ok = totpCounter !== null ? await claimTotpCounter(u.id, totpCounter) : false;
       let usedRecoveryId: string | null = null;
       if (!ok) {
         for (const rc of db.recoveryCodes) {
@@ -401,7 +451,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const target = await prisma.session.findFirst({ where: { id, userId: u.id } });
     if (!target) throw new HttpError(404, "NOT_FOUND", "Session not found");
-    await prisma.session.update({ where: { id }, data: { revokedAt: new Date() } }).catch(() => undefined);
+    await prisma.session.update({ where: { id }, data: { revokedAt: new Date() } });
     await audit(req, "AUTH_SESSION_REVOKED", "session", id, { current: id === u.sessionId });
     if (id === u.sessionId) {
       await destroySession(req, reply);
@@ -447,7 +497,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
       throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
     }
-    const limit = rateLimit(`2fa-setup:${u.id}`, 3, 15 * 60 * 1000);
+    const limit = await rateLimit(`2fa-setup:${u.id}`, 3, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many attempts. Try again later.");
@@ -456,7 +506,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!db) throw new HttpError(404, "NOT_FOUND", "User not found");
     if (db.totpEnabled) throw new HttpError(409, "CONFLICT", "Two-factor authentication is already enabled");
     const secret = generateTotpSecret();
-    await prisma.user.update({ where: { id: u.id }, data: { totpSecret: encryptSecret(secret) } });
+    await prisma.user.update({ where: { id: u.id }, data: { totpSecret: encryptSecret(secret), totpLastCounter: null } });
     const uri = totpUri(secret, db.email);
     const qr = await totpQrDataUrl(uri).catch(() => null);
     await audit(req, "AUTH_2FA_SETUP_STARTED", "user", u.id);
@@ -482,7 +532,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
       throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
     }
-    const limit = rateLimit(`2fa-enable:${u.id}`, 5, 15 * 60 * 1000);
+    const limit = await rateLimit(`2fa-enable:${u.id}`, 5, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many attempts. Try again later.");
@@ -492,16 +542,21 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!db?.totpSecret) throw new HttpError(400, "NO_PENDING_SETUP", "Start 2FA setup first");
     if (db.totpEnabled) throw new HttpError(409, "CONFLICT", "Two-factor authentication is already enabled");
     const secret = decryptSecret(db.totpSecret);
-    if (!secret || !verifyTotp(code, secret)) {
+    const counter = secret ? verifyTotpCounter(code, secret) : null;
+    if (!secret || counter === null) {
       await audit(req, "AUTH_REAUTH_FAILURE", "user", u.id, { reason: "2fa-enable" });
       throw new HttpError(401, "INVALID_CODE", "Invalid verification code");
     }
     const codes = generateRecoveryCodes();
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: u.id }, data: { totpEnabled: true, totpEnabledAt: new Date() } }),
-      prisma.recoveryCode.deleteMany({ where: { userId: u.id } }),
-      prisma.recoveryCode.createMany({ data: codes.map((c) => ({ userId: u.id, codeHash: hashRecoveryCode(c) })) }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: { id: u.id, totpEnabled: false, totpSecret: db.totpSecret },
+        data: { totpEnabled: true, totpEnabledAt: new Date(), totpLastCounter: counter },
+      });
+      if (changed.count !== 1) throw new HttpError(409, "CONFLICT", "Two-factor setup changed. Start setup again.");
+      await tx.recoveryCode.deleteMany({ where: { userId: u.id } });
+      await tx.recoveryCode.createMany({ data: codes.map((c) => ({ userId: u.id, codeHash: hashRecoveryCode(c) })) });
+    });
     await audit(req, "AUTH_2FA_ENABLED", "user", u.id);
     return { ok: true, recoveryCodes: codes };
   });
@@ -514,7 +569,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const db = await prisma.user.findUnique({ where: { id: u.id } });
     if (!db?.totpEnabled) throw new HttpError(400, "NOT_ENABLED", "Two-factor authentication is not enabled");
     await prisma.$transaction([
-      prisma.user.update({ where: { id: u.id }, data: { totpEnabled: false, totpSecret: null, totpEnabledAt: null } }),
+      prisma.user.update({ where: { id: u.id }, data: { totpEnabled: false, totpSecret: null, totpEnabledAt: null, totpLastCounter: null } }),
       prisma.recoveryCode.deleteMany({ where: { userId: u.id } }),
     ]);
     await audit(req, "AUTH_2FA_DISABLED", "user", u.id);
@@ -526,7 +581,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!isFreshlyAuthenticated(u, REAUTH_WINDOW_MS)) {
       throw new HttpError(403, "REAUTH_REQUIRED", "Recent authentication required. Re-enter your password first.");
     }
-    const limit = rateLimit(`2fa-regen:${u.id}`, 3, 15 * 60 * 1000);
+    const limit = await rateLimit(`2fa-regen:${u.id}`, 3, 15 * 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many attempts. Try again later.");

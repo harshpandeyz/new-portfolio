@@ -20,12 +20,19 @@ export function generateTotpSecret(): string {
 }
 
 export function verifyTotp(token: string, secret: string): boolean {
+  return verifyTotpCounter(token, secret) !== null;
+}
+
+/** Verify a code and return its 30-second TOTP counter for replay protection. */
+export function verifyTotpCounter(token: string, secret: string): bigint | null {
   const code = token.replace(/[\s-]/g, "");
-  if (!/^\d{6,8}$/.test(code)) return false;
+  if (!/^\d{6,8}$/.test(code)) return null;
   try {
-    return authenticator.verify({ token: code, secret });
+    const delta = authenticator.checkDelta(code, secret);
+    if (delta === null) return null;
+    return BigInt(Math.floor(Date.now() / 30_000) + delta);
   } catch {
-    return false;
+    return null;
   }
 }
 

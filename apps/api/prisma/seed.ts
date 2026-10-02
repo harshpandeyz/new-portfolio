@@ -13,7 +13,7 @@ import { cpSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type ProjectDomain } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 import "../src/env.js";
@@ -111,6 +111,7 @@ const PROJECTS = [
     longDescription:
       "The evolved successor of the mob-surveillance capstone — a production-oriented security operations platform. It fuses real-time YOLOv8n person detection over RTSP streams, webcams and uploaded video with investigation tooling: centroid/IoU tracking, heuristic fight-detection with an escalation ladder (possible → suspicious → confirmed), crowd/mob/stampede analytics, a read-only Investigation Copilot for querying records, and court-exportable evidence bundles whose integrity is anchored to an append-only hash ledger with OpenTimestamps Bitcoin attestation.",
     category: "AI / COMPUTER VISION / SECURITY",
+    domains: ["AI_ML", "BACKEND"],
     tier: "featured",
     status: "active",
     featured: true,
@@ -151,6 +152,7 @@ const PROJECTS = [
     longDescription:
       "An AI-powered CCTV framework that detects suspicious mob/crowd activity in real time, automatically extracts evidence clips on detection, encrypts them with AES-256, hashes them with SHA-256 and logs the hashes immutably on an Ethereum blockchain via Solidity smart contracts — so footage integrity can be proven, not promised. Includes an authenticated monitoring dashboard.",
     category: "AI / COMPUTER VISION / SECURITY / BLOCKCHAIN",
+    domains: ["AI_ML", "BACKEND"],
     // Archive-only predecessor of CCTV-X — never a homepage signature slot.
     // See packages/shared/src/curation.ts. Stays discoverable in /projects.
     tier: "legacy",
@@ -191,6 +193,7 @@ const PROJECTS = [
     longDescription:
       "OrchestraAI is an intelligent control plane for AI agents that dynamically orchestrates models, context, memory, tools, and runtime resources to optimize quality, cost, latency, and reliability. The runtime implements user task → context → model routing → provider call → tool execution → memory/cache/telemetry → SSE → reevaluate → complete.",
     category: "AI / AGENT ORCHESTRATION / RUNTIME",
+    domains: ["AI_ML", "BACKEND"],
     tier: "featured",
     status: "active",
     featured: true,
@@ -227,6 +230,7 @@ const PROJECTS = [
     longDescription:
       "An AI-assisted research platform that answers questions grounded in stored documents using retrieval-augmented generation. Users upload research PDFs, search them semantically, chat with multi-turn conversations streamed token-by-token over Server-Sent Events, and can submit quantum-circuit images for vision-model analysis. An analytics dashboard tracks usage.",
     category: "AI / RAG / SEARCH / MULTIMODAL",
+    domains: ["AI_ML", "BACKEND"],
     tier: "secondary",
     status: "complete",
     featured: true,
@@ -263,6 +267,7 @@ const PROJECTS = [
     longDescription:
       "A full-stack application that suggests what a learner should study next based on the skills they already have and the role they target. Learners register, declare known skills and a goal role, and receive ranked recommendations; admins manage the skill catalogue through protected CRUD endpoints.",
     category: "FULL-STACK / RECOMMENDATION / BACKEND",
+    domains: ["FULL_STACK", "BACKEND"],
     tier: "secondary",
     status: "complete",
     featured: true,
@@ -297,6 +302,7 @@ const PROJECTS = [
     longDescription:
       "A native iOS memory-matching game built entirely in Swift and UIKit: card-flip animations, matched-pair tracking, an in-app rules screen, and state persistence with UserDefaults so a player can close the app mid-game and resume later.",
     category: "MOBILE / iOS / GAME",
+    domains: ["MOBILE"],
     // Archive-only experiment — never a homepage signature slot.
     tier: "experiment",
     status: "complete",
@@ -322,6 +328,7 @@ const PROJECTS = [
     longDescription:
       "A social/student networking application built on Spring Boot 3.5 (Java 17) with Spring Data JPA over MySQL, Spring Security with JWT authentication, and transactional email flows via Mailjet. The repository includes a separate JavaScript frontend and Railway deployment configuration.",
     category: "FULL-STACK / SPRING BOOT",
+    domains: ["FULL_STACK", "BACKEND"],
     tier: "secondary",
     status: "complete",
     featured: false,
@@ -346,6 +353,7 @@ const PROJECTS = [
     longDescription:
       "A hands-on CI/CD exercise wrapping a React application in a complete delivery pipeline: a Jenkinsfile that checks out, installs, builds, builds a Docker image, then swaps the running container; plus Dockerfile, docker-compose and GitHub Actions workflows.",
     category: "DEVOPS / CI-CD",
+    domains: ["DEVOPS", "FRONTEND"],
     tier: "secondary",
     status: "complete",
     featured: false,
@@ -369,6 +377,7 @@ const PROJECTS = [
     shortDescription: "Minimal containerized Flask REST API — the 'hello world' of shipping Python services properly.",
     longDescription: "A deliberately tiny Flask REST API (JSON endpoints, configurable host/port) packaged in a Docker image — a clean reference for containerizing Python backends.",
     category: "BACKEND / DOCKER",
+    domains: ["BACKEND"],
     tier: "experiment",
     status: "complete",
     featured: false,
@@ -388,6 +397,7 @@ const PROJECTS = [
     longDescription:
       "An explicit design document covering the complete MLOps lifecycle — data collection, validation, versioning, preprocessing, training, experiment tracking, model validation, packaging, deployment, monitoring, drift detection and retraining — plus a Git branching strategy. Intentionally documentation-only at this stage; implementation is planned.",
     category: "MLOPS / INFRASTRUCTURE",
+    domains: ["AI_ML", "DEVOPS"],
     tier: "experiment",
     status: "archived",
     featured: false,
@@ -410,6 +420,7 @@ const PROJECTS = [
     longDescription:
       "A Spring Boot solution for the Bajaj Finserv Health Qualifier 1 hiring challenge. On startup the app POSTs to generateWebhook, selects the correct SQL answer by parity of the registration number, then submits the final query to the returned webhook using the returned JWT — writing an audit file with the submission result.",
     category: "ACADEMIC / SPRING BOOT",
+    domains: ["BACKEND"],
     tier: "academic",
     status: "complete",
     featured: false,
@@ -432,6 +443,7 @@ const PROJECTS = [
     longDescription:
       "A responsive student-project learning-platform website: home/about/contact/cart/register/login pages, an ad slider, client-side cart and demo authentication stored in localStorage. An early front-end exercise, kept for the record.",
     category: "FRONTEND / STATIC",
+    domains: ["FRONTEND"],
     tier: "legacy",
     status: "archived",
     featured: false,
@@ -453,6 +465,7 @@ const PROJECTS = [
     shortDescription: "Static landing-page experiment for a local coffee shop concept.",
     longDescription: "A single-page static site experiment (hero, menu, gallery, contact) for a coffee-shop concept. Early HTML/CSS work.",
     category: "FRONTEND / STATIC",
+    domains: ["FRONTEND"],
     tier: "legacy",
     status: "archived",
     featured: false,
@@ -472,6 +485,7 @@ const PROJECTS = [
     longDescription:
       "The Level-1 submission archive for the CodSoft virtual web-development internship (June–July 2025): Task 1 — a personal portfolio site; Task 2 — a landing page; Task 3 — a basic calculator with full arithmetic, decimals and clear/equals.",
     category: "INTERNSHIP / FRONTEND",
+    domains: ["FRONTEND"],
     tier: "internship",
     status: "complete",
     featured: false,
@@ -495,71 +509,72 @@ interface SkillSeed {
   category: string;
   level: "core" | "working" | "exploring" | "experimental";
   description?: string;
-  usedIn?: string[];
+  usedInProjectSlugs?: string[];
   relatedConcepts?: string[];
   featured?: boolean;
+  recruiterPriority?: number;
 }
 
 const SKILLS: SkillSeed[] = [
   // LANGUAGES
-  { name: "Java", category: "LANGUAGES", level: "core", featured: true, usedIn: ["QuantumMind", "StudentLink", "MIT Java Qualifier"], relatedConcepts: ["OOP", "Spring ecosystem", "JVM"] },
-  { name: "Python", category: "LANGUAGES", level: "core", featured: true, usedIn: ["Surveillance systems", "QuantumMind AI service", "Flask demo"], relatedConcepts: ["FastAPI", "Flask", "async services"] },
-  { name: "JavaScript", category: "LANGUAGES", level: "core", usedIn: ["React frontends", "Node.js services"], relatedConcepts: ["ES2022+", "async/await"] },
-  { name: "TypeScript", category: "LANGUAGES", level: "working", usedIn: ["This portfolio system"], relatedConcepts: ["Type-safe APIs", "Zod validation"] },
-  { name: "SQL", category: "LANGUAGES", level: "core", usedIn: ["SkillMatch", "QuantumMind schema design"], relatedConcepts: ["Joins", "Indexing", "Normalization"] },
-  { name: "C++", category: "LANGUAGES", level: "working", usedIn: ["Sololearn C/C++ track"], relatedConcepts: ["Memory model", "OOP"] },
-  { name: "Swift", category: "LANGUAGES", level: "exploring", usedIn: ["BrainMatch iOS game"], relatedConcepts: ["UIKit", "iOS lifecycle"] },
+  { name: "Java", category: "LANGUAGES", level: "core", recruiterPriority: 1, featured: true, usedInProjectSlugs: ["quantummind","studentlink","mit-java-qualifier"], relatedConcepts: ["OOP", "Spring ecosystem", "JVM"] },
+  { name: "Python", category: "LANGUAGES", level: "core", recruiterPriority: 2, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","flask-api-docker-demo"], relatedConcepts: ["FastAPI", "Flask", "async services"] },
+  { name: "JavaScript", category: "LANGUAGES", level: "core", usedInProjectSlugs: ["studentlink","codsoft-tasks","skillnexus"], relatedConcepts: ["ES2022+", "async/await"] },
+  { name: "TypeScript", category: "LANGUAGES", level: "working", relatedConcepts: ["Type-safe APIs", "Zod validation"] },
+  { name: "SQL", category: "LANGUAGES", level: "core", usedInProjectSlugs: ["skillmatch","quantummind"], relatedConcepts: ["Joins", "Indexing", "Normalization"] },
+  { name: "C++", category: "LANGUAGES", level: "working", relatedConcepts: ["Memory model", "OOP"] },
+  { name: "Swift", category: "LANGUAGES", level: "exploring", usedInProjectSlugs: ["brainmatch-game"], relatedConcepts: ["UIKit", "iOS lifecycle"] },
   { name: "Kotlin", category: "LANGUAGES", level: "exploring", relatedConcepts: ["Android development"] },
-  { name: "Solidity", category: "LANGUAGES", level: "exploring", usedIn: ["Mob Surveillance evidence contracts"], relatedConcepts: ["Ethereum", "Smart contracts"] },
+  { name: "Solidity", category: "LANGUAGES", level: "exploring", usedInProjectSlugs: ["intelligent-mob-surveillance-system"], relatedConcepts: ["Ethereum", "Smart contracts"] },
   // FRONTEND
-  { name: "React.js", category: "FRONTEND", level: "core", featured: true, usedIn: ["Surveillance dashboards", "QuantumMind", "This portfolio"], relatedConcepts: ["Hooks", "Component architecture", "Vite"] },
+  { name: "React.js", category: "FRONTEND", level: "core", recruiterPriority: 6, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","orchestraai"], relatedConcepts: ["Hooks", "Component architecture", "Vite"] },
   { name: "HTML5 / CSS3", category: "FRONTEND", level: "core", relatedConcepts: ["Semantic markup", "Responsive design"] },
-  { name: "Vite", category: "FRONTEND", level: "working", usedIn: ["QuantumMind", "Surveillance UI"], relatedConcepts: ["Build tooling", "Code splitting"] },
+  { name: "Vite", category: "FRONTEND", level: "working", usedInProjectSlugs: ["quantummind","intelligent-surveillance-system"], relatedConcepts: ["Build tooling", "Code splitting"] },
   // BACKEND
-  { name: "Node.js", category: "BACKEND", level: "core", featured: true, usedIn: ["SkillMatch", "CodSoft projects"], relatedConcepts: ["Event loop", "Express"] },
-  { name: "Express.js", category: "BACKEND", level: "core", usedIn: ["SkillMatch"], relatedConcepts: ["Middleware", "Routing", "MVC"] },
-  { name: "Spring Boot", category: "BACKEND", level: "working", featured: true, usedIn: ["QuantumMind", "StudentLink", "MIT Qualifier"], relatedConcepts: ["Dependency injection", "Spring Data JPA", "Spring Security"] },
-  { name: "FastAPI", category: "BACKEND", level: "working", featured: true, usedIn: ["Surveillance systems", "QuantumMind AI service"], relatedConcepts: ["Async Python", "Pydantic", "OpenAPI"] },
-  { name: "REST API design", category: "BACKEND", level: "core", usedIn: ["Every project"], relatedConcepts: ["Resource modeling", "Status codes", "Versioning"] },
-  { name: "Authentication & JWT", category: "BACKEND", level: "working", usedIn: ["Surveillance systems", "QuantumMind", "StudentLink"], relatedConcepts: ["httpOnly cookies", "CSRF", "Session management"] },
-  { name: "RBAC", category: "BACKEND", level: "working", usedIn: ["SkillMatch", "QuantumMind"], relatedConcepts: ["Roles", "Authorization middleware"] },
-  { name: "MVC architecture", category: "BACKEND", level: "working", usedIn: ["SkillMatch"], relatedConcepts: ["Separation of concerns"] },
+  { name: "Node.js", category: "BACKEND", level: "core", recruiterPriority: 3, featured: true, usedInProjectSlugs: ["orchestraai","skillmatch","codsoft-tasks"], relatedConcepts: ["Event loop", "Express"] },
+  { name: "Express.js", category: "BACKEND", level: "core", usedInProjectSlugs: ["skillmatch"], relatedConcepts: ["Middleware", "Routing", "MVC"] },
+  { name: "Spring Boot", category: "BACKEND", level: "working", recruiterPriority: 5, featured: true, usedInProjectSlugs: ["quantummind","studentlink","mit-java-qualifier"], relatedConcepts: ["Dependency injection", "Spring Data JPA", "Spring Security"] },
+  { name: "FastAPI", category: "BACKEND", level: "working", recruiterPriority: 4, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind"], relatedConcepts: ["Async Python", "Pydantic", "OpenAPI"] },
+  { name: "REST API design", category: "BACKEND", level: "core", usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","skillmatch"], relatedConcepts: ["Resource modeling", "Status codes", "Versioning"] },
+  { name: "Authentication & JWT", category: "BACKEND", level: "working", usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","studentlink"], relatedConcepts: ["httpOnly cookies", "CSRF", "Session management"] },
+  { name: "RBAC", category: "BACKEND", level: "working", usedInProjectSlugs: ["skillmatch","quantummind"], relatedConcepts: ["Roles", "Authorization middleware"] },
+  { name: "MVC architecture", category: "BACKEND", level: "working", usedInProjectSlugs: ["skillmatch"], relatedConcepts: ["Separation of concerns"] },
   // DATABASES
-  { name: "MySQL", category: "DATABASES", level: "core", usedIn: ["SkillMatch", "StudentLink"], relatedConcepts: ["Schema design", "Parameterized queries"] },
-  { name: "PostgreSQL", category: "DATABASES", level: "working", usedIn: ["QuantumMind", "This portfolio"], relatedConcepts: ["Indexes", "Migrations"] },
-  { name: "MongoDB", category: "DATABASES", level: "working", featured: true, usedIn: ["Surveillance systems"], relatedConcepts: ["Document modeling", "MongoDB Java driver"] },
+  { name: "MySQL", category: "DATABASES", level: "core", usedInProjectSlugs: ["skillmatch","studentlink","mit-java-qualifier"], relatedConcepts: ["Schema design", "Parameterized queries"] },
+  { name: "PostgreSQL", category: "DATABASES", level: "working", recruiterPriority: 7, usedInProjectSlugs: ["orchestraai","quantummind"], relatedConcepts: ["Indexes", "Migrations"] },
+  { name: "MongoDB", category: "DATABASES", level: "working", featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","intelligent-mob-surveillance-system"], relatedConcepts: ["Document modeling", "MongoDB Java driver"] },
   { name: "Firebase", category: "DATABASES", level: "exploring", relatedConcepts: ["Auth", "Firestore"] },
-  { name: "Database design", category: "DATABASES", level: "core", usedIn: ["QuantumMind schema", "SkillMatch"], relatedConcepts: ["ER modeling", "Normalization", "Foreign keys"] },
+  { name: "Database design", category: "DATABASES", level: "core", usedInProjectSlugs: ["quantummind","skillmatch"], relatedConcepts: ["ER modeling", "Normalization", "Foreign keys"] },
   // AI / ML
-  { name: "Computer Vision", category: "AI_ML", level: "working", featured: true, usedIn: ["Both surveillance systems"], relatedConcepts: ["Object detection", "Tracking"] },
-  { name: "YOLOv8", category: "AI_ML", level: "working", featured: true, usedIn: ["Mob Surveillance", "CCTV-X"], relatedConcepts: ["Real-time inference", "Model training"] },
-  { name: "OpenCV", category: "AI_ML", level: "working", usedIn: ["Surveillance pipelines"], relatedConcepts: ["Frame processing", "Video I/O"] },
-  { name: "MediaPipe", category: "AI_ML", level: "exploring", usedIn: ["Mob Surveillance"], relatedConcepts: ["Pose/landmark estimation"] },
-  { name: "RAG", category: "AI_ML", level: "exploring", featured: true, usedIn: ["QuantumMind", "This portfolio's chatbot"], relatedConcepts: ["Grounded generation", "Chunking", "Citations"] },
-  { name: "FAISS / vector search", category: "AI_ML", level: "exploring", usedIn: ["QuantumMind"], relatedConcepts: ["Embeddings", "Similarity search", "sentence-transformers"] },
-  { name: "LLM API integration", category: "AI_ML", level: "working", usedIn: ["QuantumMind (Groq/OpenAI/Sarvam)", "This portfolio"], relatedConcepts: ["Prompt engineering", "Streaming (SSE)", "Provider abstraction"] },
+  { name: "Computer Vision", category: "AI_ML", level: "working", featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","intelligent-mob-surveillance-system"], relatedConcepts: ["Object detection", "Tracking"] },
+  { name: "YOLOv8", category: "AI_ML", level: "working", featured: true, usedInProjectSlugs: ["intelligent-mob-surveillance-system","intelligent-surveillance-system"], relatedConcepts: ["Real-time inference", "Model training"] },
+  { name: "OpenCV", category: "AI_ML", level: "working", usedInProjectSlugs: ["intelligent-surveillance-system","intelligent-mob-surveillance-system"], relatedConcepts: ["Frame processing", "Video I/O"] },
+  { name: "MediaPipe", category: "AI_ML", level: "exploring", usedInProjectSlugs: ["intelligent-mob-surveillance-system"], relatedConcepts: ["Pose/landmark estimation"] },
+  { name: "RAG", category: "AI_ML", level: "exploring", featured: true, usedInProjectSlugs: ["quantummind"], relatedConcepts: ["Grounded generation", "Chunking", "Citations"] },
+  { name: "FAISS / vector search", category: "AI_ML", level: "exploring", usedInProjectSlugs: ["quantummind"], relatedConcepts: ["Embeddings", "Similarity search", "sentence-transformers"] },
+  { name: "LLM API integration", category: "AI_ML", level: "working", usedInProjectSlugs: ["quantummind","orchestraai"], relatedConcepts: ["Prompt engineering", "Streaming (SSE)", "Provider abstraction"] },
   { name: "Machine Learning fundamentals", category: "AI_ML", level: "working", relatedConcepts: ["Supervised learning", "Evaluation"] },
   // CLOUD / DEVOPS
-  { name: "Docker & Compose", category: "CLOUD_DEVOPS", level: "working", featured: true, usedIn: ["Surveillance systems", "QuantumMind", "Flask demo"], relatedConcepts: ["Multi-container orchestration", "Images", "Volumes"] },
-  { name: "Jenkins", category: "CLOUD_DEVOPS", level: "exploring", usedIn: ["Mob Surveillance CI/CD", "GameHub pipeline"], relatedConcepts: ["Pipelines", "Automated builds"] },
-  { name: "CI/CD", category: "CLOUD_DEVOPS", level: "working", usedIn: ["GameHub", "Surveillance deployments"], relatedConcepts: ["GitHub Actions", "Pipeline design"] },
+  { name: "Docker & Compose", category: "CLOUD_DEVOPS", level: "working", recruiterPriority: 8, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","flask-api-docker-demo"], relatedConcepts: ["Multi-container orchestration", "Images", "Volumes"] },
+  { name: "Jenkins", category: "CLOUD_DEVOPS", level: "exploring", usedInProjectSlugs: ["intelligent-mob-surveillance-system","gamehub-cicd"], relatedConcepts: ["Pipelines", "Automated builds"] },
+  { name: "CI/CD", category: "CLOUD_DEVOPS", level: "working", usedInProjectSlugs: ["gamehub-cicd","intelligent-surveillance-system"], relatedConcepts: ["GitHub Actions", "Pipeline design"] },
   { name: "Git / GitHub", category: "CLOUD_DEVOPS", level: "core", relatedConcepts: ["Branching strategy", "Code review"] },
-  { name: "Caddy", category: "CLOUD_DEVOPS", level: "exploring", usedIn: ["Surveillance deployments"], relatedConcepts: ["Automatic HTTPS", "ACME", "Reverse proxy"] },
-  { name: "Cloud fundamentals", category: "CLOUD_DEVOPS", level: "exploring", usedIn: ["Cloud VM deployment of surveillance stack"], relatedConcepts: ["VMs", "Cloud Technologies certification"] },
+  { name: "Caddy", category: "CLOUD_DEVOPS", level: "exploring", usedInProjectSlugs: ["intelligent-surveillance-system"], relatedConcepts: ["Automatic HTTPS", "ACME", "Reverse proxy"] },
+  { name: "Cloud fundamentals", category: "CLOUD_DEVOPS", level: "exploring", usedInProjectSlugs: ["intelligent-surveillance-system"], relatedConcepts: ["VMs", "Cloud Technologies certification"] },
   { name: "Postman", category: "CLOUD_DEVOPS", level: "core", relatedConcepts: ["API testing"] },
   // SECURITY
-  { name: "Evidence integrity (AES/SHA-256)", category: "SECURITY", level: "working", featured: true, usedIn: ["Both surveillance systems"], relatedConcepts: ["Encryption at rest", "Hash chains", "Chain of custody"] },
-  { name: "Blockchain anchoring", category: "SECURITY", level: "exploring", usedIn: ["Mob Surveillance (Ethereum/Ganache)", "CCTV-X (OpenTimestamps)"], relatedConcepts: ["Immutability", "Web3.py", "Smart contracts"] },
-  { name: "Web security practices", category: "SECURITY", level: "working", usedIn: ["CCTV-X (CSRF, CSP, rate limiting)", "This portfolio"], relatedConcepts: ["OWASP", "Secure headers", "Least privilege"] },
-  { name: "Networking fundamentals", category: "SECURITY", level: "working", usedIn: ["Cisco Networking Academy certification"], relatedConcepts: ["TCP/IP", "RTSP streaming"] },
+  { name: "Evidence integrity (AES/SHA-256)", category: "SECURITY", level: "working", featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","intelligent-mob-surveillance-system"], relatedConcepts: ["Encryption at rest", "Hash chains", "Chain of custody"] },
+  { name: "Blockchain anchoring", category: "SECURITY", level: "exploring", usedInProjectSlugs: ["intelligent-mob-surveillance-system","intelligent-surveillance-system"], relatedConcepts: ["Immutability", "Web3.py", "Smart contracts"] },
+  { name: "Web security practices", category: "SECURITY", level: "working", usedInProjectSlugs: ["intelligent-surveillance-system"], relatedConcepts: ["OWASP", "Secure headers", "Least privilege"] },
+  { name: "Networking fundamentals", category: "SECURITY", level: "working", relatedConcepts: ["TCP/IP", "RTSP streaming"] },
   // MOBILE
   { name: "Android (Kotlin)", category: "MOBILE", level: "exploring", relatedConcepts: ["Activity lifecycle", "Jetpack"] },
-  { name: "iOS (Swift/UIKit)", category: "MOBILE", level: "exploring", usedIn: ["BrainMatch"], relatedConcepts: ["UIKit", "UserDefaults"] },
+  { name: "iOS (Swift/UIKit)", category: "MOBILE", level: "exploring", usedInProjectSlugs: ["brainmatch-game"], relatedConcepts: ["UIKit", "UserDefaults"] },
   { name: "React Native", category: "MOBILE", level: "experimental", relatedConcepts: ["Cross-platform mobile"] },
   // EXPERIMENTAL
   { name: "Distributed systems", category: "EXPERIMENTAL", level: "exploring", relatedConcepts: ["Microservices", "Consistency", "System design"] },
-  { name: "MLOps", category: "EXPERIMENTAL", level: "experimental", usedIn: ["MLOps lifecycle blueprint"], relatedConcepts: ["Experiment tracking", "Drift detection"] },
-  { name: "Selenium / test automation", category: "EXPERIMENTAL", level: "exploring", usedIn: ["Selenium certifications", "Pytest suites in CCTV-X"], relatedConcepts: ["Testing frameworks", "Automation"] },
+  { name: "MLOps", category: "EXPERIMENTAL", level: "experimental", usedInProjectSlugs: ["mlops-lifecycle"], relatedConcepts: ["Experiment tracking", "Drift detection"] },
+  { name: "Selenium / test automation", category: "EXPERIMENTAL", level: "exploring", usedInProjectSlugs: ["intelligent-surveillance-system"], relatedConcepts: ["Testing frameworks", "Automation"] },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -574,6 +589,7 @@ const EDUCATION = [
     endYear: "2027",
     grade: "CGPA 8.38",
     description: "Final-year undergraduate program with a software & mobile application development specialization. Active in hackathons (SIH 2024 internal, IdeaSpark 2K24 winner).",
+    primary: true,
     order: 1,
   },
 ];
@@ -652,6 +668,7 @@ async function main() {
     headline: "Software Engineer",
     subHeadline: "Backend systems · Applied AI · Full Stack",
     bio: "Final-year B.Tech Information Technology student at MIT-ADT University, Pune, who builds systems end to end — training a YOLOv8 model, writing the REST API that serves its output, and getting the whole stack running in Docker. Comfortable across Java/Spring Boot and Node.js/Express on the backend, React on the frontend, FastAPI for AI-facing services, and SQL/NoSQL databases with CI/CD in between. Picks up new ecosystems fast — taught himself Swift/UIKit well enough to ship an iOS app — and would rather trace a bug to its root cause than work around it. Looking for full-stack, backend, or AI/ML engineering roles.",
+    recruiterSummary: "Final-year B.Tech IT student building backend services and applied AI products. I take systems from model and API design through deployment, with hands-on work in Java and Spring Boot, Python and FastAPI, Node.js, and React.",
     location: "Pune, India",
     email: "harshap17058@gmail.com",
     availability: "Open to internships & full-stack / backend / AI-ML engineering roles",
@@ -685,6 +702,7 @@ async function main() {
     await prisma.project.create({
       data: {
         ...rest,
+        domains: p.domains as ProjectDomain[],
         stack: p.stack as string[],
         gallery: [],
         decisions: decisions ?? [],
@@ -705,8 +723,9 @@ async function main() {
         category: s.category,
         level: s.level,
         description: s.description ?? null,
-        usedIn: s.usedIn ?? [],
+        usedInProjectSlugs: s.usedInProjectSlugs ?? [],
         relatedConcepts: s.relatedConcepts ?? [],
+        recruiterPriority: s.recruiterPriority ?? 0,
         featured: s.featured ?? false,
         order: skillOrder,
       },

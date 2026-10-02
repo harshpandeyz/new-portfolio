@@ -121,7 +121,7 @@ export async function audit(
 
 /**
  * Origin validation for state-changing requests. The API serves a
- * cross-origin SPA (Netlify -> Render), so we allow only the configured
+ * cross-origin SPA, so we allow only the configured
  * APP_URL origins. Missing Origin (same-origin / curl / mobile) is allowed
  * because CSRF double-submit is still enforced.
  */

@@ -108,19 +108,25 @@ export async function resolveSessionUser(req: FastifyRequest): Promise<Authentic
     include: { user: true },
   });
   if (!session) return null;
+  // This deployment has one owner account. Legacy EDITOR/VIEWER sessions are
+  // no longer admitted into the private control area.
+  if (session.user.role !== "ADMIN") return null;
   if (session.revokedAt) return null;
   const now = Date.now();
   if (session.expiresAt.getTime() < now) {
+    // Expiry already denies this request; this delete is only stale-row cleanup.
     await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
     return null;
   }
   if (now - session.lastSeenAt.getTime() > SESSION_IDLE_MS) {
+    // Idle timeout already denies this request; this delete is only stale-row cleanup.
     await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
     return null;
   }
 
   // sliding activity refresh (fire-and-forget, throttled to 5m to avoid a DB write per request)
   if (now - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
+    // Activity timestamps are advisory; authorization uses expiresAt and lastSeenAt.
     void prisma.session
       .update({ where: { id: session.id }, data: { lastSeenAt: new Date() } })
       .catch(() => undefined);
@@ -144,13 +150,13 @@ export function isFreshlyAuthenticated(user: AuthenticatedUser | undefined, wind
 }
 
 export async function touchReauth(sessionId: string): Promise<void> {
-  await prisma.session.update({ where: { id: sessionId }, data: { reauthAt: new Date() } }).catch(() => undefined);
+  await prisma.session.update({ where: { id: sessionId }, data: { reauthAt: new Date() } });
 }
 
 export async function destroySession(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const token = req.cookies[COOKIE_NAMES.session];
   if (token && token.length === 64) {
-    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } }).catch(() => undefined);
+    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
   const clearOpts = { path: "/", sameSite: config.isProd ? ("none" as const) : ("lax" as const), secure: config.isProd } as const;
   reply.clearCookie(COOKIE_NAMES.session, clearOpts);
@@ -177,11 +183,18 @@ export function describeDevice(userAgent: string | null): string {
 /** Purges expired + old-revoked sessions — call periodically. */
 export async function purgeExpiredSessions(): Promise<void> {
   const now = new Date();
-  await prisma.session
-    .deleteMany({ where: { expiresAt: { lt: now } } })
-    .catch(() => undefined);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  await prisma.session
-    .deleteMany({ where: { revokedAt: { lt: weekAgo } } })
-    .catch(() => undefined);
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const results = await Promise.allSettled([
+    prisma.session.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prisma.session.deleteMany({ where: { revokedAt: { lt: weekAgo } } }),
+    prisma.loginChallenge.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prisma.$executeRaw`DELETE FROM "RateLimitBucket" WHERE "resetAt" < NOW()`,
+    prisma.providerCooldown.deleteMany({ where: { touchedAt: { lt: monthAgo } } }),
+  ]);
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("[session-cleanup] cleanup failed", result.reason instanceof Error ? result.reason.name : "unknown error");
+    }
+  }
 }

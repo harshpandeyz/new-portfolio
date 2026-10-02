@@ -13,6 +13,8 @@ datasource db {
 /// ── Identity / access ────────────────────────────────────────
 
 enum Role {
+  // EDITOR and VIEWER remain for existing database compatibility only; API
+  // authentication admits ADMIN accounts exclusively.
   ADMIN
   EDITOR
   VIEWER
@@ -30,11 +32,13 @@ model User {
   totpSecret          String?
   totpEnabled         Boolean        @default(false)
   totpEnabledAt       DateTime?
+  totpLastCounter     BigInt?
   failedLoginAttempts Int            @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   sessions            Session[]
   recoveryCodes       RecoveryCode[]
+  loginChallenges     LoginChallenge[]
 
   @@index([email])
 }
@@ -48,6 +52,34 @@ model RecoveryCode {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+model LoginChallenge {
+  nonceHash String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+/// Shared PostgreSQL rate-limit buckets; keyHash is an HMAC, never raw IP/email.
+model RateLimitBucket {
+  keyHash String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+model ProviderCooldown {
+  provider      String   @id
+  failures      Int      @default(0)
+  cooldownUntil DateTime?
+  touchedAt     DateTime @updatedAt
 }
 
 model Session {
@@ -75,6 +107,7 @@ model Profile {
   headline     String
   subHeadline  String
   bio          String
+  recruiterSummary String   @default("")
   location     String
   email        String
   availability String   @default("")
@@ -105,6 +138,7 @@ model Project {
   shortDescription String
   longDescription  String?
   category         String
+  domains          ProjectDomain[] @default([])
   tier             String
   status           String        @default("complete")
   featured         Boolean       @default(false)
@@ -117,6 +151,7 @@ model Project {
   challenges       String?
   results          String?
   securityNotes    String?
+  securityReliability String?
   dataFlow         String[]  @default([])
   stack            String[]  @default([])
   githubUrl        String?
@@ -131,6 +166,15 @@ model Project {
   @@index([featured])
   @@index([status])
   @@index([updatedAt])
+}
+
+enum ProjectDomain {
+  BACKEND
+  AI_ML
+  FULL_STACK
+  MOBILE
+  FRONTEND
+  DEVOPS
 }
 
 model Certificate {
@@ -159,8 +203,9 @@ model Skill {
   category        String
   level           String
   description     String?
-  usedIn          String[]
+  usedInProjectSlugs String[] @default([])
   relatedConcepts String[]
+  recruiterPriority Int     @default(0)
   featured        Boolean  @default(false)
   order           Int      @default(0)
   createdAt       DateTime @default(now())
@@ -179,6 +224,7 @@ model Education {
   endYear      String?
   grade        String?
   description  String?
+  primary      Boolean @default(false)
   order        Int     @default(0)
 }
 
@@ -242,9 +288,29 @@ model MediaAsset {
   kind        String
   title       String?
   createdAt   DateTime @default(now())
+  versions    MediaAssetVersion[]
 
   @@index([kind])
   @@index([createdAt])
+}
+
+model MediaAssetVersion {
+  id          String     @id @default(cuid())
+  assetId     String?
+  asset       MediaAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  filename    String
+  storedName  String
+  url         String
+  mimeType    String
+  sizeBytes   Int
+  kind        String
+  title       String?
+  createdAt   DateTime   @default(now())
+  deleteAfter DateTime
+
+  @@index([assetId, createdAt])
+  @@index([deleteAfter])
+  @@index([storedName])
 }
 
 model SiteSetting {
@@ -279,16 +345,6 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
-model ChatQueryLog {
-  id        String   @id @default(cuid())
-  question  String
-  confidence String
-  provider  String
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-}
-
 /// ── AI provider configuration (admin-managed, secrets encrypted) ──
 ///
 /// API keys are AES-256-GCM encrypted at rest and NEVER returned to the
@@ -306,7 +362,6 @@ model AiProviderConfig {
   temperature   Float     @default(0.2)
   maxTokens     Int       @default(500)
   timeoutMs     Int       @default(20000)
-  systemPrompt  String?
   enabled       Boolean   @default(true)
   priority      Int       @default(0)
   isFallback    Boolean   @default(false)
