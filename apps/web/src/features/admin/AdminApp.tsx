@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { api } from "../../lib/api";
-import { CommandPalette, ToastProvider } from "./ui";
+import { CommandPalette, ToastProvider, useToast } from "./ui";
 import type { PaletteCommand } from "./ui";
 import { adminBus } from "./bus";
 import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
@@ -44,58 +44,53 @@ interface NavItem {
 }
 
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-  { label: "Analytics", items: [{ path: "/private", label: "Overview", icon: "overview", keywords: "home dashboard attention analytics stats", end: true }] },
+  { label: "", items: [{ path: "/private", label: "Dashboard", icon: "dashboard", keywords: "home dashboard attention analytics stats", end: true }] },
   {
     label: "Content",
     items: [
       { path: "/private/projects", label: "Projects", icon: "projects", keywords: "work portfolio case studies curation order" },
       { path: "/private/certificates", label: "Certificates", icon: "certificates", keywords: "credentials courses" },
       { path: "/private/skills", label: "Skills", icon: "skills", keywords: "stack capabilities tech" },
-      { path: "/private/timeline", label: "Timeline", icon: "timeline", keywords: "journey history milestones" },
-      { path: "/private/education", label: "Education", icon: "education", keywords: "degree university study" },
+      { path: "/private/timeline", label: "Experience", icon: "briefcase", keywords: "journey history milestones timeline experience" },
+      { path: "/private/education", label: "Education", icon: "graduation", keywords: "degree university study" },
       { path: "/private/profile", label: "Profile", icon: "profile", keywords: "bio identity socials resume" },
+      { path: "/private/media", label: "Media Library", icon: "media", keywords: "files uploads images library" },
     ],
   },
   {
-    label: "Inbox",
+    label: "Audience",
     items: [
-      { path: "/private/messages", label: "Messages", icon: "messages", keywords: "inbox contact mail", badge: true },
-      { path: "/private/media", label: "Media", icon: "media", keywords: "files uploads images library" },
+      { path: "/private/messages", label: "Messages", icon: "inbox", keywords: "inbox contact mail messages recruiters", badge: true },
     ],
   },
   {
     label: "AI",
     items: [
-      { path: "/private/ai-providers", label: "AI providers", icon: "ai", keywords: "llm model openrouter nvidia openai assistant config", adminOnly: true },
-    ],
-  },
-  {
-    label: "Security",
-    items: [
-      { path: "/private/security", label: "Security", icon: "security", keywords: "2fa sessions password auth" },
+      { path: "/private/ai-providers", label: "Providers", icon: "plug", keywords: "llm model openrouter nvidia openai assistant knowledge config", adminOnly: true },
     ],
   },
   {
     label: "System",
     items: [
+      { path: "/private/security", label: "Security", icon: "security", keywords: "2fa sessions password auth" },
       { path: "/private/settings", label: "Settings", icon: "settings", keywords: "site feature flags assistant maintenance", adminOnly: true },
-      { path: "/private/audit", label: "Audit log", icon: "audit", keywords: "history trail events" },
+      { path: "/private/audit", label: "Audit log", icon: "audit", keywords: "history trail events analytics" },
     ],
   },
 ];
 
 const TITLES: Record<string, string> = {
-  "/private": "Overview",
+  "/private": "Dashboard",
   "/private/messages": "Messages",
   "/private/projects": "Projects",
   "/private/certificates": "Certificates",
   "/private/skills": "Skills",
-  "/private/timeline": "Timeline",
+  "/private/timeline": "Experience",
   "/private/education": "Education",
   "/private/profile": "Profile",
-  "/private/media": "Media",
+  "/private/media": "Media Library",
   "/private/security": "Security",
-  "/private/ai-providers": "AI providers",
+  "/private/ai-providers": "Providers",
   "/private/settings": "Settings",
   "/private/audit": "Audit log",
 };
@@ -104,9 +99,27 @@ const QUICK_CREATE: { label: string; path: string; keywords: string }[] = [
   { label: "Project", path: "/private/projects?new=1", keywords: "add project work" },
   { label: "Certificate", path: "/private/certificates?new=1", keywords: "add credential" },
   { label: "Skill", path: "/private/skills?new=1", keywords: "add capability stack" },
-  { label: "Timeline entry", path: "/private/timeline?new=1", keywords: "add milestone journey" },
+  { label: "Experience entry", path: "/private/timeline?new=1", keywords: "add milestone journey experience timeline" },
   { label: "Education", path: "/private/education?new=1", keywords: "add degree study" },
 ];
+
+/** Publish is instant in this portfolio (no draft pipeline): confirm live state without touching content. */
+function PublishButton() {
+  const { push } = useToast();
+  return (
+    <button
+      type="button"
+      className="ctl-btn ctl-btn--outline ctl-btn--sm ctl-publish-btn"
+      title="Content saves directly to the live site"
+      onClick={() => {
+        push({ kind: "success", title: "Portfolio is live", desc: "Every saved change is already published — no extra step needed." });
+        window.open("/", "_blank", "noopener");
+      }}
+    >
+      <AdminIcon name="rocket" size={16} /><span>Publish</span>
+    </button>
+  );
+}
 
 function ensureNoIndex() {
   let tag = document.querySelector('meta[name="robots"]');
@@ -159,7 +172,7 @@ export default function AdminApp() {
 
   useEffect(() => {
     ensureNoIndex();
-    document.title = "Control — Harsh Pandey";
+    document.title = "Portfolio Admin";
     api
       .me()
       .then((r) => {
@@ -289,7 +302,7 @@ export default function AdminApp() {
         action: () => triage?.archiveSelected(),
       },
       { id: "open-security", label: "Open security center", group: "System", keywords: "2fa sessions password", action: go("/private/security") },
-      { id: "open-ai", label: "Open AI providers", group: "System", keywords: "llm model provider openrouter assistant", action: go("/private/ai-providers") },
+      { id: "open-ai", label: "Open AI providers", group: "System", keywords: "llm model provider openrouter assistant knowledge", action: go("/private/ai-providers") },
       { id: "open-settings", label: "Open site settings", group: "System", keywords: "feature flags maintenance assistant", action: go("/private/settings") },
       { id: "logout", label: "Log out", group: "System", keywords: "sign out exit", action: () => void logout() },
     ];
@@ -320,19 +333,15 @@ export default function AdminApp() {
   }
 
   const currentPath = location.pathname.replace(/\/+$/, "") || "/";
-  const title = TITLES[currentPath] ?? "Control";
+  const title = TITLES[currentPath] ?? "Dashboard";
   const initial = (user.email?.[0] ?? "A").toUpperCase();
   const isActive = (n: NavItem) => (n.end ? location.pathname === n.path : location.pathname.startsWith(n.path));
 
   const nav = (
     <>
-      <Link to="/private" className="ctl-brand" aria-label="Harsh Control overview">
-        <span className="ctl-brand-mark">H</span>
-        <span className="ctl-brand-name">Harsh // Control<small>PORTFOLIO OS</small></span>
-      </Link>
       {NAV_GROUPS.map((g) => (
-        <nav key={g.label} aria-label={g.label}>
-          <div className="ctl-nav-label" title={g.label}>{g.label}</div>
+        <nav key={g.label || "primary"} aria-label={g.label || "Primary"}>
+          {g.label && <div className="ctl-nav-label" title={g.label}>{g.label}</div>}
           {g.items.filter((n) => !n.adminOnly || user.role === "ADMIN").map((n) => (
             <Link
               key={n.path}
@@ -365,17 +374,106 @@ export default function AdminApp() {
     </>
   );
 
+  const createMenu = (
+    <div className="ctl-new-wrap" id="ctl-new-menu">
+      <button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm ctl-create-btn" onClick={() => setNewMenu((v) => !v)} aria-expanded={newMenu} aria-haspopup="menu">
+        <AdminIcon name="plus" size={16} /><span>Create</span>
+      </button>
+      {newMenu && (
+        <div className="ctl-new-menu" role="menu" aria-label="Create new">
+          {QUICK_CREATE.map((q) => (
+            <button key={q.path} type="button" role="menuitem" onClick={() => { setNewMenu(false); navigate(q.path); }}>
+              {q.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setNewMenu(false);
+              if (!location.pathname.startsWith("/private/media")) navigate("/private/media");
+              window.setTimeout(() => {
+                if (!adminBus.requestUpload()) document.getElementById("ctl-media-upload")?.click();
+              }, 150);
+            }}
+          >
+            Upload media
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <ToastProvider>
       <a className="ctl-skip" href="#ctl-main">Skip to content</a>
       <div className={`ctl-shell${sidebarCollapsed ? " ctl-shell--collapsed" : ""}`}>
-        <aside className="ctl-sidebar" aria-label="Control navigation">{nav}</aside>
+        <div className="ctl-brandbar">
+          <Link to="/private" className="ctl-brand" aria-label="Portfolio admin dashboard">
+            <span className="ctl-brand-name">Portfolio SaaS</span>
+          </Link>
+          <button
+            ref={menuButtonRef}
+            type="button"
+            className="ctl-collapse-btn"
+            onClick={() => {
+              if (!compactNav) setSidebarCollapsed((value) => !value);
+              else setDrawer(true);
+            }}
+            aria-label={compactNav ? "Open navigation" : (sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")}
+            aria-expanded={compactNav ? drawer : !sidebarCollapsed}
+          ><AdminIcon name="collapse" size={16} /></button>
+        </div>
+        <header className="ctl-topbar">
+          <button
+            type="button"
+            className="ctl-cmdk-btn"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Open command palette"
+          >
+            <AdminIcon name="search" size={16} /> <span>Search or command…</span> <kbd>{isMac ? "⌘K" : "Ctrl+K"}</kbd>
+          </button>
+          <div className="ctl-topbar-right">
+            {createMenu}
+            <Link to="/" target="_blank" rel="noopener noreferrer" className="ctl-btn ctl-btn--outline ctl-btn--sm ctl-preview-btn">
+              <AdminIcon name="external" size={16} /><span>Preview site</span>
+            </Link>
+            <PublishButton />
+            <Link
+              to="/private/messages"
+              className={`ctl-icon-btn ctl-bell-btn${unread > 0 ? " has-unread" : ""}`}
+              aria-label={unread > 0 ? `${unread} unread messages` : "Messages — no unread"}
+              title={unread > 0 ? `${unread} unread messages` : "Messages"}
+            >
+              <AdminIcon name="bell" size={18} />
+              {unread > 0 && <span className="ctl-bell-dot" aria-hidden="true" />}
+            </Link>
+            <div className="ctl-user-menu-wrap" ref={userMenuRef}>
+              <button type="button" className="ctl-avatar-btn" onClick={() => setUserMenu((v) => !v)} aria-expanded={userMenu} aria-haspopup="menu" aria-label={`Account: ${user.email}`}>
+                <span className="ctl-avatar ctl-avatar--top" aria-hidden="true">{initial}</span>
+              </button>
+              {userMenu && (
+                <div className="ctl-user-menu" role="menu" aria-label="Account">
+                  <div className="ctl-user-menu-account">
+                    {user.displayName && <div className="ctl-user-menu-name">{user.displayName}</div>}
+                    <div>{user.email}</div>
+                    <div>{user.role} · {user.totpEnabled ? "2FA on" : "2FA off"}</div>
+                  </div>
+                  <Link role="menuitem" to="/private/security" onClick={() => setUserMenu(false)}>Security center</Link>
+                  <Link role="menuitem" to="/" onClick={() => setUserMenu(false)}><AdminIcon name="external" size={16} />View public site</Link>
+                  <button type="button" role="menuitem" className="danger" onClick={() => { setUserMenu(false); void logout(); }}><AdminIcon name="logout" size={16} />Log out</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+        <aside className="ctl-sidebar" aria-label="Admin navigation">{nav}</aside>
         {drawer && (
           <>
             <button type="button" className="ctl-drawer-backdrop" onClick={closeDrawer} aria-label="Close navigation" />
-            <aside ref={drawerRef as React.RefObject<HTMLElement>} className="ctl-drawer" role="dialog" aria-modal="true" aria-label="Control navigation">
+            <aside ref={drawerRef as React.RefObject<HTMLElement>} className="ctl-drawer" role="dialog" aria-modal="true" aria-label="Admin navigation">
               <div className="ctl-drawer-head">
-                <span className="ctl-brand-name">Harsh // Control</span>
+                <span className="ctl-brand-name">Portfolio SaaS</span>
                 <button type="button" className="ctl-icon-btn" onClick={closeDrawer} aria-label="Close navigation"><AdminIcon name="close" /></button>
               </div>
               {nav}
@@ -383,91 +481,12 @@ export default function AdminApp() {
           </>
         )}
         <div className="ctl-body">
-          <header className="ctl-topbar">
-            <button
-              ref={menuButtonRef}
-              type="button"
-              className="ctl-menu-btn"
-              onClick={() => {
-                if (!compactNav) setSidebarCollapsed((value) => !value);
-                else setDrawer(true);
-              }}
-              aria-label={compactNav ? "Open navigation" : (sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")}
-              aria-expanded={compactNav ? drawer : !sidebarCollapsed}
-            ><AdminIcon name="panel" /></button>
+          <main className="ctl-main" id="ctl-main">
             <nav className="ctl-crumbs" aria-label="Breadcrumb">
-              <Link to="/private">Control</Link>
-              <span aria-hidden="true">/</span>
+              <span>Admin</span>
+              <span aria-hidden="true">›</span>
               <span aria-current="page">{title}</span>
             </nav>
-            <div className="ctl-topbar-right">
-              <button
-                type="button"
-                className="ctl-cmdk-btn"
-                onClick={() => setPaletteOpen(true)}
-                aria-label="Open command palette"
-              >
-                <AdminIcon name="search" /> <span>Search or command…</span> <kbd>{isMac ? "⌘K" : "Ctrl+K"}</kbd>
-              </button>
-              <div className="ctl-new-wrap" id="ctl-new-menu">
-                <button type="button" className="ctl-btn ctl-btn--primary ctl-btn--sm" onClick={() => setNewMenu((v) => !v)} aria-expanded={newMenu} aria-haspopup="menu">
-                  <AdminIcon name="plus" size={16} /><span>New</span>
-                </button>
-                {newMenu && (
-                  <div className="ctl-new-menu" role="menu" aria-label="Create new">
-                    {QUICK_CREATE.map((q) => (
-                      <button key={q.path} type="button" role="menuitem" onClick={() => { setNewMenu(false); navigate(q.path); }}>
-                        {q.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setNewMenu(false);
-                        if (!location.pathname.startsWith("/private/media")) navigate("/private/media");
-                        window.setTimeout(() => {
-                          if (!adminBus.requestUpload()) document.getElementById("ctl-media-upload")?.click();
-                        }, 150);
-                      }}
-                    >
-                      Upload media
-                    </button>
-                  </div>
-                )}
-              </div>
-              {unread > 0 && (
-                <Link to="/private/messages" className="ctl-btn ctl-btn--secondary ctl-btn--sm ctl-unread-link" aria-label={`${unread} unread messages`}>
-                  <AdminIcon name="messages" size={16} /><span>{unread} new</span>
-                </Link>
-              )}
-              <Link
-                to="/private/security"
-                className={`ctl-btn ctl-btn--ghost ctl-btn--sm${user.totpEnabled ? "" : " ctl-btn--warn"}`}
-                title={user.totpEnabled ? "Two-factor on" : "Two-factor off — enable in Security"}
-              >
-                <AdminIcon name={user.totpEnabled ? "security" : "alert"} size={16} /><span>{user.totpEnabled ? "2FA on" : "2FA off"}</span>
-              </Link>
-              <div className="ctl-user-menu-wrap" ref={userMenuRef}>
-                <button type="button" className="ctl-avatar-btn" onClick={() => setUserMenu((v) => !v)} aria-expanded={userMenu} aria-haspopup="menu" aria-label={`Account: ${user.email}`}>
-                  <span className="ctl-avatar" aria-hidden="true">{initial}</span>
-                </button>
-                {userMenu && (
-                  <div className="ctl-user-menu" role="menu" aria-label="Account">
-                    <div className="ctl-user-menu-account">
-                      {user.displayName && <div className="ctl-user-menu-name">{user.displayName}</div>}
-                      <div>{user.email}</div>
-                      <div>{user.role}</div>
-                    </div>
-                    <Link role="menuitem" to="/private/security" onClick={() => setUserMenu(false)}>Security center</Link>
-                    <Link role="menuitem" to="/" onClick={() => setUserMenu(false)}><AdminIcon name="external" size={16} />View public site</Link>
-                    <button type="button" role="menuitem" className="danger" onClick={() => { setUserMenu(false); void logout(); }}><AdminIcon name="logout" size={16} />Log out</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </header>
-          <main className="ctl-main" id="ctl-main">
             <Suspense fallback={<div className="ctl-route-loading" role="status"><span className="ctl-loading-dot" />Loading section…</div>}>
               <Routes>
                 <Route index element={<Overview onUnreadChange={refreshUnread} />} />

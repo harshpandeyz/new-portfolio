@@ -35,6 +35,18 @@ const glyphs: Record<string, ReactNode> = {
   file: <><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z" /><path d="M13 3v7h7" /></>,
   lock: <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 5v2" /></>,
   panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
+  dashboard: <><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8" /><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8" /></>,
+  bell: <><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
+  rocket: <><path d="M12 15c5-4 7-8.5 7-12-3.5 0-8 2-12 7l-3 1 3 4 4 3 1-3Z" /><path d="M9 12c1.5 1.5 3.5 3.5 6 6" /><circle cx="15" cy="9" r="1.4" /></>,
+  briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" /></>,
+  graduation: <><path d="m2.5 9 9.5-4.5L21.5 9 12 13.5 2.5 9Z" /><path d="M6.5 11.5V16c3 2 8 2 11 0v-4.5M22 9v5" /></>,
+  users: <><circle cx="9" cy="8" r="3.5" /><path d="M3 20c.7-3.8 3-5.5 6-5.5s5.3 1.7 6 5.5" /><circle cx="17" cy="9" r="2.6" /><path d="M16.5 14.6c2.3.3 3.9 1.8 4.5 4.4" /></>,
+  chart: <><path d="M3 3v18h18" /><path d="M7 15v3M12 10v8M17 6v12" /></>,
+  bot: <><rect x="5" y="9" width="14" height="10" rx="2.5" /><path d="M12 9V5M9 5h6" /><circle cx="9.5" cy="13.5" r="1" fill="currentColor" stroke="none" /><circle cx="14.5" cy="13.5" r="1" fill="currentColor" stroke="none" /><path d="M9.5 16.5h5" /></>,
+  book: <><path d="M5 4a2 2 0 0 1 2-2h13v16H7a2 2 0 0 0-2 2V4Z" /><path d="M5 18a2 2 0 0 1 2-2h13" /></>,
+  plug: <><path d="M9 3v6M15 3v6M7 6h10v4a5 5 0 0 1-10 0V6Z" /><path d="M12 15v6" /></>,
+  inbox: <><path d="M3 13v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6l-2.5-8h-13L3 13Z" /><path d="M3 13h6l1.5 2h3L15 13h6" /></>,
+  collapse: <><path d="m14 6-6 6 6 6" /></>,
 };
 
 export type AdminIconName = keyof typeof glyphs;
