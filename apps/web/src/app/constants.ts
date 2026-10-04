@@ -20,6 +20,7 @@ export const PROFILE = {
   /** Verified public email (also present in seeded profile + JSON-LD). */
   email: "harshap17058@gmail.com",
   availability: "Open to opportunities",
+  recruiterSummary: "Final-year B.Tech IT student building backend services and applied AI products. I take systems from model and API design through deployment, with hands-on work in Java and Spring Boot, Python and FastAPI, Node.js, and React.",
   resume: {
     /** Resolve against the origin the web assets are served from. */
     path: "/files/HARSH-RESUME.pdf",
@@ -72,10 +73,7 @@ export const WHATSAPP_HREF = PROFILE.whatsappNumber
 export const WHATSAPP_CONFIGURED = PROFILE.whatsappNumber != null && PROFILE.whatsappNumber !== "";
 
 export const SEO = {
-  // Deployed origin is intentionally overridable: the canonical Netlify
-  // hostname contains a historical spelling, so keep the fallback stable and
-  // override per-deploy via VITE_SITE_URL instead of renaming blindly.
-  siteUrl: (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, "") ?? "https://harshporfolio.netlify.app",
+  siteUrl: (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, "") ?? window.location.origin,
   title: "Harsh Pandey — Software Engineer | Backend · AI · Full Stack",
   description:
     "Harsh Pandey is a software engineer in Pune, India building backend systems, applied AI products and thoughtful full-stack experiences. Explore selected work, capabilities, credentials and an AI assistant.",

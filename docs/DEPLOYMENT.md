@@ -37,7 +37,7 @@ docker compose ps
 docker compose logs --tail=100 api
 curl --fail http://127.0.0.1:4000/api/health
 curl --fail http://127.0.0.1:4000/api/ready
-curl --fail http://127.0.0.1:8080/
+curl --fail http://127.0.0.1:5173/
 ```
 
 On the first deployment only, seed explicitly after migrations and before the

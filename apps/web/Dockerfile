@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
-ARG VITE_SITE_URL=http://localhost:8080
+ARG VITE_SITE_URL=http://localhost:5173
 ENV VITE_SITE_URL=$VITE_SITE_URL
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/package.json

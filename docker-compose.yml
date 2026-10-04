@@ -96,7 +96,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "127.0.0.1:5173:80"
     deploy:
       resources:
         limits:
