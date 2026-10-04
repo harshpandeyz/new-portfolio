@@ -91,7 +91,7 @@ export function ContactChannels({ onViewResume }: ContactChannelsProps) {
   ];
 
   return (
-    <div className="contact-channels" data-reveal>
+    <div className="contact-channels">
       {cards.map((c) =>
         c.action === "resume" ? (
           <ContactLinkCard

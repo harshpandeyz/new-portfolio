@@ -33,7 +33,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
     }
     const ip = clientIp(req);
 
-    const limit = rateLimit(`contact:${ip}`, CONTACT_MAX, CONTACT_WINDOW_MS);
+    const limit = await rateLimit(`contact:${ip}`, CONTACT_MAX, CONTACT_WINDOW_MS);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       return reply.code(429).send({ error: "RATE_LIMITED", message: "Too many messages. Try again later." });
@@ -123,14 +123,14 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   // ── admin: reply directly by email (no mail app involved) ──────
   app.post("/:id/reply", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req, reply) => {
-    const ipLimit = rateLimit(`reply:${clientIp(req)}`, REPLY_MAX_PER_IP, REPLY_WINDOW_MS);
+    const ipLimit = await rateLimit(`reply:${clientIp(req)}`, REPLY_MAX_PER_IP, REPLY_WINDOW_MS);
     if (!ipLimit.allowed) {
       reply.header("retry-after", ipLimit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many replies. Try again later.");
     }
     const { id } = req.params as { id: string };
     if (id.length > 64) throw notFound("Contact message");
-    const msgLimit = rateLimit(`reply:msg:${id}`, REPLY_MAX_PER_MESSAGE, 60 * 60 * 1000);
+    const msgLimit = await rateLimit(`reply:msg:${id}`, REPLY_MAX_PER_MESSAGE, 60 * 60 * 1000);
     if (!msgLimit.allowed) {
       reply.header("retry-after", msgLimit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "This conversation already received several replies recently. Try again later.");
@@ -192,7 +192,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/:id/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const { status } = parseBody(req, messageStatusSchema);
@@ -204,7 +204,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/bulk/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { ids, status } = parseBody(req, messageBulkStatusSchema);
     const result = await prisma.contactMessage.updateMany({ where: { id: { in: ids } }, data: { status } });
@@ -213,7 +213,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/bulk/delete", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    const wl = await rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
     const { ids } = parseBody(req, messageBulkDeleteSchema);
     const result = await prisma.contactMessage.deleteMany({ where: { id: { in: ids } } });
@@ -222,7 +222,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/:id", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    const wl = await rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });

@@ -2,6 +2,7 @@ import { ContactChannels } from "./ContactChannels";
 import { ContactForm } from "./ContactForm";
 import { IconArrowRight } from "../../components/ui/icons";
 import { useData } from "../../lib/data";
+import { scrollBehavior } from "../../lib/motion";
 
 export interface ContactProps {
   onViewResume: () => void;
@@ -18,7 +19,7 @@ export function Contact({ onViewResume }: ContactProps) {
   return (
     <section className="section contact-section" id="contact" aria-label="Contact">
       <div className="container contact-container">
-        <div className="contact-head" data-reveal>
+        <div className="contact-head">
           <span className="contact-eyebrow">Contact</span>
           <h2 className="contact-title">
             Let&rsquo;s build something <span className="contact-title-accent">meaningful.</span>
@@ -31,7 +32,7 @@ export function Contact({ onViewResume }: ContactProps) {
         </div>
 
         <div className="contact-grid">
-          <div className="contact-panel" data-reveal>
+          <div className="contact-panel">
             <div className="contact-panel-head">
               <span className="eyebrow">Get in touch</span>
               <p>Different ways to reach me. Choose what works best for you.</p>
@@ -39,7 +40,7 @@ export function Contact({ onViewResume }: ContactProps) {
             <ContactChannels onViewResume={onViewResume} />
           </div>
 
-          <div className="contact-panel" data-reveal>
+          <div className="contact-panel">
             <div className="contact-panel-head">
               <span className="eyebrow">Send a message</span>
               <p>Share a bit about what you have in mind. The more context, the better.</p>
@@ -48,7 +49,7 @@ export function Contact({ onViewResume }: ContactProps) {
           </div>
         </div>
 
-        <div className="contact-foot" data-reveal>
+        <div className="contact-foot">
           <p className="contact-mantras" aria-label="Build, learn, collaborate, create impact">
             <span>Build</span>
             <span aria-hidden="true">·</span>
@@ -70,7 +71,7 @@ export function Contact({ onViewResume }: ContactProps) {
             aria-label="Back to the top of the page"
             onClick={(e) => {
               e.preventDefault();
-              document.getElementById("main")?.scrollIntoView({ behavior: "smooth" });
+              document.getElementById("main")?.scrollIntoView({ behavior: scrollBehavior() });
               window.history.replaceState(null, "", "#contact");
             }}
           >

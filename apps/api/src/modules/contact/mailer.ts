@@ -47,7 +47,7 @@ function cleanAddress(value: string): string {
 }
 
 export function emailSetupHint(): string {
-  return "Set RESEND_API_KEY and EMAIL_FROM (recommended, works on Render Free) or SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD, then try again.";
+  return "Set RESEND_API_KEY and EMAIL_FROM or SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD, then try again.";
 }
 
 interface OutgoingMail {
@@ -61,7 +61,7 @@ interface OutgoingMail {
 
 /**
  * HTTPS email API (Resend) — the production path on hosts that block
- * outbound SMTP (Render Free blocks 25/465/587). Same templates as SMTP;
+ * outbound SMTP. Same templates as SMTP;
  * only the transport differs. Uses built-in fetch: no new dependency.
  */
 async function sendViaResend(mail: OutgoingMail): Promise<void> {
