@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/Button";
 import { PROFILE } from "../../app/constants";
 import { resolveRecruiterProjects } from "@hp/shared";
 import { IconExternal, IconGithub, IconLinkedIn, IconMail } from "../../components/ui/icons";
+import "./recruiter.css";
 
 export interface RecruiterProps {
   onViewResume: () => void;
@@ -21,25 +22,22 @@ export interface RecruiterProps {
  * the homepage (never the first four featured records).
  */
 export function Recruiter({ onViewResume }: RecruiterProps) {
-  const { profile, projects, skills, education, timeline, certificates } = useData();
+  const { profile, projects, skills, education, timeline, timelineLoaded, timelineError, loadTimeline, certificates, error, refresh, loaded } = useData();
 
   useEffect(() => {
-    document.title = `${profile?.name ?? "Harsh Pandey"} — Recruiter briefing`;
-    void api.track("recruiter_view");
-    return () => { document.title = "Harsh Pandey — Software Engineer"; };
-  }, [profile?.name]);
+    if (loaded) void api.track("recruiter_view");
+  }, [loaded]);
+
+  useEffect(() => { void loadTimeline(); }, [loadTimeline]);
 
   const top = resolveRecruiterProjects(projects);
+  const prioritizedSkills = skills
+    .filter((skill) => skill.recruiterPriority > 0)
+    .sort((a, b) => a.recruiterPriority - b.recruiterPriority);
   const skillGroups = ["BACKEND", "AI_ML", "FRONTEND", "DATABASES", "LANGUAGES", "CLOUD_DEVOPS", "SECURITY"].map((category) => ({
     category,
-    items: skills
-      .filter((skill) => skill.category === category && (skill.level === "core" || skill.level === "working" || skill.featured))
-      .sort((a, b) => {
-        const order: Record<string, number> = { core: 0, working: 1, exploring: 2, experimental: 3 };
-        if (a.featured !== b.featured) return a.featured ? -1 : 1;
-        return (order[a.level] ?? 9) - (order[b.level] ?? 9);
-      })
-      .slice(0, 8)
+    items: prioritizedSkills
+      .filter((skill) => skill.category === category)
       .map((skill) => skill.name),
   })).filter((group) => group.items.length);
 
@@ -50,12 +48,12 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
   const email = profile?.email ?? PROFILE.email;
   const headline = profile?.headline ?? PROFILE.headline;
   const positioning = profile?.subHeadline ?? PROFILE.positioning;
-  const summary = profile?.bio ?? "Profile summary is temporarily unavailable.";
+  const summary = profile?.recruiterSummary || PROFILE.recruiterSummary;
   const availability = profile?.availability ?? PROFILE.availability;
   const location = profile?.location ?? PROFILE.location;
-  const strongest = skills.filter((s) => s.featured || s.level === "core").slice(0, 6).map((s) => s.name);
+  const strongest = prioritizedSkills.slice(0, 4).map((skill) => skill.name);
   const featuredCerts = certificates.filter((c) => c.featured).slice(0, 4);
-  const edu = education[0];
+  const edu = education.find((item) => item.primary);
 
   return (
     <div className="recruiter-page">
@@ -72,12 +70,14 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
           <span className="eyebrow">Recruiter briefing · 60-second scan</span>
           <h1>{profile?.name ?? PROFILE.name}</h1>
           <p className="recruiter-role">{headline} — {positioning}</p>
-          <p className="recruiter-summary">{summary.split(". ").slice(0, 2).join(". ") + "."}</p>
+          <p className="recruiter-summary">{summary}</p>
           <div className="recruiter-cta">
             <Button variant="primary" href={`mailto:${email}`}>Contact</Button>
             <Button onClick={onViewResume}>View résumé</Button>
           </div>
         </section>
+
+        {error && <p className="recruiter-stale" role="status">Some portfolio details couldn't refresh. Showing available saved content. <button type="button" onClick={() => void refresh()}>Try again</button></p>}
 
         <section className="recruiter-glance" aria-label="At a glance">
           <div>
@@ -90,8 +90,8 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
           </div>
           <div>
             <span>Education</span>
-            <strong>{edu ? `${edu.degree} · ${edu.endYear ?? "Present"}` : "B.Tech IT · 2027"}</strong>
-            <small>{edu?.institution ?? "MIT-ADT University, Pune"}{edu?.grade ? ` · ${edu.grade}` : ""}</small>
+            <strong>{edu ? `${edu.degree} · ${edu.endYear ?? "Present"}` : "Education not listed"}</strong>
+            <small>{edu ? `${edu.institution}${edu.grade ? ` · ${edu.grade}` : ""}` : ""}</small>
           </div>
           <div>
             <span>Strongest</span>
@@ -117,7 +117,11 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
               ))}
             </div>
 
-            {experience.length > 0 && (
+            {timelineError ? (
+              <p role="status">{timelineError} <button type="button" onClick={() => void loadTimeline()}>Retry</button></p>
+            ) : !timelineLoaded ? (
+              <p role="status">Loading experience…</p>
+            ) : experience.length > 0 ? (
               <>
                 <div className="recruiter-section-title second"><span>02</span><h2>Experience</h2></div>
                 {experience.map((item) => (
@@ -128,10 +132,10 @@ export function Recruiter({ onViewResume }: RecruiterProps) {
                   </div>
                 ))}
               </>
-            )}
+            ) : <p>Experience details are not listed.</p>}
 
-            <div className="recruiter-section-title second"><span>{experience.length > 0 ? "03" : "02"}</span><h2>Education</h2></div>
-            {education.map((item) => (
+                <div className="recruiter-section-title second"><span>{experience.length > 0 ? "03" : "02"}</span><h2>Education</h2></div>
+            {[...education].sort((a, b) => Number(b.primary) - Number(a.primary) || a.order - b.order).map((item) => (
               <div className="recruiter-education" key={item.id}>
                 <h3>{item.degree}</h3>
                 <p>{item.institution}{item.field ? ` · ${item.field}` : ""}</p>
