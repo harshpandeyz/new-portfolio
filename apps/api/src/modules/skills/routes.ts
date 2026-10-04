@@ -13,6 +13,16 @@ import { invalidateKnowledge } from "../chat/knowledge.js";
 
 const requireEditor = requirePermission("content:write");
 
+async function assertProjectReferences(slugs: readonly string[]): Promise<void> {
+  if (slugs.length === 0) return;
+  const rows = await prisma.project.findMany({ where: { slug: { in: [...slugs] } }, select: { slug: true } });
+  const found = new Set(rows.map((project) => project.slug));
+  const missing = slugs.filter((slug) => !found.has(slug));
+  if (missing.length > 0) {
+    throw new HttpError(400, "INVALID_PROJECT_REFERENCE", "Every skill project reference must match an existing project.", { slugs: missing });
+  }
+}
+
 export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.get("/", async (req) => {
     const { category } = parseQuery(req, skillQuerySchema);
@@ -25,9 +35,10 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const input = parseBody(req, skillInputSchema);
+    await assertProjectReferences(input.usedInProjectSlugs);
     const skill = await prisma.skill.create({ data: input });
     await audit(req, "CONTENT_CREATED", "skill", skill.id, { name: skill.name });
     invalidateKnowledge();
@@ -36,10 +47,11 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, skillInputSchema.partial());
+    if (input.usedInProjectSlugs !== undefined) await assertProjectReferences(input.usedInProjectSlugs);
     const skill = await prisma.skill.update({ where: { id }, data: input });
     await audit(req, "CONTENT_UPDATED", "skill", id, { name: skill.name });
     invalidateKnowledge();
@@ -47,7 +59,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.skill.delete({ where: { id } });

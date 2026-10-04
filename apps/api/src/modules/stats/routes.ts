@@ -20,7 +20,7 @@ export async function statsRoutes(app: FastifyInstance): Promise<void> {
         prisma.certificate.count(),
         prisma.skill.count(),
         prisma.timelineItem.count(),
-        prisma.chatQueryLog.count(),
+        prisma.analyticsEvent.count({ where: { type: "chat_query" } }),
         prisma.contactMessage.count(),
         prisma.contactMessage.count({ where: { status: "NEW" } }),
         prisma.analyticsEvent.count({ where: { type: "page_view" } }),

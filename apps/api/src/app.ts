@@ -26,6 +26,7 @@ import { githubRoutes } from "./modules/github/routes.js";
 import { statsRoutes } from "./modules/stats/routes.js";
 import { settingsRoutes } from "./modules/settings/routes.js";
 import { aiProviderRoutes } from "./modules/ai-providers/routes.js";
+import { publicHomeData, publicRoutes } from "./modules/public/routes.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -61,6 +62,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   // behind a reverse proxy; mutations and private routes stay no-store.
   app.addHook("onSend", async (req, reply, payload) => {
     const url = req.url;
+    const pathname = url.split("?", 1)[0] ?? url;
+    if (url.startsWith("/api/public/home") || pathname === "/api/home") {
+      // Runtime flags must reflect admin changes on the next page load. The
+      // bootstrap is small enough to skip browser/CDN caching entirely.
+      reply.header("cache-control", "no-store, no-cache, must-revalidate, private");
+      reply.header("pragma", "no-cache");
+      return payload;
+    }
     if (
       url.startsWith("/api/auth") ||
       url.startsWith("/api/contact") ||
@@ -70,15 +79,24 @@ export async function buildApp(): Promise<FastifyInstance> {
       url.startsWith("/api/chat") ||
       url.startsWith("/api/github") ||
       url.startsWith("/api/ai-providers") ||
+      url.startsWith("/api/projects/admin") ||
       url.startsWith("/api/events/summary")
     ) {
       reply.header("cache-control", "no-store, no-cache, must-revalidate, private");
       reply.header("pragma", "no-cache");
       return payload;
     }
-    if (req.method === "GET" && reply.statusCode === 200 && url.startsWith("/api/")) {
-      // Public content (profile/projects/skills/…) — safe for 60s shared cache.
-      // Vary on Origin so CORS caches stay correct behind nginx.
+    const cacheablePublicContent =
+      pathname === "/api/profile" ||
+      pathname === "/api/projects" ||
+      (pathname.startsWith("/api/projects/") && !pathname.startsWith("/api/projects/admin")) ||
+      pathname === "/api/certificates" || pathname.startsWith("/api/certificates/") ||
+      pathname === "/api/skills" ||
+      pathname === "/api/timeline" ||
+      pathname === "/api/education";
+    if (req.method === "GET" && reply.statusCode === 200 && cacheablePublicContent) {
+      // Only known public content routes get a shared cache. Vary on Origin so
+      // CORS caches stay correct behind nginx; all unknown routes stay uncached.
       reply.header("cache-control", "public, max-age=60, stale-while-revalidate=120");
       reply.header("vary", "Origin");
     }
@@ -143,10 +161,15 @@ export async function buildApp(): Promise<FastifyInstance> {
     reply.code(404).send({ error: "NOT_FOUND", message: "Unknown route" });
   });
 
-  // periodic session purge
-  const purgeTimer = setInterval(() => {
-    void import("./modules/auth/session.js").then((m) => m.purgeExpiredSessions()).catch(() => undefined);
-  }, 60 * 60 * 1000);
+  // Periodic cleanup is safe across replicas; all operations are idempotent.
+  const runMaintenance = () => {
+    void Promise.allSettled([
+      import("./modules/auth/session.js").then((m) => m.purgeExpiredSessions()),
+      import("./modules/analytics/retention.js").then((m) => m.purgeRetainedData()),
+    ]);
+  };
+  runMaintenance();
+  const purgeTimer = setInterval(runMaintenance, 60 * 60 * 1000);
   purgeTimer.unref?.();
   app.addHook("onClose", async () => {
     clearInterval(purgeTimer);
@@ -177,6 +200,9 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(profileRoutes, { prefix: "/api/profile" });
+  await app.register(publicRoutes, { prefix: "/api/public" });
+  // Keep the concise path for local integrations; both paths share one public projection.
+  app.get("/api/home", publicHomeData);
   await app.register(projectRoutes, { prefix: "/api/projects" });
   await app.register(certificateRoutes, { prefix: "/api/certificates" });
   await app.register(skillRoutes, { prefix: "/api/skills" });

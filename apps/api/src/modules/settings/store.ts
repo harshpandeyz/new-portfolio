@@ -38,6 +38,12 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   return value;
 }
 
+/** Check analytics directly so flag changes take effect across replicas immediately. */
+export async function isAnalyticsEnabled(): Promise<boolean> {
+  const setting = await prisma.siteSetting.findUnique({ where: { key: KEY_BY_SETTING.analyticsEnabled }, select: { value: true } });
+  return parseBoolean(setting?.value, DEFAULT_SITE_SETTINGS.analyticsEnabled);
+}
+
 export async function saveSiteSettings(settings: SiteSettings): Promise<void> {
   await prisma.$transaction(
     (Object.entries(KEY_BY_SETTING) as [keyof SiteSettings, string][]).map(([setting, key]) =>

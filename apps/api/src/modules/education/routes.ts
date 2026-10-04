@@ -19,10 +19,13 @@ export async function educationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const input = parseBody(req, educationInputSchema);
-    const item = await prisma.education.create({ data: input });
+    const item = await prisma.$transaction(async (tx) => {
+      if (input.primary) await tx.education.updateMany({ data: { primary: false } });
+      return tx.education.create({ data: input });
+    });
     await audit(req, "CONTENT_CREATED", "education", item.id, { degree: item.degree });
     invalidateKnowledge();
     reply.code(201);
@@ -30,18 +33,21 @@ export async function educationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, educationInputSchema.partial());
-    const item = await prisma.education.update({ where: { id }, data: input });
+    const item = await prisma.$transaction(async (tx) => {
+      if (input.primary) await tx.education.updateMany({ where: { id: { not: id } }, data: { primary: false } });
+      return tx.education.update({ where: { id }, data: input });
+    });
     await audit(req, "CONTENT_UPDATED", "education", id);
     invalidateKnowledge();
     return { item };
   });
 
   app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
-    const wl = rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
     if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.education.delete({ where: { id } });

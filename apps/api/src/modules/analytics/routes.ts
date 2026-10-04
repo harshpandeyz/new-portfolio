@@ -1,23 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { analyticsEventValues } from "@hp/shared";
 
 import { prisma } from "../../db/prisma.js";
 import { requirePermission } from "../auth/rbac.js";
 import { clientIp, parseBody, parseQuery } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
-import { getSiteSettings } from "../settings/store.js";
 import { isTest } from "../../config.js";
+import { trackAnalyticsEvent } from "./track.js";
 
 const EVENTS_WINDOW_MS = 60 * 1000;
 const EVENTS_MAX = 30;
 
 const eventSchema = z.object({
-  type: z.enum(["page_view", "project_view", "certificate_view", "chat_query", "contact_submit", "resume_download", "recruiter_view"]),
+  type: z.enum(analyticsEventValues),
   ref: z.string().trim().max(200).optional(),
-  meta: z
-    .record(z.string().max(60), z.union([z.string().max(500), z.number(), z.boolean()]))
-    .refine((m) => Object.keys(m).length <= 10, "meta accepts at most 10 keys")
-    .optional(),
 });
 
 const summaryQuerySchema = z.object({
@@ -29,11 +26,8 @@ const requireStatsRead = requirePermission("content:read");
 
 export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
   app.post("/", async (req, reply) => {
-    if (!(await getSiteSettings()).analyticsEnabled) {
-      return reply.code(202).send({ ok: true, disabled: true });
-    }
     if (!isTest) {
-      const limit = rateLimit(`events:${clientIp(req)}`, EVENTS_MAX, EVENTS_WINDOW_MS);
+      const limit = await rateLimit(`events:${clientIp(req)}`, EVENTS_MAX, EVENTS_WINDOW_MS);
       if (!limit.allowed) {
         reply.header("retry-after", limit.retryAfterSeconds);
         reply.code(429);
@@ -41,11 +35,9 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     const input = parseBody(req, eventSchema);
-    await prisma.analyticsEvent.create({
-      data: { type: input.type, ref: input.ref ?? null, meta: input.meta ?? undefined },
-    });
+    const recorded = await trackAnalyticsEvent(input.type, input.ref);
     reply.code(202);
-    return { ok: true };
+    return recorded ? { ok: true } : { ok: true, disabled: true };
   });
 
   app.get("/summary", { preHandler: [requireStatsRead] }, async (req) => {

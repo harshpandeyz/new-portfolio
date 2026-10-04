@@ -20,7 +20,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
-    const limit = rateLimit(`settings:${clientIp(req)}`, 30, 10 * 60 * 1000);
+    const limit = await rateLimit(`settings:${clientIp(req)}`, 30, 10 * 60 * 1000);
     if (!limit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
     const settings = parseBody(req, siteSettingsInputSchema);
     await saveSiteSettings(settings);

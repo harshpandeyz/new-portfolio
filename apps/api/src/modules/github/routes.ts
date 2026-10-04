@@ -39,7 +39,7 @@ let inflight: Promise<unknown> | null = null;
  */
 export async function githubRoutes(app: FastifyInstance): Promise<void> {
   app.get("/overview", async (req, reply) => {
-    const limit = rateLimit(`github:${clientIp(req)}`, 30, 60 * 1000);
+    const limit = await rateLimit(`github:${clientIp(req)}`, 30, 60 * 1000);
     if (!limit.allowed) {
       reply.header("retry-after", limit.retryAfterSeconds);
       throw new HttpError(429, "RATE_LIMITED", "Too many requests. Try again shortly.");

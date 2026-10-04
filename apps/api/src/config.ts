@@ -31,7 +31,7 @@ export const isTest = process.env.TEST_MODE === "1";
 
 function parseTrustProxy(raw: string | undefined): boolean | number | string[] {
   const value = raw?.trim();
-  if (!value) return 1; // default: trust exactly one reverse proxy (nginx/Caddy/Render/Railway)
+  if (!value) return 1; // default: trust exactly one reverse proxy (nginx/Caddy)
   if (/^\d+$/.test(value)) return Number(value);
   if (/^true$/i.test(value)) return true;
   if (/^false$/i.test(value)) return false;
@@ -90,7 +90,7 @@ export const config = {
     replyFromName: process.env.REPLY_FROM_NAME ?? "Harsh Pandey",
   },
   email: {
-    // Render Free (and similar sandboxes) block outbound SMTP ports, so
+    // Some cloud hosts restrict outbound SMTP ports, so
     // production mail goes over HTTPS. Explicit EMAIL_PROVIDER wins;
     // otherwise a present RESEND_API_KEY selects Resend automatically,
     // keeping local Gmail-SMTP setups working with zero changes.
