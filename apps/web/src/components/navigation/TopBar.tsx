@@ -68,10 +68,10 @@ export function TopBar({ scrolled, onLogoClick, activeSection, onViewResume, onA
               {link.label}
             </a>
           ))}
-          <Button size="sm" variant="ghost" onClick={onAskHarsh}>
+          <Button size="sm" variant="ghost" className="topbar-ask" onClick={onAskHarsh}>
             Ask Harsh
           </Button>
-          <Button size="sm" onClick={onViewResume}>
+          <Button size="sm" className="topbar-resume" onClick={onViewResume}>
             Résumé
           </Button>
         </nav>
