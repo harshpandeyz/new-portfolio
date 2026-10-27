@@ -1,4 +1,4 @@
-# Harsh | Software Engineer
+# Harsh Pandey | Software Engineer
 
 > **I build software that holds up beyond the demo.**
 
