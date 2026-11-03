@@ -1,190 +1,327 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { resolveMediaUrl } from "../../lib/api";
+import { FLAGSHIP_SLUGS, type PublicProject, type Skill } from "@hp/shared";
+import { PROFILE } from "../../app/constants";
+import { IconExternal, IconGithub, IconLinkedIn, IconMail } from "../../components/ui/icons";
+import { api, resolveMediaUrl } from "../../lib/api";
 import { formatTaxonomy } from "../../lib/format";
 import { useData } from "../../lib/data";
-import { api } from "../../lib/api";
-import { Button } from "../../components/ui/Button";
-import { PROFILE } from "../../app/constants";
-import { resolveRecruiterProjects } from "@hp/shared";
-import { IconExternal, IconGithub, IconLinkedIn, IconMail } from "../../components/ui/icons";
+import { CCTV_SLUG } from "../projects/flagshipConfig";
 import "./recruiter.css";
 
 export interface RecruiterProps {
   onViewResume: () => void;
 }
 
-/**
- * Premium recruiter briefing — 30–60 second scan.
- * Editorial grid: identity → at-a-glance → signature evidence → capabilities
- * → education/experience → contact. Same intentional project hierarchy as
- * the homepage (never the first four featured records).
- */
+const SKILL_CATEGORIES = ["LANGUAGES", "FRONTEND", "BACKEND", "DATABASES", "AI_ML", "CLOUD_DEVOPS", "SECURITY", "MOBILE", "BLOCKCHAIN", "EXPERIMENTAL"];
+const RESUME_SKILL_NAMES = new Set([
+  "Python", "React.js", "FastAPI", "MongoDB", "Computer Vision", "YOLOv8", "OpenCV",
+  "LLM API integration", "Evidence integrity (AES/SHA-256)",
+]);
+const RESUME_STACK_NAMES = new Set(["TypeScript", "Redis", "Docker", "SSE", "JSON Schema", "Pytest"]);
+
+function normalizeTechnology(value: string): string {
+  return value.toLowerCase().replace(/\b\d+(?:\.\d+)*\b/g, "").replace(/[^a-z0-9]/g, "");
+}
+
+/** Match only exact technology labels, allowing common spelling/version variants. */
+function stackMatchesSkill(skillName: string, stackName: string): boolean {
+  const skill = normalizeTechnology(skillName);
+  const stack = normalizeTechnology(stackName);
+  if (skill === stack) return true;
+  return (skill === "reactjs" && stack === "react") ||
+    (skill === "python" && stack.startsWith("python")) ||
+    (skill === "dockercompose" && stack === "dockercompose");
+}
+
+function ProjectGlyph({ slug }: { slug: string }) {
+  if (slug === "orchestraai") return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="5" cy="12" r="2.1" /><circle cx="19" cy="6" r="2.1" /><circle cx="19" cy="18" r="2.1" /><path d="M7.2 11.2 16.8 6.8M7.2 12.8l9.6 4.4" />
+    </svg>
+  );
+  if (slug === "senseline") return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 13h3l2-6 4 11 3-8 2 3h4" /><path d="M3 20h18" opacity=".45" />
+    </svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z" /><circle cx="12" cy="12.5" r="3.4" /><path d="M7 6V4h3" />
+    </svg>
+  );
+}
+
+function PrintGlyph() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM18 12h.01" /></svg>;
+}
+
+function PreviewGlyph() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 12s3.2-6 9.5-6 9.5 6 9.5 6-3.2 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.6" /></svg>;
+}
+
+function HeaderIconLink({ href, label, children, external = false }: {
+  href: string;
+  label: string;
+    children: ReactNode;
+  external?: boolean;
+}) {
+  return (
+    <a
+      className="resume-icon-link"
+      href={href}
+      aria-label={label}
+      data-tooltip={label}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
+    >
+      {children}
+    </a>
+  );
+}
+
+function ProjectEntry({
+  project, index, pinned, onPin, onHover, onFocus, onBlur,
+}: {
+  project: PublicProject;
+  index: number;
+  pinned: boolean;
+  onPin: (slug: string) => void;
+  onHover: (slug: string | null) => void;
+  onFocus: (slug: string) => void;
+  onBlur: (slug: string) => void;
+}) {
+  const isCctv = project.slug === CCTV_SLUG;
+  const title = isCctv ? project.codename || project.title : project.title;
+  const subtitle = isCctv ? project.title : project.codename;
+  const stack = project.stack.slice(0, 5);
+
+  return (
+    <article
+      className="resume-project"
+      data-project-slug={project.slug}
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") onHover(project.slug); }}
+      onPointerLeave={(event) => { if (event.pointerType === "mouse") onHover(null); }}
+      onPointerUp={(event) => {
+        const target = event.target;
+        if (event.pointerType === "touch" && !(target instanceof Element && target.closest("a, button"))) onPin(project.slug);
+      }}
+      onFocusCapture={() => onFocus(project.slug)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onBlur(project.slug);
+      }}
+    >
+      <span className="resume-project-mark"><ProjectGlyph slug={project.slug} /></span>
+      <div className="resume-project-content">
+        <div className="resume-project-heading">
+          <span className="resume-project-index">{String(index + 1).padStart(2, "0")}</span>
+          <h3>
+            <button
+              className="resume-project-select"
+              type="button"
+              aria-label={`Highlight skills used in ${title}`}
+              aria-pressed={pinned}
+              onPointerUp={(event) => {
+                if (event.pointerType === "touch") onBlur(project.slug);
+              }}
+              onClick={() => onPin(project.slug)}
+            >{title}</button>
+          </h3>
+          {subtitle && <span className="resume-project-subtitle">{subtitle}</span>}
+        </div>
+        <p>{project.shortDescription}</p>
+        <div className="resume-project-bottom">
+          <div className="resume-project-tags" aria-label="Project technologies">
+            {stack.map((technology) => <span key={technology}>{technology}</span>)}
+          </div>
+          <div className="resume-project-links">
+            {project.githubUrl && <a href={project.githubUrl} target="_blank" rel="noopener noreferrer">GitHub <IconExternal /></a>}
+            <Link to={`/projects/${project.slug}`}>Case study <span aria-hidden="true">↗</span></Link>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** One-page résumé view with project-driven skill highlighting. */
 export function Recruiter({ onViewResume }: RecruiterProps) {
-  const { profile, projects, skills, education, timeline, timelineLoaded, timelineError, loadTimeline, certificates, error, refresh, loaded } = useData();
+  const { profile, projects, skills, education, loaded, error, refresh } = useData();
+  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
+  const [focusedSlug, setFocusedSlug] = useState<string | null>(null);
+  const [pinnedSlug, setPinnedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (loaded) void api.track("recruiter_view");
   }, [loaded]);
 
-  useEffect(() => { void loadTimeline(); }, [loadTimeline]);
-
-  const top = resolveRecruiterProjects(projects);
-  const prioritizedSkills = skills
-    .filter((skill) => skill.recruiterPriority > 0)
-    .sort((a, b) => a.recruiterPriority - b.recruiterPriority);
-  const skillGroups = ["BACKEND", "AI_ML", "FRONTEND", "DATABASES", "LANGUAGES", "CLOUD_DEVOPS", "SECURITY"].map((category) => ({
-    category,
-    items: prioritizedSkills
-      .filter((skill) => skill.category === category)
-      .map((skill) => skill.name),
-  })).filter((group) => group.items.length);
-
-  const experience = timeline.filter((t) => t.type === "experience").slice(0, 3);
-
-  const social = (label: string) => profile?.socials.find((s) => s.label.toLowerCase() === label.toLowerCase())?.url;
-  const resumePath = profile?.resumeUrl ?? PROFILE.resume.path;
+  const name = profile?.name ?? PROFILE.name;
   const email = profile?.email ?? PROFILE.email;
-  const headline = profile?.headline ?? PROFILE.headline;
-  const positioning = profile?.subHeadline ?? PROFILE.positioning;
-  const summary = profile?.recruiterSummary || PROFILE.recruiterSummary;
-  const availability = profile?.availability ?? PROFILE.availability;
   const location = profile?.location ?? PROFILE.location;
-  const strongest = prioritizedSkills.slice(0, 4).map((skill) => skill.name);
-  const featuredCerts = certificates.filter((c) => c.featured).slice(0, 4);
-  const edu = education.find((item) => item.primary);
+  const headline = profile?.headline ?? PROFILE.headline;
+  const summary = profile?.recruiterSummary || PROFILE.recruiterSummary;
+  const resumeUrl = resolveMediaUrl(profile?.resumeUrl ?? PROFILE.resume.path);
+  const resumeLabel = profile?.resumeLabel ?? PROFILE.resume.label;
+  const social = (label: string) => profile?.socials.find((item) => item.label.toLowerCase() === label)?.url;
+  const githubUrl = social("github") ?? PROFILE.socials.github.url;
+  const linkedInUrl = social("linkedin") ?? PROFILE.socials.linkedin.url;
+
+  const featuredProjects = useMemo(
+    () => FLAGSHIP_SLUGS.map((slug) => projects.find((project) => project.slug === slug)).filter((project): project is PublicProject => Boolean(project)),
+    [projects],
+  );
+  const projectBySlug = useMemo(() => new Map(featuredProjects.map((project) => [project.slug, project])), [featuredProjects]);
+  const relevantSkills = useMemo(
+    () => skills.filter((skill) => skill.recruiterPriority > 0 || RESUME_SKILL_NAMES.has(skill.name)),
+    [skills],
+  );
+  const skillGroups = useMemo(() => SKILL_CATEGORIES.map((category) => ({
+    category,
+    items: relevantSkills.filter((skill) => skill.category === category).sort((a, b) => a.recruiterPriority > 0 && b.recruiterPriority > 0 ? a.recruiterPriority - b.recruiterPriority : a.name.localeCompare(b.name)),
+  })).filter((group) => group.items.length), [relevantSkills]);
+  const unclassifiedStack = useMemo(() => {
+    const stackByTechnology = new Map<string, { technology: string; slugs: string[] }>();
+    featuredProjects.forEach((project) => project.stack.forEach((technology) => {
+      if (relevantSkills.some((skill) => stackMatchesSkill(skill.name, technology))) return;
+      if (!RESUME_STACK_NAMES.has(technology)) return;
+      const normalized = normalizeTechnology(technology);
+      const current = stackByTechnology.get(normalized);
+      if (current) {
+        if (!current.slugs.includes(project.slug)) current.slugs.push(project.slug);
+      } else if (normalized) stackByTechnology.set(normalized, { technology, slugs: [project.slug] });
+    }));
+    return [...stackByTechnology.values()];
+  }, [featuredProjects, relevantSkills]);
+
+  const activeProjectSlug = hoveredSlug ?? focusedSlug ?? pinnedSlug;
+  const activeProject = activeProjectSlug ? projectBySlug.get(activeProjectSlug) : undefined;
+  const primaryEducation = education.find((item) => item.primary);
+  const featuredSource = "Selected commit 5394dfc78b: a snapshot tool using a DEMO mock and SSRF-guarded fetch.";
+  const setHover = (slug: string | null) => setHoveredSlug(slug);
+  const setFocus = (slug: string) => setFocusedSlug(slug);
+  const clearFocus = (slug: string) => setFocusedSlug((current) => current === slug ? null : current);
+  const togglePinned = (slug: string) => setPinnedSlug((current) => current === slug ? null : slug);
+  const skillUsesProject = (skill: Skill, slug: string) => {
+    const project = projectBySlug.get(slug);
+    return skill.usedInProjectSlugs.includes(slug) || Boolean(project?.stack.some((technology) => stackMatchesSkill(skill.name, technology)));
+  };
 
   return (
-    <div className="recruiter-page">
-      <div className="container recruiter-inner">
-        <header className="recruiter-header">
-          <Link to="/" className="brand">{profile?.name ?? PROFILE.name}</Link>
-          <div className="recruiter-header-actions">
-            <Button href={resolveMediaUrl(resumePath)} download>Download résumé</Button>
-            <Link className="btn btn-sm btn-ghost" to="/">Full portfolio ↗</Link>
+    <div className="recruiter-page resume-page">
+      <div className="resume-shell">
+        <header className="resume-header">
+          <Link to="/" className="resume-identity" aria-label="Return to Harsh Pandey portfolio">
+            <h1>{name}</h1><span>{headline}</span>
+          </Link>
+          <div className="resume-header-actions">
+            <nav className="resume-socials" aria-label="Contact and social links">
+              <HeaderIconLink href={githubUrl} label="GitHub profile" external><IconGithub /></HeaderIconLink>
+              <HeaderIconLink href={linkedInUrl} label="LinkedIn profile" external><IconLinkedIn /></HeaderIconLink>
+              <HeaderIconLink href={`mailto:${email}`} label={`Email ${email}`}><IconMail /></HeaderIconLink>
+            </nav>
+            <span className="resume-header-divider" aria-hidden="true" />
+            <button className="resume-icon-link resume-screen-action" type="button" aria-label="Preview résumé" data-tooltip="Preview résumé" onClick={onViewResume}><PreviewGlyph /></button>
+            <button className="resume-icon-link resume-screen-action" type="button" aria-label="Print résumé" data-tooltip="Print résumé" onClick={() => window.print()}><PrintGlyph /></button>
+            <a className="resume-download" href={resumeUrl} download aria-label={`Download ${resumeLabel}`}><span>Download résumé</span><span aria-hidden="true">↓</span></a>
           </div>
         </header>
 
-        <section className="recruiter-intro">
-          <span className="eyebrow">Recruiter briefing · 60-second scan</span>
-          <h1>{profile?.name ?? PROFILE.name}</h1>
-          <p className="recruiter-role">{headline} — {positioning}</p>
-          <p className="recruiter-summary">{summary}</p>
-          <div className="recruiter-cta">
-            <Button variant="primary" href={`mailto:${email}`}>Contact</Button>
-            <Button onClick={onViewResume}>View résumé</Button>
-          </div>
-        </section>
+        <div className="resume-print-contact" aria-hidden="true">{email} · {githubUrl.replace(/^https?:\/\//, "")} · {linkedInUrl.replace(/^https?:\/\//, "")}</div>
 
-        {error && <p className="recruiter-stale" role="status">Some portfolio details couldn't refresh. Showing available saved content. <button type="button" onClick={() => void refresh()}>Try again</button></p>}
+        {error && <p className="resume-notice" role="status">Some profile details could not refresh. Showing saved content. <button type="button" onClick={() => void refresh()}>Retry</button></p>}
 
-        <section className="recruiter-glance" aria-label="At a glance">
-          <div>
-            <span>Availability</span>
-            <strong className="glance-avail"><i aria-hidden="true" />{availability}</strong>
-          </div>
-          <div>
-            <span>Location</span>
-            <strong>{location}</strong>
-          </div>
-          <div>
-            <span>Education</span>
-            <strong>{edu ? `${edu.degree} · ${edu.endYear ?? "Present"}` : "Education not listed"}</strong>
-            <small>{edu ? `${edu.institution}${edu.grade ? ` · ${edu.grade}` : ""}` : ""}</small>
-          </div>
-          <div>
-            <span>Strongest</span>
-            <strong className="glance-skills">{strongest.slice(0, 4).join(" · ")}</strong>
-          </div>
-        </section>
+        <div className="resume-layout">
+          <main className="resume-main">
+            <section className="resume-section resume-summary" aria-labelledby="resume-summary-title">
+              <h2 id="resume-summary-title" className="resume-section-title">Professional summary</h2>
+              <p>{summary}</p>
+              <span className="resume-location">{location} <i aria-hidden="true" /> {profile?.availability ?? PROFILE.availability}</span>
+            </section>
 
-        <div className="recruiter-grid">
-          <section aria-label="Signature projects">
-            <div className="recruiter-section-title"><span>01</span><h2>Signature evidence</h2></div>
-            <p className="recruiter-hint">Four systems that prove backend depth, applied AI, and end-to-end ownership.</p>
-            <div className="recruiter-projects">
-              {top.map((project, i) => (
-                <Link key={project.id} to={`/projects/${project.slug}`}>
-                  <div>
-                    <span className="rp-num">{String(i + 1).padStart(2, "0")} — {i < 2 ? "FLAGSHIP" : "SELECTED"}</span>
-                    <h3>{project.title}{project.codename ? ` · ${project.codename}` : ""}</h3>
-                    <p>{project.shortDescription}</p>
-                    <small>{project.stack.slice(0, 5).join(" · ")} · {project.status}</small>
-                  </div>
-                  <IconExternal />
-                </Link>
-              ))}
-            </div>
+            <section className="resume-section resume-projects" aria-labelledby="resume-projects-title">
+              <h2 id="resume-projects-title" className="resume-section-title">Featured projects</h2>
+              <div className="resume-project-list">
+                {featuredProjects.map((project, index) => (
+                  <ProjectEntry
+                    key={project.id}
+                    project={project}
+                    index={index}
+                    pinned={pinnedSlug === project.slug}
+                    onPin={togglePinned}
+                    onHover={setHover}
+                    onFocus={setFocus}
+                    onBlur={clearFocus}
+                  />
+                ))}
+              </div>
+              {featuredProjects.length === 0 && <p className="resume-muted" role="status">Featured project records are loading.</p>}
+            </section>
 
-            {timelineError ? (
-              <p role="status">{timelineError} <button type="button" onClick={() => void loadTimeline()}>Retry</button></p>
-            ) : !timelineLoaded ? (
-              <p role="status">Loading experience…</p>
-            ) : experience.length > 0 ? (
-              <>
-                <div className="recruiter-section-title second"><span>02</span><h2>Experience</h2></div>
-                {experience.map((item) => (
-                  <div className="recruiter-education" key={item.id}>
-                    <h3>{item.title}</h3>
-                    <p>{item.organization ?? ""}</p>
-                    <small>{item.date}{item.endDate ? ` — ${item.endDate}` : ""}</small>
+            <section className="resume-section resume-education" aria-labelledby="resume-education-title">
+              <h2 id="resume-education-title" className="resume-section-title">Education</h2>
+              {primaryEducation ? (
+                <div className="resume-education-row">
+                  <div><h3>{primaryEducation.degree}</h3><p>{primaryEducation.institution}{primaryEducation.field ? ` · ${primaryEducation.field}` : ""}</p></div>
+                  <div className="resume-education-meta"><span>{primaryEducation.startYear}–{primaryEducation.endYear ?? "Present"}</span>{primaryEducation.grade && <strong>{/^CGPA/i.test(primaryEducation.grade) ? primaryEducation.grade : `CGPA ${primaryEducation.grade}`}</strong>}</div>
+                </div>
+              ) : <p className="resume-muted">Education record unavailable.</p>}
+            </section>
+
+            <section className="resume-section resume-open-source" aria-labelledby="resume-open-source-title">
+              <p className="resume-open-source-kicker">Open-source contribution</p>
+              <h2 id="resume-open-source-title" className="resume-section-title">XERJ Corpus Hub</h2>
+              <p>{featuredSource}</p>
+              <div className="resume-open-source-links">
+                <a href="https://hub.xerj.org/contributors/harshpandeyz" target="_blank" rel="noopener noreferrer">Verify contribution <IconExternal /></a>
+                <a href="https://github.com/harshpandeyz/OrchestraAI/commit/5394dfc78b" target="_blank" rel="noopener noreferrer">Selected commit <IconGithub /></a>
+              </div>
+            </section>
+          </main>
+
+          <aside className="resume-sidebar">
+            <section className="resume-section resume-skills" aria-labelledby="resume-skills-title">
+              <h2 id="resume-skills-title" className="resume-section-title">Technical skills</h2>
+              <p className="resume-skill-hint" role="status" aria-live="polite"><span>Skills used in this project</span><i aria-hidden="true" />{activeProject ? activeProject.codename || activeProject.title : "Hover, focus or tap a project"}</p>
+              <p className="resume-print-skill-hint">Skills linked to project records.</p>
+              <div className="resume-skill-groups">
+                {skillGroups.map((group) => (
+                  <div className="resume-skill-group" key={group.category}>
+                    <h3>{formatTaxonomy(group.category)}</h3>
+                    <div className="resume-skill-chips">
+                      {group.items.map((skill) => {
+                        const relevant = activeProjectSlug ? skillUsesProject(skill, activeProjectSlug) : false;
+                        return <span className={`resume-skill-chip${activeProjectSlug ? relevant ? " is-relevant" : " is-muted" : ""}`} key={skill.id}>{skill.name}</span>;
+                      })}
+                    </div>
                   </div>
                 ))}
-              </>
-            ) : <p>Experience details are not listed.</p>}
-
-                <div className="recruiter-section-title second"><span>{experience.length > 0 ? "03" : "02"}</span><h2>Education</h2></div>
-            {[...education].sort((a, b) => Number(b.primary) - Number(a.primary) || a.order - b.order).map((item) => (
-              <div className="recruiter-education" key={item.id}>
-                <h3>{item.degree}</h3>
-                <p>{item.institution}{item.field ? ` · ${item.field}` : ""}</p>
-                <small>{item.startYear} — {item.endYear ?? "Present"}{item.grade ? ` · ${item.grade}` : ""}</small>
-              </div>
-            ))}
-          </section>
-
-          <aside aria-label="Capabilities and contact">
-            <div className="recruiter-section-title"><span>A</span><h2>Capabilities</h2></div>
-            <div className="recruiter-skills recruiter-skills--chips">
-              {skillGroups.map((group) => (
-                <div key={group.category}>
-                  <h3>{formatTaxonomy(group.category)}</h3>
-                  <div className="chip-row">
-                    {group.items.map((name) => <span key={name} className="mini-chip">{name}</span>)}
+                {unclassifiedStack.length > 0 && <div className="resume-skill-group resume-stack-group">
+                  <h3>Project stack records</h3>
+                  <div className="resume-skill-chips">
+                    {unclassifiedStack.map(({ technology, slugs }) => {
+                      const relevant = activeProjectSlug ? slugs.includes(activeProjectSlug) : false;
+                      return <span className={`resume-skill-chip${activeProjectSlug ? relevant ? " is-relevant" : " is-muted" : ""}`} key={normalizeTechnology(technology)}>{technology}</span>;
+                    })}
                   </div>
-                </div>
-              ))}
-            </div>
+                </div>}
+              </div>
+            </section>
 
-            {featuredCerts.length > 0 && (
-              <>
-                <div className="recruiter-section-title second"><span>B</span><h2>Selected credentials</h2></div>
-                <div className="recruiter-credentials-list">
-                  {featuredCerts.map((c) => (
-                    <div key={c.id} className="recruiter-credential">
-                      <h3>{c.title}</h3>
-                      <p>{c.issuer}{c.issuedOn ? ` · ${c.issuedOn}` : ""}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            <section className="resume-section resume-capabilities" aria-labelledby="resume-capabilities-title">
+              <h2 id="resume-capabilities-title" className="resume-section-title">Core engineering</h2>
+              <ul>
+                <li><span>Agent runtimes, model routing and tool execution</span><Link to="/projects/orchestraai">OrchestraAI ↗</Link></li>
+                <li><span>Evaluation design, independent grading and test isolation</span><Link to="/projects/senseline">SENSELINE ↗</Link></li>
+                <li><span>Backend services, persistence and real-time event flows</span><Link to="/projects/orchestraai">OrchestraAI ↗</Link></li>
+                <li><span>Computer vision and cryptographic evidence integrity</span><Link to={`/projects/${CCTV_SLUG}`}>CCTV-X ↗</Link></li>
+              </ul>
+            </section>
 
-            <div className="recruiter-section-title second"><span>C</span><h2>Contact</h2></div>
-            <div className="recruiter-contact recruiter-contact--card">
-              <a href={`mailto:${email}`}><IconMail /> {email}</a>
-              <a href={social("github") ?? PROFILE.socials.github.url} target="_blank" rel="noopener noreferrer"><IconGithub /> GitHub</a>
-              <a href={social("linkedin") ?? PROFILE.socials.linkedin.url} target="_blank" rel="noopener noreferrer"><IconLinkedIn /> LinkedIn</a>
-              <span className="rc-loc">{location}</span>
-            </div>
           </aside>
         </div>
 
-        <footer className="recruiter-footer">
-          <span>{profile?.name ?? "Harsh Pandey"} · {headline}</span>
-          <a href={`mailto:${email}`}>Get in touch</a>
-        </footer>
+        <footer className="resume-footer"><span>{name}</span><span>{location}</span><a href={`mailto:${email}`}>{email}</a></footer>
       </div>
     </div>
   );
