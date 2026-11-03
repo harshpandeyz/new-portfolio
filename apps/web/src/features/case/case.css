@@ -13,7 +13,20 @@
 .cs-facts > div + div { border-left: 1px solid var(--subs-line); }
 .cs-facts .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--subs-ink-dim); }
 .cs-facts .v { margin-top: 6px; font-size: 13.5px; font-weight: 550; line-height: 1.45; }
+.cs-record-summary { width: fit-content; max-width: 760px; margin-top: 16px; color: var(--subs-ink-muted); font-size: 13px; }
+.cs-wrap .cs-hero { padding-top: clamp(74px, 9vh, 110px); }
+.cs-wrap .cs-facts { margin-top: 20px; }
+.cs-record-summary summary { width: fit-content; color: var(--subs-accent); cursor: pointer; font-weight: 600; }
+.cs-record-summary p { margin-top: 10px; padding: 14px 16px; border-left: 2px solid var(--subs-accent); background: var(--subs-surface); line-height: 1.7; }
 @media (max-width: 860px) { .cs-facts { grid-template-columns: repeat(2, 1fr); } .cs-facts > div:nth-child(3) { border-left: 0; } .cs-facts > div:nth-child(n+3) { border-top: 1px solid var(--subs-line); } }
+@media (max-width: 520px) {
+  .cs-wrap .cs-hero { padding-top: 46px; }
+  .cs-lede { margin-top: 10px; line-height: 1.5; }
+  .cs-wrap .cs-facts { margin-top: 14px; }
+  .cs-facts > div { padding: 9px 10px; }
+  .cs-facts .v { margin-top: 3px; font-size: 12px; }
+  .cs-sec { padding-top: 30px; }
+}
 
 /* Section shell — numbered editorial rhythm */
 .cs-sec { padding: clamp(44px, 6vw, 84px) 0 0; }
@@ -36,6 +49,16 @@
 .cs-canvas-body { padding: clamp(16px, 2.6vw, 30px); }
 .cs-canvas-cap { padding: 12px 18px; border-top: 1px solid var(--subs-line); color: var(--subs-ink-muted); font-size: 12.5px; line-height: 1.6; }
 .cs-canvas-cap b { color: var(--subs-ink); }
+.cs-fixture-chart { max-width: 760px; margin: 4px 0 26px; padding: 18px 20px 14px; border: 1px solid var(--subs-line); border-radius: 14px; background: var(--subs-surface); }
+.cs-fixture-chart-head { display: flex; justify-content: space-between; gap: 12px; color: var(--subs-ink-dim); font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; }
+.cs-fixture-chart-head b { color: var(--subs-accent); }
+.cs-fixture-bars { height: 122px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: clamp(7px, 2vw, 18px); margin-top: 14px; }
+.cs-fixture-bar { display: grid; grid-template-rows: 18px 1fr 18px; gap: 5px; align-items: end; text-align: center; }
+.cs-fixture-bar > b { color: var(--subs-ink); font-family: var(--font-mono); font-size: 10px; }
+.cs-fixture-bar > span { display: flex; align-items: end; height: 100%; overflow: hidden; border-radius: 4px 4px 0 0; background: var(--subs-surface-2); }
+.cs-fixture-bar i { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--subs-accent); }
+.cs-fixture-bar small { color: var(--subs-ink-dim); font-family: var(--font-mono); font-size: 9px; }
+.cs-fixture-chart > p { margin-top: 12px; color: var(--subs-ink-dim); font-size: 11px; }
 .cs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cs-scroll-inner { min-width: 640px; }
 @media (max-width: 700px) { .cs-scroll-inner { min-width: 560px; } }
@@ -150,7 +173,7 @@
 .cs-lane--dark .lk { color: #fff; }
 .cs-lane--dark .lv { color: rgba(238,242,249,0.7); }
 .cs-lane--dark .lv b { color: #fff; }
-.cs-dark { background: linear-gradient(180deg, #12151d, #0b0e14); border-color: rgba(255,255,255,0.1); color: #eef2f9; }
+.cs-dark { background: var(--graphite-900, #17191f); border-color: rgba(255,255,255,0.1); color: #eef2f9; }
 .cs-dark .cs-canvas-head { border-color: rgba(255,255,255,0.1); color: rgba(238,242,249,0.65); }
 .cs-dark .cs-canvas-cap { border-color: rgba(255,255,255,0.1); color: rgba(238,242,249,0.65); }
 .cs-dark .cs-canvas-cap b { color: #fff; }
@@ -170,6 +193,7 @@
 /* Status scale — honest outcomes */
 .cs-status { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-top: 18px; border: 1px solid var(--subs-line); border-radius: 14px; overflow: hidden; }
 @media (max-width: 640px) { .cs-status { grid-template-columns: repeat(2, 1fr); } .cs-status > div:nth-child(n+3) { border-top: 1px solid var(--subs-line); } }
+@media (max-width: 520px) { .cs-fixture-chart { padding: 14px 12px; } .cs-fixture-bars { gap: 5px; } }
 .cs-status > div { padding: 14px; background: var(--subs-surface); }
 .cs-status > div + div { border-left: 1px solid var(--subs-line); }
 .cs-status .k { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--subs-ink-dim); }

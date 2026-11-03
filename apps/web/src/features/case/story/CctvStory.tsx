@@ -27,6 +27,10 @@ export function CctvStory({ project }: { project: PublicProject }) {
             <img src={vault!.src} alt={vault!.alt} loading="lazy" width={vault!.width} height={vault!.height} decoding="async" />
             <figcaption><span className="cap-k">{vault!.role}</span>{vault!.caption} — hash-ledger commitment, custody trail, attestation status.</figcaption>
           </figure>
+          <div className="cs-compare">
+            <div className="cs-cmp cs-cmp--hi"><span className="k">In scope on this page</span><h4>CCTV-X / Intelligent Surveillance System</h4><ul><li>RTSP, webcam and upload inputs with YOLOv8n and a separate AI service.</li><li>Append-only hash ledger plus OpenTimestamps Bitcoin attestation.</li><li>These four screens are genuine CCTV-X product captures.</li></ul></div>
+            <div className="cs-cmp"><span className="k">Separate archive project</span><h4>Intelligent Mob Surveillance System</h4><ul><li>The earlier capstone uses YOLOv8, OpenCV, MediaPipe and Ethereum anchoring.</li><li>Its Solidity, Web3.py and Ganache workflow is documented on its own case-study page.</li><li>None of the newer screenshots or OpenTimestamps claims are retrofitted to it.</li></ul></div>
+          </div>
         </div>
       </CaseSection>
 

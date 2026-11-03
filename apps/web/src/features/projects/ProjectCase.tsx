@@ -17,7 +17,10 @@ import "../case/case.css";
 
 const STORY_COMPONENTS = {
   "intelligent-surveillance-system": lazy(() => import("../case/story/CctvStory").then((module) => ({ default: module.CctvStory }))),
+  "intelligent-mob-surveillance-system": lazy(() => import("../case/story/MobSurveillanceStory").then((module) => ({ default: module.MobSurveillanceStory }))),
   orchestraai: lazy(() => import("../case/story/OrchestraStory").then((module) => ({ default: module.OrchestraStory }))),
+  senseline: lazy(() => import("../case/story/SenselineStory").then((module) => ({ default: module.SenselineStory }))),
+  shopsphere: lazy(() => import("../case/story/ShopsphereStory").then((module) => ({ default: module.ShopsphereStory }))),
   quantummind: lazy(() => import("../case/story/QuantumStory").then((module) => ({ default: module.QuantumStory }))),
   skillmatch: lazy(() => import("../case/story/SkillStory").then((module) => ({ default: module.SkillStory }))),
 };
@@ -279,7 +282,9 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
   const storyLabel = storyNo > 0
     ? `CASE ${String(storyNo).padStart(2, "0")} / ${String(orderedProjects.length).padStart(2, "0")}`
     : "CASE STUDY";
-  const Story = STORY_COMPONENTS[project.slug as keyof typeof STORY_COMPONENTS];
+  const Story = Object.prototype.hasOwnProperty.call(STORY_COMPONENTS, project.slug)
+    ? STORY_COMPONENTS[project.slug as keyof typeof STORY_COMPONENTS]
+    : undefined;
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({
@@ -293,7 +298,7 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
       <div className="cs-progress" aria-hidden="true"><i style={{ transform: `scaleX(${progress})` }} /></div>
       <div className="container cs-wrap">
         <header className="cs-hero">
-          <Link to="/#work" className="back" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 28, color: "var(--subs-ink-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+          <Link to="/#work" className="back" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 10, color: "var(--subs-ink-dim)", fontSize: 12, fontFamily: "var(--font-mono)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
             <IconArrowLeft /> Back to work
           </Link>
           <div className="eyebrow case-eyebrow" style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -301,7 +306,7 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
           </div>
           <h1>{project.title}</h1>
           {project.codename && <div className="codename" style={{ marginTop: 12 }}>{project.codename}</div>}
-          <p className="cs-lede">{project.longDescription ?? project.shortDescription}</p>
+          <p className="cs-lede">{project.shortDescription}</p>
 
           <div className="cs-facts" aria-label="Key facts">
             <div><div className="k">Year</div><div className="v">{project.year}</div></div>
@@ -317,6 +322,19 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
             </div>
           </div>
         </header>
+
+        {Story ? (
+          <Suspense fallback={<div className="case-state" role="status">Loading technical details…</div>}>
+            <Story project={project} />
+          </Suspense>
+        ) : <GenericStory project={project} />}
+
+        {Story && project.longDescription && (
+          <details className="cs-record-summary">
+            <summary>Read the full project record</summary>
+            <p>{project.longDescription}</p>
+          </details>
+        )}
 
         {toc.length > 1 && (
           <nav className="cs-toc" aria-label="On this page">
@@ -334,12 +352,6 @@ export function ProjectCase({ onViewResume }: ProjectCaseProps) {
             ))}
           </nav>
         )}
-
-        {Story ? (
-          <Suspense fallback={<div className="case-state" role="status">Loading technical details…</div>}>
-            <Story project={project} />
-          </Suspense>
-        ) : <GenericStory project={project} />}
 
         <section className="cs-sec" aria-label="Project links">
           <div className="cs-links">
