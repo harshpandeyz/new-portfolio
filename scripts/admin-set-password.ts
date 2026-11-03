@@ -1,7 +1,7 @@
 /**
  * Securely sets the local admin password (interactive, never hard-coded).
  * Usage: npm run admin:set-password [-- --email admin@harshpandey.dev]
- * Prompts with hidden input, validates length, bcrypt-hashes (12 rounds),
+ * Prompts with hidden input, validates strength, bcrypt-hashes (12 rounds),
  * upserts the user, and clears lockout counters. Leaves 2FA untouched.
  */
 import { createInterface } from "node:readline";
@@ -47,8 +47,9 @@ async function main() {
     console.error("Passwords do not match.");
     process.exit(1);
   }
-  if (first.length < 12) {
-    console.error("Password must be at least 12 characters.");
+  const classes = [/[a-z]/.test(first), /[A-Z]/.test(first), /\d/.test(first), /[^A-Za-z0-9]/.test(first)].filter(Boolean).length;
+  if (first.length < 16 || classes < 3 || /password|change[-_ ]?me|example|admin123/i.test(first)) {
+    console.error("Password must be at least 16 characters, use three character classes, and avoid common placeholders.");
     process.exit(1);
   }
 
@@ -70,7 +71,7 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("Admin password operation failed.", e instanceof Error ? e.name : "unknown error");
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());

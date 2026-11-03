@@ -223,6 +223,50 @@ const PROJECTS = [
     githubUrl: "https://github.com/harshpandeyz/OrchestraAI",
   },
   {
+    // Verified 2026-11-03 from https://github.com/harshpandeyz/SENSELINE.
+    // Benchmark infrastructure + validation are COMPLETE; model experiments
+    // are explicitly NOT RUN (2026-11-02) — the case study must keep that
+    // distinction. Nothing below claims a model score.
+    slug: "senseline",
+    title: "SENSELINE",
+    codename: "Silent Sensor Semantics Benchmark",
+    shortDescription: "Evaluation benchmark measuring whether AI coding agents preserve physical measurement integrity from raw sensor data to safe engineering decisions.",
+    longDescription:
+      "A deterministic software benchmark built from synthetic measurement data. Eight tasks (S01–S08) cover raw sensor decoding, physical-unit integrity, calibration and environmental compensation, calibration-applicability evidence, uncertainty propagation, conformity decisions, temporal integrity, and an end-to-end measurement-integrity task. Reference implementations ship beside an independent numerical oracle that imports no reference code; a grader applies schemas, exact semantic checks and field-specific tolerances; thirty documented defective controls must fail for their intended dimensions. Candidates execute in fresh Docker containers (pinned Python 3.11.18, no network, non-root, read-only filesystems, bounded output, wall timeout); missing Docker fails closed. Scoring centers on Silent Corruption Rate (SCR) and Unsafe Acceptance Rate (UAR), pooled by case with per-task rates.",
+    category: "AI / EVALUATION / MEASUREMENT",
+    domains: ["AI_ML", "BACKEND"],
+    tier: "featured",
+    status: "active",
+    featured: true,
+    year: "2026",
+    order: 0,
+    problem:
+      "Can a coding agent implement measurement-processing software without silently changing what a sensor measured — or accepting an unsafe result? Most agent evaluations never test whether physical meaning survives the pipeline.",
+    solution:
+      "A linked software pipeline benchmark: decode bytes, convert units once, calibrate once, propagate an uncertainty budget, then decide conformity — with hidden fixtures (266 cases), an independent oracle, mutation controls and container isolation so a passing score means the meaning survived.",
+    architecture:
+      "Python 3.11 harness (harness/) + task packages (tasks/: spec, input/output JSON Schemas, public examples, unimplemented starter) + reference implementations (reference/) + independent numerical oracle (oracle/compute.py, imports no reference code) + grader (graders/grade.py: unit transforms, output schemas, exact semantic checks, field-specific tolerances) + 30 documented defective controls (mutations/) + results/ validation artifacts. Candidate runs use fresh containers on the pinned Python 3.11.18 image with networking disabled, non-root UID, dropped capabilities, read-only filesystems and a wall timeout; task export copies only the task statement, schemas, examples and starter.",
+    decisions: [
+      "Reference/oracle separation — the oracle imports no reference code, so agreement validates both implementations",
+      "Thirty defective controls must fail for their intended dimensions — mutations prove the grader can actually catch each failure family",
+      "Isolation fails closed — missing Docker or image never falls back to host Python",
+      "Bounded metrology scope — deliberately simplified task rules; no hardware validation, standards-compliance or safety claims",
+      "Dual headline metrics — SCR for silent corruption, UAR for unsafe acceptance, pooled by case with per-task rates",
+    ],
+    challenges: "Keeping numeric tolerances field-specific without pooling incompatible dimensions, and enforcing task-only workspaces so agent credentials never reach candidate containers.",
+    results: "Benchmark infrastructure and reproducibility validation are complete: 104 tests pass, 266 isolated reference cases validated, all 30 mutations rejected, Docker isolation suite 12/12. Model experiments NOT RUN (2026-11-02) — no model scores, transcripts, runtimes or costs exist; submission not yet ready per results/submission_status.json.",
+    securityNotes: "Candidate containers: no network, non-root UID, dropped capabilities, no-new-privileges, read-only filesystems, CPU/memory/process limits, bounded output, wall timeout. Agent workspaces allow edits to solution.py only — shell, subagents and web tools denied.",
+    dataFlow: [
+      "Sensor bytes → decode (signedness · width · scaling · sentinels)",
+      "Physical-unit conversion → dimensional checks → canonical units",
+      "Calibration + environmental compensation → validity evidence",
+      "Uncertainty propagation → coverage → conformity decision",
+      "Grader: schemas + semantics + tolerances → SCR/UAR scoring",
+    ],
+    stack: ["Python 3.11", "JSON Schema", "jsonschema", "Pytest", "Docker", "OpenCode CLI", "Codex CLI"],
+    githubUrl: "https://github.com/harshpandeyz/SENSELINE",
+  },
+  {
     slug: "quantummind",
     title: "QuantumMind",
     codename: "AI Research Intelligence Platform",
@@ -293,6 +337,47 @@ const PROJECTS = [
     ],
     stack: ["Node.js", "Express.js", "MySQL", "EJS", "bcrypt", "REST APIs", "RBAC", "MVC"],
     githubUrl: "https://github.com/harshpandeyz/SkillMatch",
+  },
+  {
+    // Verified 2026-11-03 from https://github.com/harshpandeyz/ShopSphere.
+    // Honest demo scope: fully on-device, checkout/payments/tracking
+    // openly labelled as simulated. Archive-tier deep story.
+    slug: "shopsphere",
+    title: "ShopSphere",
+    codename: "Offline demo store",
+    shortDescription: "React Native + Expo + TypeScript demo store — catalog, cart, coupons, simulated checkout, order tracking and admin tools, fully on-device.",
+    longDescription:
+      "A small, fully working demo store: Home, Search, Product Details, Wishlist, Cart, Coupons, Checkout, Orders + Tracking, Account, Reviews, Admin Dashboard, About and Contact. Everything is stored on-device with AsyncStorage; all 14 product photos and banners are bundled locally so the app works fully offline. Checkout, payments, tracking, notifications and support replies are openly labelled as simulated — no real money, messages or notifications leave the device.",
+    category: "MOBILE / E-COMMERCE / REACT NATIVE",
+    domains: ["MOBILE", "FRONTEND"],
+    tier: "secondary",
+    status: "complete",
+    featured: false,
+    year: "2026",
+    order: 15,
+    problem:
+      "Show a complete mobile commerce loop — browse to delivery tracking — as a single verifiable demo with no backend to operate.",
+    solution:
+      "Fifteen source files: a typed catalog, a global ShopProvider store persisted with AsyncStorage, a shared UI kit, money math in one shared cart summary — and every simulated flow labelled honestly as simulated.",
+    architecture:
+      "Expo + TypeScript with bottom tabs inside a native stack; ShopProvider global state (cart, wishlist, profile, orders, reviews, admin catalog) persisted via AsyncStorage string-literal keys; 14 products, coupons (WELCOME20, SAVE10, FLAT100, FREESHIP) and banners bundled in assets/images. No test suite ships with the template — verification is tsc + expo-doctor + the manual emulator pass.",
+    decisions: [
+      "On-device AsyncStorage over a backend — the demo works fully offline",
+      "One shared cart summary for money math — a single source of truth for totals",
+      "String-literal storage keys enforced by tsc — eliminates a class of key bugs",
+      "Simulated payments and tracking labelled openly — never presented as real",
+    ],
+    challenges: "Keeping cart math (coupons, delivery thresholds, stock restored on cancel) consistent across cart, checkout, orders and admin views.",
+    results: "Verified on emulator-5554 (Expo Go, SDK 58): tsc clean, expo-doctor 20/20, full tap-through pass — coupons, delivery rules, stock restore on cancel, admin add/delete, reviews and support tickets.",
+    securityNotes: "Fully offline demo — no network calls, no real payments or notifications; all simulated flows are labelled as such.",
+    dataFlow: [
+      "Browse + search → product details → wishlist + cart",
+      "Coupons → validated cart summary → simulated checkout",
+      "Orders → simulated tracking timeline → order history",
+      "Admin → sales stats, catalog/stock control, order advancing",
+    ],
+    stack: ["React Native", "Expo", "TypeScript", "AsyncStorage", "React Navigation"],
+    githubUrl: "https://github.com/harshpandeyz/ShopSphere",
   },
   {
     slug: "brainmatch-game",
@@ -518,7 +603,7 @@ interface SkillSeed {
 const SKILLS: SkillSeed[] = [
   // LANGUAGES
   { name: "Java", category: "LANGUAGES", level: "core", recruiterPriority: 1, featured: true, usedInProjectSlugs: ["quantummind","studentlink","mit-java-qualifier"], relatedConcepts: ["OOP", "Spring ecosystem", "JVM"] },
-  { name: "Python", category: "LANGUAGES", level: "core", recruiterPriority: 2, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","flask-api-docker-demo"], relatedConcepts: ["FastAPI", "Flask", "async services"] },
+  { name: "Python", category: "LANGUAGES", level: "core", recruiterPriority: 2, featured: true, usedInProjectSlugs: ["intelligent-surveillance-system","quantummind","senseline","flask-api-docker-demo"], relatedConcepts: ["FastAPI", "Flask", "async services"] },
   { name: "JavaScript", category: "LANGUAGES", level: "core", usedInProjectSlugs: ["studentlink","codsoft-tasks","skillnexus"], relatedConcepts: ["ES2022+", "async/await"] },
   { name: "TypeScript", category: "LANGUAGES", level: "working", relatedConcepts: ["Type-safe APIs", "Zod validation"] },
   { name: "SQL", category: "LANGUAGES", level: "core", usedInProjectSlugs: ["skillmatch","quantummind"], relatedConcepts: ["Joins", "Indexing", "Normalization"] },
@@ -613,6 +698,8 @@ const TIMELINE = [
   { date: "2026-03", title: "AMCAT certified — SHL assessment", organization: "SHL · AMCAT", description: "Computer Science 99/100 · Automata Fix 100/100 · Automata 95/100 · English 88/100 · Programming 83/100.", type: "milestone", order: 18 },
   { date: "2026", title: "CCTV-X — surveillance platform v2 in active development", organization: null, description: "Evolved the capstone into a production-oriented microservices platform with evidence chain-of-custody and Bitcoin timestamp anchoring.", type: "project", order: 19 },
   { date: "2026", title: "This portfolio — engineered as a system", organization: null, description: "Full-stack system: Fastify + PostgreSQL API, React cinematic frontend, retrieval-backed AI assistant, admin control center.", type: "project", order: 20 },
+  { date: "2026", title: "SENSELINE — measurement-integrity benchmark built", organization: null, description: "Deterministic 8-task benchmark (266 hidden cases) with independent oracle, grader, 30 mutation controls and Docker-isolated execution. Infrastructure validated; model experiments not run.", type: "project", order: 21 },
+  { date: "2026", title: "ShopSphere — offline demo store shipped", organization: null, description: "React Native + Expo + TypeScript demo commerce app; fully on-device with simulated checkout, verified on emulator.", type: "project", order: 22 },
 ];
 
 // ─────────────────────────────────────────────────────────────
