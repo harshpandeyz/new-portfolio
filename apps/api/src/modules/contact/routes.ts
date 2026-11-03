@@ -9,7 +9,7 @@ import { rateLimit } from "../../utils/rate-limit.js";
 import { sendContactNotification, sendMessageReply } from "./mailer.js";
 import { HttpError } from "../../utils/http.js";
 import { getSiteSettings } from "../settings/store.js";
-import { isEmailConfigured } from "../../config.js";
+import { config, isEmailConfigured } from "../../config.js";
 import { emailSetupHint } from "./mailer.js";
 
 const CONTACT_WINDOW_MS = 10 * 60 * 1000;
@@ -65,10 +65,13 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
     });
 
     await audit(req, "MESSAGE_RECEIVED", "contact_message", message.id, { from: message.email });
-    void sendContactNotification(message).catch((err) => app.log.warn({ err }, "contact notification failed"));
+    const notificationAvailable = isEmailConfigured() && Boolean(config.smtp.notifyEmail);
+    if (notificationAvailable) {
+      void sendContactNotification(message).catch((err) => app.log.warn({ err }, "contact notification failed"));
+    }
 
     reply.code(201);
-    return { ok: true, id: message.id };
+    return { ok: true, id: message.id, notificationAvailable };
   });
 
   // ── admin: inbox ─────────────────────────────────────────────

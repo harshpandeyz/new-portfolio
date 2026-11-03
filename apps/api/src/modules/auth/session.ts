@@ -60,9 +60,9 @@ declare module "fastify" {
 function sessionCookieOptions(maxAgeSec: number) {
   return {
     httpOnly: true,
-    // Cross-origin SPAs need the session cookie on credentialed XHR. Secure
-    // is required by browsers when SameSite=None is used.
-    sameSite: config.isProd ? ("none" as const) : ("lax" as const),
+    // Production is same-origin behind NGINX, so Lax works and blocks the
+    // cookie on most cross-site requests. Secure remains mandatory on HTTPS.
+    sameSite: "lax" as const,
     secure: config.isProd,
     path: "/",
     maxAge: maxAgeSec,
@@ -158,7 +158,7 @@ export async function destroySession(req: FastifyRequest, reply: FastifyReply): 
   if (token && token.length === 64) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
-  const clearOpts = { path: "/", sameSite: config.isProd ? ("none" as const) : ("lax" as const), secure: config.isProd } as const;
+  const clearOpts = { path: "/", sameSite: "lax" as const, secure: config.isProd } as const;
   reply.clearCookie(COOKIE_NAMES.session, clearOpts);
   reply.clearCookie(COOKIE_NAMES.csrf, clearOpts);
 }

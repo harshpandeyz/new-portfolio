@@ -163,12 +163,17 @@ async function storeIncomingFile(file: MultipartFile): Promise<StoredUpload> {
   });
 
   let committed = false;
+  let truncated = false;
+  file.file.once("limit", () => { truncated = true; });
   try {
     await pipeline(file.file, sniffer, createWriteStream(dest));
     const stat = await import("node:fs/promises").then((fs) => fs.stat(dest));
     const sizeBytes = stat.size;
     const head = Buffer.concat(chunks);
-    if (sizeBytes > config.maxUploadMb * 1024 * 1024) {
+    // Streaming the multipart part directly to disk bypasses the plugin's
+    // `toBuffer()` size exception. Busboy truncates at the configured limit,
+    // so check both its event and stream flag before accepting the file.
+    if (truncated || file.file.truncated || sizeBytes > config.maxUploadMb * 1024 * 1024) {
       throw new HttpError(413, "PAYLOAD_TOO_LARGE", `File exceeds the ${config.maxUploadMb}MB limit`);
     }
     if (sizeBytes === 0) throw new HttpError(400, "EMPTY_FILE", "Uploaded file is empty");

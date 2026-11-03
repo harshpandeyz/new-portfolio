@@ -11,8 +11,29 @@ const RECOVERY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const RECOVERY_CODE_LEN = 10;
 const RECOVERY_COUNT = 10;
 
-function totpKey(): Buffer {
-  return createHash("sha256").update(`${config.sessionSecret}:totp-v1`).digest();
+function keyFor(value: string, version: "v1" | "v2"): Buffer {
+  return createHash("sha256").update(`${value}:totp-${version}`).digest();
+}
+
+function currentTotpKey(): Buffer {
+  return keyFor(config.totpEncryptionKey, "v2");
+}
+
+function decryptionKeys(): Buffer[] {
+  const candidates = [
+    keyFor(config.totpEncryptionKey, "v2"),
+    ...(config.totpEncryptionKeyPrevious ? [keyFor(config.totpEncryptionKeyPrevious, "v2")] : []),
+    // Existing installations encrypted TOTP secrets with SESSION_SECRET.
+    keyFor(config.sessionSecret, "v1"),
+    ...(config.sessionSecretPrevious ? [keyFor(config.sessionSecretPrevious, "v1")] : []),
+  ];
+  const seen = new Set<string>();
+  return candidates.filter((key) => {
+    const fingerprint = key.toString("hex");
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
 }
 
 export function generateTotpSecret(): string {
@@ -45,7 +66,7 @@ export async function totpQrDataUrl(uri: string): Promise<string> {
 }
 
 export function encryptSecret(plain: string): string {
-  const key = totpKey();
+  const key = currentTotpKey();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
@@ -55,15 +76,21 @@ export function encryptSecret(plain: string): string {
 
 export function decryptSecret(stored: string): string | null {
   try {
-    const key = totpKey();
     const raw = Buffer.from(stored, "base64");
     if (raw.length < 12 + 16 + 8) return null;
     const iv = raw.subarray(0, 12);
     const tag = raw.subarray(12, 28);
     const enc = raw.subarray(28);
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+    for (const key of decryptionKeys()) {
+      try {
+        const decipher = createDecipheriv("aes-256-gcm", key, iv);
+        decipher.setAuthTag(tag);
+        return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+      } catch {
+        // Try the next configured key; never log ciphertext or key material.
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -94,9 +121,13 @@ export function hashRecoveryCode(code: string): string {
 }
 
 export function verifyRecoveryCodeHash(code: string, hash: string): boolean {
-  const candidate = hashRecoveryCode(code);
-  const a = Buffer.from(candidate, "hex");
   const b = Buffer.from(hash, "hex");
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  if (b.length !== 32) return false;
+  const secrets = [config.sessionSecret, config.sessionSecretPrevious].filter(Boolean);
+  return secrets.some((secret) => {
+    const candidate = createHash("sha256")
+      .update(`${secret}:recovery:${normalizeRecoveryCode(code)}`)
+      .digest();
+    return timingSafeEqual(candidate, b);
+  });
 }

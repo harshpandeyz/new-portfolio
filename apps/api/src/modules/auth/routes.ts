@@ -303,7 +303,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const csrfToken = issueCsrfToken();
     reply.setCookie(COOKIE_NAMES.csrf, csrfToken, {
       httpOnly: false,
-      sameSite: config.isProd ? "none" : "lax",
+      sameSite: "lax",
       secure: config.isProd,
       path: "/",
       maxAge: config.sessionTtlDays * 24 * 60 * 60,

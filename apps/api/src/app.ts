@@ -44,7 +44,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     crossOriginResourcePolicy: { policy: "cross-origin" }, // uploads are embedded by the web app
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     frameguard: { action: "deny" },
-    hsts: config.isProd ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    // HSTS is also applied at Caddy; avoid includeSubDomains/preload until
+    // every hostname under the registered domain is independently HTTPS-ready.
+    hsts: config.isProd ? { maxAge: 31536000 } : false,
     noSniff: true,
     permittedCrossDomainPolicies: { permittedPolicies: "none" },
   });
