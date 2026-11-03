@@ -1,0 +1,17 @@
+[Unit]
+Description=Encrypted HP//OS PostgreSQL and media backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=docker
+WorkingDirectory=/opt/portfolio
+EnvironmentFile=/etc/hp-os-backup.env
+ExecStart=/opt/portfolio/scripts/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/hp-os

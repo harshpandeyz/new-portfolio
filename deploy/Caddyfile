@@ -1,0 +1,28 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Cross-Origin-Opener-Policy "same-origin-allow-popups"
+		X-DNS-Prefetch-Control "off"
+		-Server
+	}
+
+	# Caddy is the only public edge. Its default proxy behavior discards
+	# untrusted incoming X-Forwarded-* values; these explicit headers make the
+	# one-client-IP chain visible to the Web NGINX and Fastify layers.
+	reverse_proxy 127.0.0.1:5173 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+}

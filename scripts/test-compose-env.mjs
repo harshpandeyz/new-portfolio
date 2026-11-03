@@ -1,0 +1,40 @@
+export const TEST_COMPOSE_PROJECT = "hp-os-test";
+export const TEST_POSTGRES_PORT = "55432";
+
+export const testComposeEnvironment = {
+  ...process.env,
+  COMPOSE_PROJECT_NAME: TEST_COMPOSE_PROJECT,
+  POSTGRES_HOST_PORT: TEST_POSTGRES_PORT,
+  POSTGRES_PASSWORD: "hp-os-test-local-only",
+  POSTGRES_APP_PASSWORD: "hp-os-test-app-local-only",
+  POSTGRES_MIGRATOR_PASSWORD: "hp-os-test-migrator-local-only",
+  APP_URL: "https://test.invalid",
+  VITE_SITE_URL: "https://test.invalid",
+  SESSION_SECRET: "hp-os-test-session-secret-not-for-production",
+  SESSION_SECRET_PREVIOUS: "",
+  AI_CONFIG_KEY: "hp-os-test-ai-key-not-for-production",
+  AI_CONFIG_KEY_PREVIOUS: "",
+  TOTP_ENCRYPTION_KEY: "hp-os-test-totp-key-not-for-production",
+  TOTP_ENCRYPTION_KEY_PREVIOUS: "",
+  LLM_PROVIDER: "none",
+  LLM_API_KEY: "",
+  LLM_MODEL: "",
+  LLM_BASE_URL: "",
+  EMAIL_PROVIDER: "resend",
+  RESEND_API_KEY: "",
+  EMAIL_FROM: "",
+  CONTACT_NOTIFY_EMAIL: "",
+  SMTP_HOST: "",
+  SMTP_USER: "",
+  SMTP_PASSWORD: "",
+  GITHUB_TOKEN: "",
+  TRUST_PROXY: "172.31.255.30/32",
+  DATABASE_VOLUME_NAME: "hp-os-test_hp_pgdata",
+  UPLOAD_VOLUME_NAME: "hp-os-test_hp_uploads",
+  APP_SUBNET: "172.31.255.0/24",
+  DB_IPV4: "172.31.255.10",
+  API_IPV4: "172.31.255.20",
+  WEB_IPV4: "172.31.255.30",
+};
+
+export const testComposeArgs = ["compose", "--project-name", TEST_COMPOSE_PROJECT];
