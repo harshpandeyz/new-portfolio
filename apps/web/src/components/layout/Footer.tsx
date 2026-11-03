@@ -41,6 +41,7 @@ export function Footer({ onViewResume }: FooterProps) {
           <a href="/#journey" onClick={goSection("journey")}>Education</a>
           <a href="/#tech" onClick={goSection("tech")}>Tech</a>
           <a href="/#credentials" onClick={goSection("credentials")}>Credentials</a>
+          <a href="/#opensource" onClick={goSection("opensource")}>Open Source</a>
           <a href="/#contact" onClick={goSection("contact")}>Contact</a>
         </nav>
 

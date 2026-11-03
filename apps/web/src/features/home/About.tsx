@@ -3,12 +3,9 @@ import { resolveMediaUrl } from "../../lib/api";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { PROFILE } from "../../app/constants";
 
-const FOCUS = ["Backend systems", "Applied AI", "Full-stack applications", "System design", "Deployment"];
-
 /**
- * About is an editorial profile, not a second résumé: who Harsh is as an
- * engineer, what he enjoys solving, how he works, and what he's after — in
- * prose, with a portrait and a pull-quote. It sits immediately after the hero.
+ * A compact editorial profile. Education is integrated into the same two
+ * column composition so it stays easy to find without adding another page band.
  */
 export function About() {
   const { profile, education } = useData();
@@ -28,7 +25,7 @@ export function About() {
             {profile?.avatarUrl ? <img src={resolveMediaUrl(profile.avatarUrl)} alt={`Portrait of ${profile.name}`} loading="lazy" width={880} height={1100} /> : <div className="photo-placeholder">HP</div>}
             <figcaption className="id-caption">
               <span>{profile?.location ?? PROFILE.location}</span>
-              {primaryEducation && <span>{primaryEducation.degree}, {primaryEducation.institution} · Class of {primaryEducation.endYear ?? "present"}</span>}
+              {primaryEducation && <span>{primaryEducation.institution}</span>}
             </figcaption>
           </figure>
 
@@ -42,12 +39,24 @@ export function About() {
             <div className="id-facts">
               <div className="fact"><div className="k">Based in</div><div className="v">{profile?.location ?? PROFILE.location}</div></div>
               <div className="fact"><div className="k">Focus</div><div className="v">Backend · AI · Full Stack</div></div>
-              <div className="fact"><div className="k">Availability</div><div className="v availability">{profile?.availability ?? PROFILE.availability}</div></div>
             </div>
 
-            <div className="id-focus">
-              {FOCUS.map((item) => <span className="tag" key={item}>{item}</span>)}
-            </div>
+            {primaryEducation && (
+              <article className="about-education" id="journey" aria-label="Education">
+                <div className="about-education-mark" aria-hidden="true">EDU</div>
+                <div className="about-education-main">
+                  <span className="about-education-kicker">Education · {primaryEducation.institution}</span>
+                  <h3>{primaryEducation.degree}</h3>
+                  <p>{primaryEducation.field ?? "Information Technology"} · {primaryEducation.startYear}–{primaryEducation.endYear ?? "Present"}</p>
+                </div>
+                {primaryEducation.grade && (
+                  <div className="about-education-grade">
+                    <span>Verified CGPA</span>
+                    <strong>{primaryEducation.grade.replace(/^CGPA\s*/i, "")}</strong>
+                  </div>
+                )}
+              </article>
+            )}
           </div>
         </div>
       </div>

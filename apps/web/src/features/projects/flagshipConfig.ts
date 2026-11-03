@@ -17,7 +17,10 @@ import { FLAGSHIP_SLUGS, SELECTED_SLUGS, SIGNATURE_SLUGS } from "@hp/shared";
 // intelligent-mob-surveillance-system remains in the archive as a separate
 // project and must never inherit CCTV-X's screenshots or architecture claims.
 // All visual helpers below branch on exact slug equality for this reason.
-export const FLAGSHIP_SLUG = FLAGSHIP_SLUGS[0] as string;
+//
+// NOTE: this is the CCTV-X slug — NOT FLAGSHIP_SLUGS[0]. The flagship lead
+// rotates by curation; CCTV-X's visuals must stay pinned to its own slug.
+export const CCTV_SLUG = "intelligent-surveillance-system";
 export { FLAGSHIP_SLUGS, SELECTED_SLUGS, SIGNATURE_SLUGS };
 
 export interface GalleryImage {
@@ -88,7 +91,17 @@ export interface FlowStage {
 }
 
 export function flagshipFlow(project: PublicProject): FlowStage[] {
-  if (project.slug === FLAGSHIP_SLUG) {
+  if (project.slug === "senseline") {
+    return [
+      { icon: "documents", label: "Decode", sub: "bytes → value" },
+      { icon: "api", label: "Units", sub: "dimension check" },
+      { icon: "brain", label: "Calibrate", sub: "gain · offset" },
+      { icon: "ledger", label: "Uncertainty", sub: "budget · k-factor" },
+      { icon: "attest", label: "Decide", sub: "conformity" },
+      { icon: "shield", label: "Grade", sub: "SCR · UAR" },
+    ];
+  }
+  if (project.slug === CCTV_SLUG) {
     return [
       { icon: "camera", label: "Capture", sub: "RTSP · webcam · upload" },
       { icon: "brain", label: "Detect", sub: "YOLOv8n · tracking" },
@@ -121,7 +134,26 @@ export function flagshipFlow(project: PublicProject): FlowStage[] {
 }
 
 export function caseFlowStages(project: PublicProject): { label: string; sub: string; hint: string }[] {
-  if (project.slug === FLAGSHIP_SLUG) {
+  if (project.slug === "senseline") {
+    return [
+      { label: "Decode", sub: "bytes → physical value", hint: "decode" },
+      { label: "Units", sub: "dimensions · canonical", hint: "units" },
+      { label: "Calibrate", sub: "gain · offset · temp", hint: "calibration" },
+      { label: "Uncertainty", sub: "budget · coverage", hint: "uncertainty" },
+      { label: "Decide", sub: "conformity verdict", hint: "decision" },
+      { label: "Grade", sub: "SCR · UAR", hint: "grade" },
+    ];
+  }
+  if (project.slug === "shopsphere") {
+    return [
+      { label: "Browse", sub: "catalog · search", hint: "browse" },
+      { label: "Cart", sub: "coupons · totals", hint: "cart" },
+      { label: "Checkout", sub: "simulated payment", hint: "checkout" },
+      { label: "Orders", sub: "simulated tracking", hint: "track" },
+      { label: "Admin", sub: "catalog · stock", hint: "admin" },
+    ];
+  }
+  if (project.slug === CCTV_SLUG) {
     return [
       { label: "Capture", sub: "RTSP · webcam · upload", hint: "input" },
       { label: "Detect", sub: "YOLOv8n · tracking", hint: "ai" },
@@ -150,7 +182,16 @@ export function caseFlowStages(project: PublicProject): { label: string; sub: st
 }
 
 export function flagshipFacts(project: PublicProject): { k: string; v: string }[] {
-  if (project.slug === FLAGSHIP_SLUG) {
+  if (project.slug === "senseline") {
+    return [
+      { k: "Role", v: "Benchmark · harness · grader" },
+      { k: "Stack", v: "Python 3.11 · Docker" },
+      { k: "Scope", v: "8 tasks · 266 cases" },
+      { k: "Controls", v: "Oracle + 30 mutations" },
+      { k: "Models", v: "Experiments not run" },
+    ];
+  }
+  if (project.slug === CCTV_SLUG) {
     return [
       { k: "Role", v: "Full-stack · AI pipeline · evidence chain" },
       { k: "Stack", v: project.stack.slice(0, 5).join(" · ") || "—" },
@@ -199,6 +240,13 @@ export const SECONDARY_VISUALS: Record<string, SecondaryStage[]> = {
     { label: "Social", sub: "graph · feed", icon: "social" },
     { label: "App", sub: "web · Railway", icon: "web" },
   ],
+  shopsphere: [
+    { label: "Browse", sub: "catalog", icon: "search" },
+    { label: "Cart", sub: "coupons", icon: "documents" },
+    { label: "Checkout", sub: "simulated", icon: "evidence" },
+    { label: "Orders", sub: "tracking", icon: "chat" },
+    { label: "Admin", sub: "stock", icon: "api" },
+  ],
 };
 
 export function secondaryVisual(slug: string): SecondaryStage[] | null {
@@ -207,7 +255,16 @@ export function secondaryVisual(slug: string): SecondaryStage[] | null {
 
 // ── Compact homepage facts (fewer, tighter) ────────────────
 export function flagshipCompactFacts(project: PublicProject): { k: string; v: string }[] {
-  if (project.slug === FLAGSHIP_SLUG) {
+  if (project.slug === "senseline") {
+    return [
+      { k: "Tasks", v: "S01–S08" },
+      { k: "Cases", v: "266 hidden" },
+      { k: "Oracle", v: "Independent" },
+      { k: "Controls", v: "30 mutations" },
+      { k: "Models", v: "Not run" },
+    ];
+  }
+  if (project.slug === CCTV_SLUG) {
     return [
       { k: "AI", v: "YOLOv8 + OpenCV" },
       { k: "Backend", v: "FastAPI" },
@@ -243,7 +300,7 @@ export interface SystemMapNode {
 }
 
 export function systemMap(project: PublicProject): SystemMapNode[] {
-  if (project.slug === FLAGSHIP_SLUG) {
+  if (project.slug === CCTV_SLUG) {
     return [
       { icon: "camera", title: "Capture", detail: "CCTV feed" },
       { icon: "brain", title: "Detect", detail: "YOLOv8 + OpenCV" },
@@ -273,6 +330,25 @@ export function systemMap(project: PublicProject): SystemMapNode[] {
       { icon: "search", title: "Retrieve", detail: "FAISS · top-k" },
       { icon: "brain", title: "Generate", detail: "Groq · OpenAI" },
       { icon: "chat", title: "Stream", detail: "SSE · chat" },
+    ];
+  }
+  if (project.slug === "senseline") {
+    return [
+      { icon: "documents", title: "Decode", detail: "bytes → value" },
+      { icon: "api", title: "Units", detail: "dimension check" },
+      { icon: "brain", title: "Calibrate", detail: "gain · offset" },
+      { icon: "ledger", title: "Uncertainty", detail: "budget · k-factor" },
+      { icon: "attest", title: "Decide", detail: "conformity" },
+      { icon: "shield", title: "Grade", detail: "SCR · UAR" },
+    ];
+  }
+  if (project.slug === "shopsphere") {
+    return [
+      { icon: "search", title: "Browse", detail: "catalog · search" },
+      { icon: "documents", title: "Cart", detail: "coupons · totals" },
+      { icon: "evidence", title: "Checkout", detail: "simulated" },
+      { icon: "chat", title: "Orders", detail: "tracking" },
+      { icon: "api", title: "Admin", detail: "stock · stats" },
     ];
   }
   if (project.slug === "studentlink") {

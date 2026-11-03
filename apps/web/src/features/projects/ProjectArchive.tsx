@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { unlock } from "../../lib/achievements";
-import type { PublicProject } from "@hp/shared";
+import { FLAGSHIP_SLUGS, type PublicProject } from "@hp/shared";
 import { api } from "../../lib/api";
 import { EmptyState, ErrorState } from "../../components/ui/EmptyState";
+import { FLAGSHIP_GALLERY } from "./flagshipConfig";
 import "../../styles/subspace.css";
 import "../archive.css";
 
@@ -38,6 +39,11 @@ function matchesDomain(p: PublicProject, filter: DomainFilter): boolean {
       return true;
   }
 }
+
+const FEATURED_PATHS: Record<string, string[]> = {
+  orchestraai: ["Task", "Context", "Route", "Provider", "Tools", "SSE"],
+  senseline: ["Decode", "Units", "Calibrate", "Uncert.", "Decide", "Grade"],
+};
 
 /**
  * Project archive: a dedicated space, not a database table. Every row is a
@@ -76,6 +82,11 @@ export function ProjectArchive() {
     unlock("explorer");
     navigate(`/projects/${slug}`);
   };
+
+  const featured = list
+    .filter((project) => project.tier === "featured")
+    .sort((a, b) => FLAGSHIP_SLUGS.indexOf(a.slug as (typeof FLAGSHIP_SLUGS)[number]) - FLAGSHIP_SLUGS.indexOf(b.slug as (typeof FLAGSHIP_SLUGS)[number]));
+  const archive = list.filter((project) => project.tier !== "featured");
 
   return (
     <div className="archive-page subspace" data-tier="featured" aria-label="Project archive">
@@ -118,8 +129,46 @@ export function ProjectArchive() {
 
         {error && projects.length > 0 && <p className="archive-stale" role="status">Refresh failed. Showing the last loaded project list. <button type="button" onClick={() => setRetryKey((key) => key + 1)}>Try again</button></p>}
         {list.length > 0 ? (
+          <>
+          {featured.length > 0 && (
+            <section className="archive-featured" aria-label="Featured engineering systems">
+              <div className="archive-group-heading"><span>01</span><h2>Featured systems</h2><small>{featured.length} projects</small></div>
+              <div className="archive-featured-grid">
+                {featured.map((project, index) => {
+                  const cctv = project.slug === "intelligent-surveillance-system";
+                  const path = FEATURED_PATHS[project.slug] ?? [];
+                  return (
+                    <article className="archive-feature-card" key={project.id}>
+                      <button className="archive-feature-open" onClick={() => open(project.slug)} aria-label={`Open case study: ${project.title}`}>
+                        <div className={`archive-feature-visual${cctv ? " archive-feature-visual--image" : ""}`}>
+                          {cctv ? (
+                            <img src={FLAGSHIP_GALLERY[0]!.src} alt={FLAGSHIP_GALLERY[0]!.alt} loading="lazy" width={FLAGSHIP_GALLERY[0]!.width} height={FLAGSHIP_GALLERY[0]!.height} />
+                          ) : (
+                            <div className="archive-path-map" role="img" aria-label={`${project.title} system stages: ${path.join(" → ")}`}>
+                              <span className="archive-visual-label">{project.title} / SYSTEM PATH</span>
+                              <div>{path.map((stage, stageIndex) => <span key={stage} title={stage}><i>{String(stageIndex + 1).padStart(2, "0")}</i><b>{stage}</b></span>)}</div>
+                              <small>{project.slug === "senseline" ? "INFRASTRUCTURE VALIDATED · MODEL EXPERIMENTS NOT RUN" : "LIVE / DEMO · PROVIDER ROUTING · CHECKPOINTED STATE"}</small>
+                            </div>
+                          )}
+                        </div>
+                        <div className="archive-feature-copy">
+                          <div className="archive-feature-meta"><span>{String(index + 1).padStart(2, "0")}</span><span>{project.category}</span><span>{project.year}</span></div>
+                          <h3>{project.title}{project.codename && <small>{project.codename}</small>}</h3>
+                          <p>{project.shortDescription}</p>
+                          <div className="archive-feature-footer"><span>{project.stack.slice(0, 4).join(" · ")}</span><b>Read case study <span aria-hidden="true">↗</span></b></div>
+                        </div>
+                      </button>
+                      {project.githubUrl && <a className="archive-feature-github" href={project.githubUrl} target="_blank" rel="noopener noreferrer">Repository ↗</a>}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {archive.length > 0 && <>
+          <div className="archive-group-heading archive-group-heading--all"><span>02</span><h2>Project archive</h2><small>{archive.length} projects</small></div>
           <ul className="archive-list">
-            {list.map((project, index) => (
+            {archive.map((project, index) => (
               <li className="archive-row" data-tier={project.tier} key={project.id}>
                 <button
                   className="archive-item"
@@ -149,6 +198,8 @@ export function ProjectArchive() {
               </li>
             ))}
           </ul>
+          </>}
+          </>
         ) : error ? (
           <ErrorState message="Projects couldn't load." onRetry={() => setRetryKey((key) => key + 1)} />
         ) : query || domain !== "All" ? (

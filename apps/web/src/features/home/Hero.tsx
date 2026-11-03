@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useData } from "../../lib/data";
 import { scrollBehavior } from "../../lib/motion";
 import { Button } from "../../components/ui/Button";
@@ -11,9 +11,9 @@ export interface HeroProps {
 }
 
 const PROOF = [
-  { index: "01", label: "Flagship", name: "CCTV-X", detail: "YOLOv8 + evidence ledger" },
-  { index: "02", label: "Runtime", name: "OrchestraAI", detail: "agent orchestration" },
-  { index: "03", label: "Also", name: "QuantumMind RAG", detail: "SkillMatch paths" },
+  { index: "01", label: "Flagship", name: "OrchestraAI", detail: "Adaptive agent runtime", slug: "orchestraai" },
+  { index: "02", label: "Benchmark", name: "SENSELINE", detail: "Sensor evaluation", slug: "senseline" },
+  { index: "03", label: "Applied AI", name: "CCTV-X", detail: "Vision + evidence", slug: "intelligent-surveillance-system" },
 ] as const;
 
 function PinGlyph() {
@@ -34,8 +34,6 @@ function PinGlyph() {
  */
 export function Hero({ onViewResume }: HeroProps) {
   const { profile } = useData();
-  const navigate = useNavigate();
-
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: scrollBehavior() });
   };
@@ -86,45 +84,38 @@ export function Hero({ onViewResume }: HeroProps) {
               <IconDownload className="hero-cta-icon" aria-hidden="true" />
               View résumé
             </Button>
-            <button
-              type="button"
-              className="hero-tertiary"
-              onClick={() => navigate("/recruiter")}
-            >
-              Recruiter briefing — 60 seconds
-              <span className="hero-tertiary-arrow" aria-hidden="true">→</span>
-            </button>
           </div>
+
+          <Link to="/recruiter" className="hero-profile-cta">
+            <span className="hero-profile-cta-copy">
+              <strong>Explore my engineering profile</strong>
+              <small>60-second briefing · Selected work · Technical capabilities</small>
+            </span>
+            <span className="hero-profile-cta-arrow" aria-hidden="true"><IconArrowRight /></span>
+          </Link>
         </div>
 
-        <div className="hero-figure" aria-hidden="true">
+        <div className="hero-figure">
           <HeroAtlas />
         </div>
       </div>
 
       <div className="hero-proof-row container">
-        <dl className="hero-proof">
+        <nav className="hero-proof" aria-label="Flagship project navigator">
           {PROOF.map((item) => (
-            <div className="proof-item" key={item.index}>
-              <dt>
+            <Link className="proof-item" key={item.index} to={`/projects/${item.slug}`}>
+              <span className="proof-meta">
                 <span className="proof-index">{item.index}</span>
                 <span className="proof-label">{item.label}</span>
-              </dt>
-              <dd>
+              </span>
+              <span className="proof-main">
                 <span className="proof-name">{item.name}</span>
-                <span className="proof-sep" aria-hidden="true">·</span>
                 <span className="proof-detail">{item.detail}</span>
-              </dd>
-            </div>
+              </span>
+              <span className="proof-arrow" aria-hidden="true">↗</span>
+            </Link>
           ))}
-        </dl>
-
-        <div className="hero-scroll">
-          <button className="scroll-cue" onClick={() => scrollTo("work")} aria-label="Scroll to selected work">
-            <span>Scroll to explore</span>
-            <span className="line" aria-hidden="true" />
-          </button>
-        </div>
+        </nav>
       </div>
     </section>
   );

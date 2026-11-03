@@ -1,11 +1,13 @@
 import type { PublicProject } from "@hp/shared";
 import { formatTaxonomy } from "../../lib/format";
 import { IconArrowRight, IconExternal } from "../../components/ui/icons";
-import { FLAGSHIP_GALLERY, FLAGSHIP_HERO, FLAGSHIP_SLUG, flagshipFlow } from "./flagshipConfig";
+import { FLAGSHIP_GALLERY, FLAGSHIP_HERO, CCTV_SLUG, flagshipFlow } from "./flagshipConfig";
 
 interface FlagshipProjectProps {
   project: PublicProject;
   onOpen: (slug: string) => void;
+  /** Editorial position in the flagship hierarchy (01, 02, 03 …). */
+  num?: string;
 }
 
 function FlowIcon({ kind }: { kind: string }) {
@@ -20,6 +22,9 @@ function FlowIcon({ kind }: { kind: string }) {
     case "user": return (<svg {...c} aria-hidden="true"><circle cx="8" cy="5.2" r="2.3" /><path d="M3.2 13c.6-2.2 2.4-3.6 4.8-3.6s4.2 1.4 4.8 3.6" /></svg>);
     case "api": return (<svg {...c} aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="3.2" rx="1" /><rect x="2.5" y="9.5" width="11" height="3.2" rx="1" /></svg>);
     case "chat": return (<svg {...c} aria-hidden="true"><path d="M3 4.2a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 13 4.2v5.2a1.5 1.5 0 0 1-1.5 1.5H6.2L3 12.8V4.2z" /></svg>);
+    case "documents": return (<svg {...c} aria-hidden="true"><path d="M4.5 2.5h5l3 3v8H4.5z" /><path d="M9.5 2.5v3h3" /><path d="M6 7h4M6 9.5h4M6 12h2.5" /></svg>);
+    case "search": return (<svg {...c} aria-hidden="true"><circle cx="7" cy="7" r="4" /><path d="M10.2 10.2 13 13" /></svg>);
+    case "shield": return (<svg {...c} aria-hidden="true"><path d="M8 2 13 4v3.6C13 10.8 10.6 13.2 8 14 5.4 13.2 3 10.8 3 7.6V4L8 2z" /><path d="M6.2 8 7.6 9.4 9.9 6.6" /></svg>);
     default: return (<svg {...c} aria-hidden="true"><circle cx="8" cy="8" r="5.5" /><path d="M8 5.2v3.4l2 1.2" /></svg>);
   }
 }
@@ -100,28 +105,81 @@ function OrchestraVisual() {
   );
 }
 
+const SENSE_ROWS = [
+  {
+    lane: "MEASURE",
+    nodes: [
+      { label: "Decode", sub: "S01 · bytes", icon: "documents", hot: false },
+      { label: "Units", sub: "S02 · dimensions", icon: "api", hot: false },
+      { label: "Calibrate", sub: "S03 · gain/offset", icon: "brain", hot: true },
+      { label: "Evidence", sub: "S04 · validity", icon: "ledger", hot: true },
+    ],
+  },
+  {
+    lane: "JUDGE",
+    nodes: [
+      { label: "Uncertain", sub: "S05 · budget", icon: "ledger", hot: false },
+      { label: "Conform", sub: "S06 · verdict", icon: "attest", hot: true },
+      { label: "Time", sub: "S07 · integrity", icon: "api", hot: false },
+      { label: "E2E", sub: "S08 · full chain", icon: "shield", hot: true },
+    ],
+  },
+];
+
+function SenselineVisual() {
+  const flowLabel = "Decode → Units → Calibrate → Evidence → Uncertainty → Conformity → Time → E2E";
+  return (
+    <div className="sw-visual sw-visual--rt sw-visual--sense" role="img" aria-label={`SENSELINE benchmark: ${flowLabel}`}>
+      <div className="sw-runtime" aria-hidden="true">
+        <div className="sw-rt-head"><span className="sw-rt-dot sw-rt-dot--violet" /><span>SENSELINE · BENCHMARK</span><span className="sw-rt-badge sw-rt-badge--violet">INFRA VALIDATED</span></div>
+        {SENSE_ROWS.map((row) => (
+          <div key={row.lane} className="sw-rt-row">
+            <span className="sw-rt-rowtag">{row.lane}</span>
+            <div className="sw-rt-nodes">
+              {row.nodes.map((n, i) => (
+                <div key={n.label} style={{ display: "contents" }}>
+                  <div className={`sw-rt-node${n.hot ? " sw-hot-violet" : ""}`}>
+                    <FlowIcon kind={n.icon} />
+                    <b>{n.label}</b>
+                    <span>{n.sub}</span>
+                  </div>
+                  {i < row.nodes.length - 1 && <div className="sw-rt-link sw-rt-link--violet" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="sw-sense-note"><span>MODEL EXPERIMENTS · NOT RUN</span><span>266 CASES · 30 CONTROLS REJECTED</span></div>
+        <div className="sw-rt-foot"><span>SCR · UAR SCORING</span><span style={{ marginLeft: "auto" }}>PY 3.11 · DOCKER · JSON SCHEMA</span></div>
+      </div>
+    </div>
+  );
+}
+
 const POSE: Record<string, string> = {
   "intelligent-surveillance-system": "Real-time detection and investigation tooling wired to tamper-evident evidence — encrypted, hashed, ledgered and externally timestamped.",
   orchestraai: "A control plane that routes every task to the right model, tool and memory — then streams it live.",
+  senseline: "A deterministic benchmark that checks whether coding agents preserve measurement meaning — validated infrastructure, model trials honestly not run.",
 };
 
 const ROLE_BY_SLUG: Record<string, string> = {
   "intelligent-surveillance-system": "Full-stack · AI pipeline · evidence chain",
   orchestraai: "Runtime · model routing · tooling",
+  senseline: "Benchmark · harness · grader",
   quantummind: "RAG · retrieval · streaming",
   skillmatch: "Backend · scoring · MVC",
+  shopsphere: "Mobile · offline store",
 };
 
-export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
-  const isCctv = project.slug === FLAGSHIP_SLUG;
-  const num = isCctv ? "01" : "02";
+export function FlagshipProject({ project, onOpen, num = "01" }: FlagshipProjectProps) {
+  const isCctv = project.slug === CCTV_SLUG;
   const flow = flagshipFlow(project);
   const pose = POSE[project.slug] ?? project.shortDescription;
   const role = ROLE_BY_SLUG[project.slug] ?? project.category;
 
   return (
     <article className="sw-flag" aria-label={`${project.title} — flagship project`}>
-      {isCctv ? <CctvVisual project={project} /> : <OrchestraVisual />}
+      {isCctv ? <CctvVisual project={project} /> : project.slug === "senseline" ? <SenselineVisual /> : <OrchestraVisual />}
       <div className="sw-body">
         <div className="sw-meta">
           <span className="sw-num">{num}</span>
@@ -138,7 +196,7 @@ export function FlagshipProject({ project, onOpen }: FlagshipProjectProps) {
         </div>
         {flow.length > 0 && (
           <div className="sw-arch">
-            <div className="sw-arch-k"><span>{isCctv ? "Detection → evidence pipeline" : "Runtime execution loop"}</span><em>{String(flow.length).padStart(2, "0")} stages</em></div>
+            <div className="sw-arch-k"><span>{isCctv ? "Detection → evidence pipeline" : project.slug === "senseline" ? "Measurement → verdict pipeline" : "Runtime execution loop"}</span><em>{String(flow.length).padStart(2, "0")} stages</em></div>
             <div className="sw-pipe" role="img" aria-label={`System flow: ${flow.map((n) => n.label).join(" → ")}`}>
               {flow.map((n, i) => (
                 <div key={n.label} style={{ display: "contents" }}>

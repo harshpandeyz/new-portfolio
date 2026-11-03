@@ -22,21 +22,20 @@ function ArchiveVisual({ total }: { total: number }) {
     return pts;
   }, []);
   const W = 320; const H = 150;
-  const P = (n: { x: number; y: number }) => `${(n.x / 100) * W},${(n.y / 100) * H}`;
   const links: [number, number][] = [[0, 2], [2, 3], [3, 5], [5, 6], [3, 4], [1, 7], [7, 8], [8, 3], [5, 10], [7, 9], [11, 3]];
   return (
     <div className="sw-const" aria-hidden="true">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice">
         {links.map(([a, b], i) => (
-          <line key={i} x1={(nodes[a]!.x / 100) * W} y1={(nodes[a]!.y / 100) * H} x2={(nodes[b]!.x / 100) * W} y2={(nodes[b]!.y / 100) * H} stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+          <line key={i} x1={(nodes[a]!.x / 100) * W} y1={(nodes[a]!.y / 100) * H} x2={(nodes[b]!.x / 100) * W} y2={(nodes[b]!.y / 100) * H} stroke="var(--color-line-strong)" strokeWidth="1" />
         ))}
         {nodes.map((n, i) => (
           <g key={i}>
-            <circle cx={(n.x / 100) * W} cy={(n.y / 100) * H} r={n.r + 4} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-            <circle cx={(n.x / 100) * W} cy={(n.y / 100) * H} r={n.r} fill="#0071e3" opacity={n.o} />
+            <circle cx={(n.x / 100) * W} cy={(n.y / 100) * H} r={n.r + 4} fill="none" stroke="var(--color-line-strong)" strokeWidth="1" />
+            <circle cx={(n.x / 100) * W} cy={(n.y / 100) * H} r={n.r} fill="var(--color-accent)" opacity={n.o} />
           </g>
         ))}
-        <text x={8} y={16} fill="rgba(238,242,249,0.55)" fontSize="9" fontFamily="monospace" letterSpacing="2">PROJECT MAP · {P(nodes[0]!)} </text>
+        <text x={8} y={16} fill="var(--color-text-dim)" fontSize="9" fontFamily="monospace" letterSpacing="2">PROJECT MAP · {String(total).padStart(2, "0")} RECORDS</text>
       </svg>
       <div className="sw-stacklayers" aria-hidden="true"><i style={{ height: 26 }} /><i style={{ height: 36 }} /><i style={{ height: 48 }} /><i style={{ height: 60 }} /></div>
       <div className="sw-arch-count"><b>{String(total).padStart(2, "0")}</b><span>PROJECTS</span></div>
@@ -54,8 +53,6 @@ export function Work() {
     () => resolveHomepageCuration(projects),
     [projects],
   );
-  const flagship1 = flagship[0] ?? null;
-  const flagship2 = flagship[1] ?? null;
   const selectedSecondary = selected;
   const featuredShown = flagship.length;
   const secondaryShown = selectedSecondary.length;
@@ -86,8 +83,9 @@ export function Work() {
         />
         <div className="sw-head-rule" aria-hidden="true"><span><strong>01 — {String(featuredShown).padStart(2, "0")}</strong> · FEATURED SYSTEMS</span><span>DEPTH OVER QUANTITY</span></div>
         <div className="sw-flag-grid">
-          {flagship1 && <FlagshipProject project={flagship1} onOpen={open} />}
-          {flagship2 && <FlagshipProject project={flagship2} onOpen={open} />}
+          {flagship.map((project, i) => (
+            <FlagshipProject key={project.id} project={project} onOpen={open} num={String(i + 1).padStart(2, "0")} />
+          ))}
         </div>
 
         <div className="sw-row-label" aria-hidden="true"><span><b>{String(featuredShown + 1).padStart(2, "0")} — {String(featuredShown + secondaryShown).padStart(2, "0")}</b> · FOCUSED WORK + ARCHIVE</span></div>
@@ -96,7 +94,7 @@ export function Work() {
           <article className="sw-archive" aria-label="View more projects — archive">
             <ArchiveVisual total={projectCount} />
             <div className="sw-archive-body">
-              <div className="project-meta" style={{ color: "rgba(238,242,249,0.6)" }}><span>{String(featuredShown + secondaryShown + 1).padStart(2, "0")}</span><span>Archive</span><span>{projectCount} total</span></div>
+              <div className="project-meta"><span>{String(featuredShown + secondaryShown + 1).padStart(2, "0")}</span><span>Archive</span><span>{projectCount} total</span></div>
               <h3>View More Projects</h3>
               <p>Explore the full project archive — experiments, academic builds and internship work.</p>
               <button className="sw-viewall" onClick={() => navigate("/projects")} aria-label="Open project archive" style={{ padding: 0 }}>
