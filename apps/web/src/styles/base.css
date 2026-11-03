@@ -211,7 +211,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(29, 29, 31, 0.22);
+  border-color: var(--color-line-strong);
   background: var(--color-bg-hover);
   box-shadow: var(--shadow-md);
 }
@@ -234,13 +234,13 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-text-inverse);
-  box-shadow: 0 8px 24px rgba(0, 113, 227, 0.18);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.18);
 }
 
 .btn-solid:hover {
   border-color: var(--color-accent-hover);
   background: var(--color-accent-hover);
-  box-shadow: 0 12px 32px rgba(0, 113, 227, 0.24);
+  box-shadow: 0 12px 32px rgba(37, 99, 235, 0.24);
 }
 
 .btn-ghost {

@@ -803,9 +803,6 @@
 .fact .v { margin-top: 8px; color: var(--color-text); font-size: var(--text-caption); line-height: 1.45; font-weight: 500; }
 .fact .v.availability { color: var(--color-mint); }
 
-.id-focus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-.id-focus .tag { font-size: 12px; padding: 6px 11px; background: var(--color-bg-elevated); border-color: var(--color-line); }
-
 /* ────────────────────────────────────────────────
    EDUCATION — compact school story
 ──────────────────────────────────────────────── */

@@ -10,9 +10,7 @@
 .bg-ambient {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse 60% 45% at 78% 3%, rgba(41, 151, 255, 0.08), transparent 62%),
-    radial-gradient(ellipse 45% 35% at 10% 70%, rgba(100, 210, 255, 0.035), transparent 70%);
+  background: transparent;
 }
 
 .topbar {
@@ -37,7 +35,7 @@
 }
 
 .topbar.scrolled {
-  background: rgba(252, 252, 254, 0.76);
+  background: rgba(255, 255, 255, 0.9);
   border-color: var(--color-line);
   box-shadow:
     0 14px 44px -18px rgba(29, 29, 31, 0.22),
@@ -65,8 +63,8 @@
   height: 10px;
   flex: none;
   border-radius: 3px;
-  background: linear-gradient(140deg, #2997ff, #0066cc);
-  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1), 0 2px 10px rgba(0, 113, 227, 0.35);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-subtle), 0 2px 10px rgba(37, 99, 235, 0.2);
   transition: box-shadow var(--duration-normal) var(--ease-standard);
 }
 .brand:hover .brand-mark {

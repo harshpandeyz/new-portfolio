@@ -4,76 +4,80 @@
      ═══════════════════════════════════════════════════════════════ */
 
   /* Base surfaces */
-  --color-bg: #f5f5f7;
+  /* The public and private experiences intentionally start from the same
+     warm paper / graphite / blue triad.  All project-specific visual detail
+     is derived from these semantic tokens rather than introducing a new hue. */
+  --color-bg: #f5f5f2;
   --color-bg-elevated: #ffffff;
-  --color-bg-subtle: #f0f0f2;
-  --color-bg-hover: #e8e8ec;
+  --color-bg-subtle: #ebece8;
+  --color-bg-hover: #e2e4df;
+  --color-blue-soft: #dce7fa;
 
   /* Borders & lines */
-  --color-line: rgba(29, 29, 31, 0.08);
-  --color-line-strong: rgba(29, 29, 31, 0.14);
-  --color-line-focus: rgba(0, 113, 227, 0.45);
+  --color-line: rgba(23, 25, 31, 0.09);
+  --color-line-strong: rgba(23, 25, 31, 0.16);
+  --color-line-focus: rgba(37, 99, 235, 0.48);
 
   /* Text hierarchy */
-  --color-text: #1d1d1f;
-  --color-text-muted: #6e6e73;
-  --color-text-dim: #86868b;
-  --color-text-faint: #b7b7bc;
+  --color-text: #17191f;
+  --color-text-muted: #626772;
+  --color-text-dim: #7d838e;
+  --color-text-faint: #aeb3bb;
   --color-text-inverse: #ffffff;
 
   /* Accent system */
-  --color-accent: #0071e3;
-  --color-accent-hover: #006bd6;
-  --color-accent-active: #0058b8;
-  --color-accent-subtle: rgba(0, 113, 227, 0.08);
-  --color-accent-hover-bg: rgba(0, 113, 227, 0.12);
-  --color-accent-glow: rgba(0, 113, 227, 0.22);
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-active: #1e40af;
+  --color-accent-subtle: rgba(37, 99, 235, 0.09);
+  --color-accent-hover-bg: rgba(37, 99, 235, 0.14);
+  --color-accent-glow: rgba(37, 99, 235, 0.23);
 
   /* Accent spectrum — support hues reserved for specific meaning.
      --color-accent stays the identity/primary-action color; each support
      hue carries a job: cyan = architecture/HUD, violet = creative work,
      amber = experimental, mint = availability/success signal. */
-  --color-cyan: #1595c9;
-  --color-cyan-subtle: rgba(21, 149, 201, 0.1);
-  --color-violet: #7456e0;
-  --color-violet-subtle: rgba(116, 86, 224, 0.1);
-  --color-amber: #e7900d;
-  --color-amber-subtle: rgba(231, 144, 13, 0.13);
-  --color-mint: #1fa97f;
-  --color-mint-subtle: rgba(31, 169, 127, 0.12);
+  --color-cyan: var(--color-accent);
+  --color-cyan-subtle: var(--color-accent-subtle);
+  --color-violet: var(--color-accent);
+  --color-violet-subtle: var(--color-accent-subtle);
+  --color-amber: #b96a06;
+  --color-amber-subtle: rgba(185, 106, 6, 0.13);
+  --color-mint: #16845b;
+  --color-mint-subtle: rgba(22, 132, 91, 0.12);
 
   /* Ink ramp — a full-gradation text scale so muted/dim/faint read as one
      intentional ramp instead of an afterthought. */
-  --ink-1: #1d1d1f;
-  --ink-2: #5f5f64;
-  --ink-3: #84848c;
-  --ink-4: #b2b2b9;
+  --ink-1: #17191f;
+  --ink-2: #545a65;
+  --ink-3: #7d838e;
+  --ink-4: #aeb3bb;
 
   /* Surfaces — elevation via layering, not only shadows */
   --surface-0: var(--color-bg);
   --surface-1: var(--color-bg-elevated);
-  --surface-2: #ececef;
+  --surface-2: #e8e9e5;
   --surface-glass: rgba(255, 255, 255, 0.82);
 
   /* Terminal signature — reserved for the closing band + HUD perimeters */
-  --surface-terminal: #16161a;
-  --surface-terminal-raised: #1e1e24;
+  --surface-terminal: #17191f;
+  --surface-terminal-raised: #222630;
   --line-terminal: rgba(255, 255, 255, 0.09);
   --ink-terminal: #ececef;
   --ink-terminal-muted: #a0a0a8;
 
   /* Hairline — the quiet default border for elevated surfaces */
-  --line-hair: rgba(23, 23, 26, 0.06);
+  --line-hair: rgba(23, 25, 31, 0.07);
 
   /* Semantic colors */
-  --color-success: #34c759;
-  --color-success-subtle: rgba(52, 199, 89, 0.1);
-  --color-warning: #ff9500;
-  --color-warning-subtle: rgba(255, 149, 0, 0.1);
-  --color-danger: #ff3b30;
-  --color-danger-subtle: rgba(255, 59, 48, 0.1);
-  --color-info: #0a84ff;
-  --color-info-subtle: rgba(10, 132, 255, 0.1);
+  --color-success: #16845b;
+  --color-success-subtle: rgba(22, 132, 91, 0.1);
+  --color-warning: #b96a06;
+  --color-warning-subtle: rgba(185, 106, 6, 0.11);
+  --color-danger: #c4372d;
+  --color-danger-subtle: rgba(196, 55, 45, 0.1);
+  --color-info: var(--color-accent);
+  --color-info-subtle: var(--color-accent-subtle);
 
   /* Skill level colors */
   --color-level-core: var(--color-accent);
@@ -83,9 +87,9 @@
 
   /* Project tier colors */
   --color-tier-featured: var(--color-accent);
-  --color-tier-secondary: var(--color-cyan);
+  --color-tier-secondary: var(--color-accent);
   --color-tier-experiment: var(--color-amber);
-  --color-tier-academic: var(--color-violet);
+  --color-tier-academic: var(--color-accent);
   --color-tier-legacy: var(--color-text-dim);
   --color-tier-internship: var(--color-text-dim);
 
@@ -94,16 +98,16 @@
      but-on-brand: same type/spacing/button language, shifted surface + accent.
      Set --subs-accent/bg on a .subspace root (see subspace.css variants + the
      per-project data-tier accent). */
-  --subs-bg: #f8f6f2;
+  --subs-bg: #f5f5f2;
   --subs-surface: #ffffff;
-  --subs-surface-2: #eef0ee;
-  --subs-ink: #211f1c;
-  --subs-ink-muted: #6b675f;
-  --subs-ink-dim: #8f8b83;
-  --subs-line: rgba(33, 31, 28, 0.12);
-  --subs-line-strong: rgba(33, 31, 28, 0.2);
+  --subs-surface-2: #e9ece6;
+  --subs-ink: #17191f;
+  --subs-ink-muted: #626772;
+  --subs-ink-dim: #7d838e;
+  --subs-line: rgba(23, 25, 31, 0.12);
+  --subs-line-strong: rgba(23, 25, 31, 0.2);
   --subs-accent: var(--color-accent);
-  --subs-accent-subtle: rgba(0, 113, 227, 0.08);
+  --subs-accent-subtle: var(--color-accent-subtle);
   --subs-accent-strong: var(--color-accent);
 
   /* ═══════════════════════════════════════════════════════════════
@@ -207,12 +211,12 @@
      SHADOWS — layered depth
      ══════════════════════════════════════════════════════════════ */
 
-  --shadow-xs: 0 1px 2px rgba(29, 29, 31, 0.04);
-  --shadow-sm: 0 4px 16px rgba(29, 29, 31, 0.06);
-  --shadow-md: 0 10px 28px rgba(29, 29, 31, 0.08);
-  --shadow-lg: 0 20px 52px rgba(29, 29, 31, 0.10);
-  --shadow-xl: 0 30px 100px rgba(29, 29, 31, 0.14);
-  --shadow-focus: 0 0 0 4px rgba(41, 151, 255, 0.12);
+  --shadow-xs: 0 1px 2px rgba(23, 25, 31, 0.04);
+  --shadow-sm: 0 4px 16px rgba(23, 25, 31, 0.06);
+  --shadow-md: 0 10px 28px rgba(23, 25, 31, 0.08);
+  --shadow-lg: 0 20px 52px rgba(23, 25, 31, 0.1);
+  --shadow-xl: 0 30px 100px rgba(23, 25, 31, 0.14);
+  --shadow-focus: 0 0 0 4px rgba(37, 99, 235, 0.14);
 
   /* Elevation tiers — one consistent step for resting / raised / floating */
   --elev-0: 0 1px 1px rgba(23, 23, 26, 0.03);
@@ -220,7 +224,7 @@
   --elev-2: 0 4px 14px rgba(23, 23, 26, 0.06), 0 24px 56px -16px rgba(23, 23, 26, 0.16);
 
   /* Spotlight — the flagship + HUD surfaces get a faint accent halo */
-  --shadow-spotlight: 0 0 0 1px rgba(0, 113, 227, 0.16), 0 28px 80px -18px rgba(0, 113, 227, 0.35);
+  --shadow-spotlight: 0 0 0 1px rgba(37, 99, 235, 0.16), 0 28px 80px -18px rgba(37, 99, 235, 0.35);
 
   /* ═══════════════════════════════════════════════════════════════
      MOTION — refined, purposeful
@@ -276,6 +280,12 @@
   --input-h-md: 48px;
   --input-h-lg: 56px;
 
+  /* Shared operational controls (public and admin interfaces). */
+  --control-h-sm: 34px;
+  --control-h-md: 40px;
+  --control-radius: var(--radius-sm);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.14);
+
   /* Icon button sizes */
   --icon-btn-sm: 32px;
   --icon-btn-md: 38px;
@@ -290,7 +300,7 @@
      SELECTION
      ═══════════════════════════════════════════════════════════════ */
   ::selection {
-    background: rgba(41, 151, 255, 0.28);
+    background: rgba(37, 99, 235, 0.24);
     color: var(--color-text);
   }
 
