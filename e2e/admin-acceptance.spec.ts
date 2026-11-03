@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? "admin@harshpandey.dev";
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD;
@@ -39,7 +40,23 @@ test.describe("admin release acceptance", () => {
     await signIn(page);
     page.setDefaultTimeout(10000);
     page.setDefaultNavigationTimeout(15000);
-    await expect(page.locator('.ctl-crumbs [aria-current="page"]')).toHaveText("Overview");
+    await expect(page.locator('.ctl-crumbs [aria-current="page"]')).toHaveText("Dashboard");
+    await expect(page.getByText("No page views in this range")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("No events yet")).toBeVisible({ timeout: 15000 });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: "test-results/admin-dashboard-1440.png", fullPage: true });
+    for (const [width, height] of [[1280, 800], [768, 1024], [390, 844]] as const) {
+      await page.setViewportSize({ width, height });
+      await page.screenshot({ path: `test-results/admin-dashboard-${width}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(page.getByRole("dialog", { name: "Admin navigation" })).toBeVisible();
+    await page.screenshot({ path: "test-results/admin-navigation-390.png" });
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Admin navigation" })).toHaveCount(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    mkdirSync("test-results/admin-routes", { recursive: true });
 
     // Server-side authorization must hold independently of the private UI.
     const unauthorized = await request.post("/api/projects", { data: { title: "Unauthorised" } });
@@ -66,12 +83,21 @@ test.describe("admin release acceptance", () => {
         ["/private/skills", "Skills"], ["/private/education", "Education"],
         ["/private/timeline", "Timeline"], ["/private/profile", "Profile"],
         ["/private/media", "Media library"], ["/private/messages", "Messages"],
-        ["/private/security", "Security"], ["/private/settings", "Settings"],
+        ["/private/ai-providers", "AI providers"], ["/private/security", "Security"], ["/private/settings", "Settings"],
         ["/private/audit", "Audit log"],
       ] as const) {
-        await page.goto(path);
-        await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible({ timeout: 15000 });
+        const routeName = path.split("/").at(-1)!;
+        for (const [width, height] of [[1440, 900], [1280, 800], [768, 1024], [390, 844]] as const) {
+          await page.setViewportSize({ width, height });
+          await page.goto(path);
+          await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible({ timeout: 15000 });
+          await page.waitForTimeout(250);
+          const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+          expect(documentWidth, `${path} overflows at ${width}px`).toBeLessThanOrEqual(width);
+          await page.screenshot({ path: `test-results/admin-routes/${routeName}-${width}.png`, animations: "disabled" });
+        }
       }
+      await page.setViewportSize({ width: 1440, height: 900 });
 
       // Exercise the real enrollment wizard without enabling 2FA on the test account.
       await page.goto("/private/security");
@@ -109,10 +135,11 @@ test.describe("admin release acceptance", () => {
       await page.goto("/private/projects");
       await expect(page.getByRole("button", { name: "E2E Release Project" })).toBeVisible();
       const homepageSlots = page.locator(".ctl-curation-slot");
-      await expect(homepageSlots.nth(0)).toContainText("Intelligent Surveillance System · CCTV-X");
-      await expect(homepageSlots.nth(1)).toContainText("OrchestraAI");
-      await expect(homepageSlots.nth(2)).toContainText("QuantumMind");
-      await expect(homepageSlots.nth(3)).toContainText("SkillMatch");
+      await expect(homepageSlots.nth(0)).toContainText("OrchestraAI");
+      await expect(homepageSlots.nth(1)).toContainText("SENSELINE");
+      await expect(homepageSlots.nth(2)).toContainText("Intelligent Surveillance System · CCTV-X");
+      await expect(homepageSlots.nth(3)).toContainText("QuantumMind");
+      await expect(homepageSlots.nth(4)).toContainText("SkillMatch");
       expect((await page.request.get(`/api/projects/${slug}`)).status()).toBe(404);
       expect((await mutate(page, "POST", "/api/projects", {
         title: "Duplicate", slug, shortDescription: "Duplicate", category: "TEST", tier: "experiment", status: "draft", featured: false, year: "2026", order: 1, stack: [],
@@ -123,8 +150,8 @@ test.describe("admin release acceptance", () => {
       await expect(page.getByRole("heading", { name: "E2E Release Project" })).toBeVisible();
       await page.goto("/private/projects");
       for (const [index, title] of [
-        [0, "Intelligent Surveillance System · CCTV-X"], [1, "OrchestraAI"],
-        [2, "QuantumMind"], [3, "SkillMatch"],
+        [0, "OrchestraAI"], [1, "SENSELINE"],
+        [2, "Intelligent Surveillance System · CCTV-X"], [3, "QuantumMind"], [4, "SkillMatch"],
       ] as const) {
         await expect(page.locator(".ctl-curation-slot").nth(index)).toContainText(title);
       }
@@ -214,11 +241,16 @@ test.describe("admin release acceptance", () => {
 
     await page.goto("/private");
     await expect(page.locator(".ctl-shell")).toBeVisible();
+    for (const [width, height] of [[1280, 800], [768, 1024], [390, 844]] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto("/private");
+      await expect(page.locator(".ctl-shell")).toBeVisible();
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "Open navigation" }).click();
-    await expect(page.getByRole("dialog", { name: "Control navigation" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Admin navigation" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Control navigation" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Admin navigation" })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
     await page.getByRole("button", { name: /^Account:/ }).click();
     await page.getByRole("menu", { name: "Account" }).getByRole("menuitem", { name: "Log out" }).click();

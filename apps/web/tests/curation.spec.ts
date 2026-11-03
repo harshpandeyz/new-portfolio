@@ -17,13 +17,15 @@ function proj(slug: string, order = 0, status = "complete") {
 describe("homepage curation — explicit source of truth", () => {
   it("defines the exact flagship + selected hierarchy", () => {
     expect([...FLAGSHIP_SLUGS]).toEqual([
-      "intelligent-surveillance-system",
       "orchestraai",
+      "senseline",
+      "intelligent-surveillance-system",
     ]);
     expect([...SELECTED_SLUGS]).toEqual(["quantummind", "skillmatch"]);
     expect([...SIGNATURE_SLUGS]).toEqual([
-      "intelligent-surveillance-system",
       "orchestraai",
+      "senseline",
+      "intelligent-surveillance-system",
       "quantummind",
       "skillmatch",
     ]);
@@ -46,22 +48,25 @@ describe("homepage curation — explicit source of truth", () => {
       proj("brainmatch-game", 1),
       proj("skillmatch", 99),
       proj("quantummind", 98),
+      proj("senseline", 95),
       proj("orchestraai", 97),
       proj("intelligent-surveillance-system", 96),
     ];
     const { flagship, selected, signature, archive } =
       resolveHomepageCuration(projects);
     expect(flagship.map((p) => p.slug)).toEqual([
-      "intelligent-surveillance-system",
       "orchestraai",
+      "senseline",
+      "intelligent-surveillance-system",
     ]);
     expect(selected.map((p) => p.slug)).toEqual([
       "quantummind",
       "skillmatch",
     ]);
     expect(signature.map((p) => p.slug)).toEqual([
-      "intelligent-surveillance-system",
       "orchestraai",
+      "senseline",
+      "intelligent-surveillance-system",
       "quantummind",
       "skillmatch",
     ]);
@@ -79,30 +84,34 @@ describe("homepage curation — explicit source of truth", () => {
 
   it("excludes drafts from signature slots", () => {
     const projects = [
-      proj("intelligent-surveillance-system", 1, "draft"),
-      proj("orchestraai", 2),
-      proj("quantummind", 3),
-      proj("skillmatch", 4),
+      proj("orchestraai", 1, "draft"),
+      proj("senseline", 2),
+      proj("intelligent-surveillance-system", 3),
+      proj("quantummind", 4),
+      proj("skillmatch", 5),
     ];
     const { flagship } = resolveHomepageCuration(projects);
-    expect(flagship.map((p) => p.slug)).not.toContain(
+    expect(flagship.map((p) => p.slug)).not.toContain("orchestraai");
+    expect(flagship.map((p) => p.slug)).toEqual([
+      "senseline",
       "intelligent-surveillance-system",
-    );
-    expect(flagship.map((p) => p.slug)).toEqual(["orchestraai"]);
+    ]);
   });
 
   it("recruiter uses the same intentional hierarchy", () => {
     const projects = [
       proj("brainmatch-game", 0),
       proj("intelligent-mob-surveillance-system", 1),
-      proj("skillmatch", 5),
-      proj("quantummind", 4),
+      proj("skillmatch", 6),
+      proj("quantummind", 5),
+      proj("senseline", 4),
       proj("orchestraai", 3),
       proj("intelligent-surveillance-system", 2),
     ];
     expect(resolveRecruiterProjects(projects).map((p) => p.slug)).toEqual([
-      "intelligent-surveillance-system",
       "orchestraai",
+      "senseline",
+      "intelligent-surveillance-system",
       "quantummind",
       "skillmatch",
     ]);

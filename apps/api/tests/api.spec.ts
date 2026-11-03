@@ -3,9 +3,12 @@
  * Run: npm run test:api  (requires TEST_DATABASE_URL, see global-setup)
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { readdir } from "node:fs/promises";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 
 import { buildApp } from "../src/app.js";
+import { config } from "../src/config.js";
 import { prisma } from "../src/db/prisma.js";
 import { resetRateLimits } from "../src/utils/rate-limit.js";
 import { buildKnowledge, invalidateKnowledge } from "../src/modules/chat/knowledge.js";
@@ -379,9 +382,30 @@ describe("contact system", () => {
       payload: { name: "Recruiter", email: "recruiter@example.com", message: "We have a backend role for Harsh." },
     });
     expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ ok: true, notificationAvailable: false });
     const stored = await prisma.contactMessage.findFirst({ where: { email: "recruiter@example.com" } });
     expect(stored).toBeTruthy();
     expect(stored!.status).toBe("NEW");
+  });
+
+  it("keeps the inbox record when an administrator replies without an email provider", async () => {
+    const message = await prisma.contactMessage.create({
+      data: { name: "Recruiter", email: "reply@example.com", subject: "Backend role", message: "Please reply." },
+    });
+    const { cookies, csrf } = await login();
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/contact/${message.id}/reply`,
+      cookies,
+      headers: authHeaders(csrf),
+      payload: { body: "Thanks for reaching out." },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error).toBe("EMAIL_NOT_CONFIGURED");
+    const unchanged = await prisma.contactMessage.findUnique({ where: { id: message.id }, include: { replies: true } });
+    expect(unchanged?.status).toBe("NEW");
+    expect(unchanged?.replies).toHaveLength(0);
   });
 
   it("silently accepts honeypot submissions without storing", async () => {
@@ -640,6 +664,34 @@ describe("media upload security", () => {
     expect(asset.url).toMatch(/^\/static\/media\//);
     const removed = await app.inject({ method: "DELETE", url: `/api/media/${asset.id}`, cookies, headers: authHeaders(csrf) });
     expect(removed.statusCode).toBe(200);
+  });
+
+  it("rejects a truncated file at the configured limit and removes its partial file", async () => {
+    const { cookies, csrf } = await login();
+    const boundary = "hp-media-size-limit-test";
+    const maxBytes = config.maxUploadMb * 1024 * 1024;
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const oversized = Buffer.alloc(maxBytes + 1);
+    png.copy(oversized);
+    const multipart = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="oversized.png"\r\nContent-Type: image/png\r\n\r\n`),
+      oversized,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    const mediaDir = path.join(config.uploadDir, "media");
+    const filesBefore = await readdir(mediaDir).catch(() => []);
+    const assetsBefore = await prisma.mediaAsset.count();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/media",
+      cookies,
+      headers: { ...authHeaders(csrf), "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: multipart,
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(await prisma.mediaAsset.count()).toBe(assetsBefore);
+    expect(await readdir(mediaDir)).toEqual(filesBefore);
   });
 });
 
