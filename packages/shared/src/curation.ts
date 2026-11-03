@@ -6,22 +6,26 @@
  * future content edits must never silently swap the homepage hierarchy.
  *
  * Hierarchy (intentional, product decision):
- *   FLAGSHIP (dominate):
- *     1. intelligent-surveillance-system (CCTV-X)
- *     2. orchestraai
+ *   FLAGSHIP (dominate — lead spans full width, next two share a row):
+ *     1. orchestraai (flagship AI agent runtime)
+ *     2. senseline (AI evaluation benchmark)
+ *     3. intelligent-surveillance-system (CCTV-X — applied AI + evidence integrity)
  *   SELECTED (strong secondary stories):
- *     3. quantummind
- *     4. skillmatch
+ *     4. quantummind
+ *     5. skillmatch
  *
  * Explicitly excluded from homepage signature slots (archive only):
  *   - intelligent-mob-surveillance-system (predecessor capstone, separate
  *     project — must never inherit CCTV-X screenshots/architecture)
  *   - brainmatch-game (iOS experiment, archive only)
+ *   - shopsphere (complete offline demo store — deep archive story, not a
+ *     homepage slot)
  */
 
 export const FLAGSHIP_SLUGS = [
-  "intelligent-surveillance-system",
   "orchestraai",
+  "senseline",
+  "intelligent-surveillance-system",
 ] as const;
 
 export const SELECTED_SLUGS = ["quantummind", "skillmatch"] as const;

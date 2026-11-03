@@ -1,11 +1,12 @@
 /**
- * Shared section ids + section↔3D mode mapping for the home page.
+ * Shared section ids for the home page.
  *
- * Resolved final IA (V3): Hero → About → Education/Journey → Projects →
- * Tech Stack → Credentials → Contact. About sits immediately after Hero and
- * the former "capabilities" skill wall is now the multi-domain Tech Stack.
+ * Resolved IA: Hero → Featured Projects → About → Technical Expertise →
+ * Education → Credentials → Open Source → Contact. Featured work leads
+ * because it is the strongest proof; the open-source record closes the
+ * loop before contact.
  */
-export const SECTION_IDS = ["hero", "about", "journey", "work", "tech", "credentials", "contact"] as const;
+export const SECTION_IDS = ["hero", "work", "about", "tech", "journey", "credentials", "opensource", "contact"] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
 
@@ -16,5 +17,6 @@ export const NAV_LINKS: { label: string; id: SectionId }[] = [
   { label: "Education", id: "journey" },
   { label: "Tech", id: "tech" },
   { label: "Credentials", id: "credentials" },
+  { label: "Open Source", id: "opensource" },
   { label: "Contact", id: "contact" },
 ];

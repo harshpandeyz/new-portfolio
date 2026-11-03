@@ -20,10 +20,10 @@ import { PrivateAccess, useGlobalShortcuts } from "./components/hud/PrivateAcces
 
 import { Hero } from "./features/home/Hero";
 import { About } from "./features/home/About";
-import { Journey } from "./features/home/Journey";
 import { Work } from "./features/home/Work";
 import { TechStack } from "./features/home/TechStack";
 import { Credentials } from "./features/home/Credentials";
+import { OpenSource } from "./features/opensource/OpenSource";
 import { Contact } from "./features/contact/Contact";
 
 // Heavy routes are code-split so the homepage stays lean: case studies,
@@ -215,6 +215,7 @@ function Experience() {
       { id: "tech", label: "Go to Tech Stack", icon: "tech" as const, action: go("tech"), keywords: "skills technologies stack capabilities" },
       { id: "journey", label: "Go to Education", icon: "journey" as const, action: go("journey"), keywords: "timeline education history milestones" },
       { id: "credentials", label: "Go to Credentials", icon: "credentials" as const, action: go("credentials"), keywords: "certificates credentials archive" },
+      { id: "opensource", label: "Go to Open Source", icon: "github" as const, action: go("opensource"), keywords: "open source xerj corpus github contributions" },
       { id: "contact", label: "Go to Contact", icon: "contact" as const, action: go("contact"), keywords: "contact email message hire" },
       { id: "project-archive", label: "Open project archive", icon: "projects" as const, hint: "ALL", action: () => navigate("/projects"), keywords: "projects archive all work explore" },
       { id: "credential-archive", label: "Open credential archive", icon: "vault" as const, hint: "ALL", action: () => navigate("/credentials"), keywords: "certificates archive all credentials" },
@@ -248,11 +249,11 @@ function Experience() {
             element={
               <>
                 <Hero onViewResume={openResume} />
-                <About />
-                <Journey />
                 <Work />
+                <About />
                 <TechStack />
                 <Credentials />
+                <OpenSource />
                 <Contact onViewResume={openResume} />
               </>
             }
@@ -267,7 +268,7 @@ function Experience() {
 
       {!recruiterMode && <Footer onViewResume={openResume} />}
 
-      {!recruiterMode && <ResumeViewer open={resumeOpen} onClose={() => setResumeOpen(false)} />}
+      <ResumeViewer open={resumeOpen} onClose={() => setResumeOpen(false)} />
       {!recruiterMode && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />}
       {!recruiterMode && <PrivateAccess open={privateOpen} onClose={() => setPrivateOpen(false)} />}
       {!recruiterMode && (
