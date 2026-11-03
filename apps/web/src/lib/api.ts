@@ -210,7 +210,7 @@ export const api = {
       ? Promise.resolve(undefined)
       : request("/api/events", { method: "POST", json: { type, ref }, timeout: 5_000 }).catch(() => undefined),
   contact: (input: { name: string; email: string; subject?: string; message: string; company?: string }) =>
-    request<{ ok: boolean }>("/api/contact", { method: "POST", json: input }),
+    request<{ ok: boolean; notificationAvailable?: boolean }>("/api/contact", { method: "POST", json: input }),
 
   // auth (password step may return 202 + challenge when 2FA is enabled)
   login: (email: string, password: string) =>

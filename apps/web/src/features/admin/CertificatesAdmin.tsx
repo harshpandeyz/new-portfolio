@@ -245,7 +245,7 @@ export function CertificatesAdmin() {
                   <div className="ctl-certificate-issuer"><span className="ctl-issuer-mark" aria-hidden="true">{certificate.issuer.trim().slice(0, 1).toUpperCase() || "C"}</span><span>{certificate.issuer}</span></div>
                   <button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...certificate }); setErrors({}); setDirty(false); }}>{certificate.title}</button>
                   {certificate.description && <p>{certificate.description}</p>}
-                  <div className="ctl-certificate-meta"><Badge tone="neutral">{certificate.category}</Badge>{certificate.issuedOn && <time dateTime={certificate.issuedOn}>{certificate.issuedOn.slice(0, 4)}</time>}{certificate.featured && <Badge tone="amber">Featured</Badge>}</div>
+                  <div className="ctl-certificate-meta"><Badge tone="neutral">{certificate.category}</Badge>{certificate.issuedOn && <time dateTime={certificate.issuedOn}>{certificate.issuedOn.slice(0, 4)}</time>}{certificate.featured && <Badge tone="blue">Featured</Badge>}</div>
                   <div className="ctl-certificate-card-foot">
                     {certificate.credentialUrl ? <a href={certificate.credentialUrl} target="_blank" rel="noopener noreferrer"><AdminIcon name="external" size={14} />Verify</a> : <span className="ctl-hint">No verification link</span>}
                     <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => { setEditing({ ...certificate }); setErrors({}); setDirty(false); }}>Edit</button>
@@ -263,7 +263,7 @@ export function CertificatesAdmin() {
               {filtered.map((c) => (
                 <tr key={c.id} className={selected.has(c.id) ? "selected" : ""}>
                   <td><input type="checkbox" checked={selected.has(c.id)} onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n; })} aria-label={`Select ${c.title}`} /></td>
-                  <td data-mobile-primary><button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...c }); setErrors({}); setDirty(false); }}>{c.title}</button> {c.featured && <Badge tone="amber">Featured</Badge>}</td>
+                  <td data-mobile-primary><button type="button" className="ctl-link-btn" onClick={() => { setEditing({ ...c }); setErrors({}); setDirty(false); }}>{c.title}</button> {c.featured && <Badge tone="blue">Featured</Badge>}</td>
                   <td data-mobile-label="Issuer">{c.issuer}</td>
                   <td data-mobile-label="Category"><Badge tone="neutral">{c.category}</Badge></td>
                   <td data-mobile-label="Year">{c.issuedOn ? <time dateTime={c.issuedOn}>{c.issuedOn.slice(0, 4)}</time> : "Not recorded"}</td>

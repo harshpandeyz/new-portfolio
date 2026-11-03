@@ -69,6 +69,7 @@ export function ContactForm() {
   const [form, setForm] = useState(EMPTY);
   const [state, setState] = useState<"idle" | "busy" | "ok" | "err">("idle");
   const [message, setMessage] = useState("");
+  const [notificationAvailable, setNotificationAvailable] = useState(true);
   const submittingRef = useRef(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -111,9 +112,10 @@ export function ContactForm() {
     }
     setState("busy");
     try {
-      await api.contact(form);
+      const result = await api.contact(form);
       void api.track("contact_submit");
       unlock("signal");
+      setNotificationAvailable(result.notificationAvailable !== false);
       setState("ok");
       setMessage("");
       setForm(EMPTY);
@@ -128,9 +130,11 @@ export function ContactForm() {
   if (state === "ok") {
     return (
       <div className="contact-success" role="status">
-        <h3>Message sent.</h3>
-        <p>Thanks — I&rsquo;ll get back to you soon.</p>
-        <Button onClick={() => { setForm(EMPTY); setState("idle"); }}>Send another message</Button>
+        <h3>Message saved.</h3>
+        <p>{notificationAvailable
+          ? "Thanks — I’ll get back to you soon."
+          : "Email notifications are unavailable right now, but your message is saved in the inbox. I may take longer to see it."}</p>
+        <Button onClick={() => { setForm(EMPTY); setState("idle"); setNotificationAvailable(true); }}>Send another message</Button>
       </div>
     );
   }

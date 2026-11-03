@@ -410,7 +410,7 @@ export default function AdminApp() {
       <div className={`ctl-shell${sidebarCollapsed ? " ctl-shell--collapsed" : ""}`}>
         <div className="ctl-brandbar">
           <Link to="/private" className="ctl-brand" aria-label="Portfolio admin dashboard">
-            <span className="ctl-brand-name">Portfolio SaaS</span>
+            <span className="ctl-brand-name">Harsh Pandey</span>
           </Link>
           <button
             ref={menuButtonRef}
@@ -473,7 +473,7 @@ export default function AdminApp() {
             <button type="button" className="ctl-drawer-backdrop" onClick={closeDrawer} aria-label="Close navigation" />
             <aside ref={drawerRef as React.RefObject<HTMLElement>} className="ctl-drawer" role="dialog" aria-modal="true" aria-label="Admin navigation">
               <div className="ctl-drawer-head">
-                <span className="ctl-brand-name">Portfolio SaaS</span>
+                <span className="ctl-brand-name">Harsh Pandey</span>
                 <button type="button" className="ctl-icon-btn" onClick={closeDrawer} aria-label="Close navigation"><AdminIcon name="close" /></button>
               </div>
               {nav}

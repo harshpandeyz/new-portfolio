@@ -309,13 +309,13 @@ export function ProjectsAdmin() {
               <div className="ctl-project-card-body">
                 <div className="ctl-project-card-head">
                   <label className="ctl-check" aria-label={`Select ${project.title}`}><input type="checkbox" checked={selected.has(project.id)} onChange={(event) => setSelected((prev) => { const next = new Set(prev); if (event.target.checked) next.add(project.id); else next.delete(project.id); return next; })} /></label>
-                  {isFlagship(project.slug) ? <Badge tone="amber">Flagship</Badge> : isSelected(project.slug) ? <Badge tone="blue">Selected</Badge> : isArchiveOnlySlug(project.slug) ? <Badge tone="gray">Archive only</Badge> : <Badge tone="neutral">{project.tier}</Badge>}
+                  {isFlagship(project.slug) ? <Badge tone="blue">Flagship</Badge> : isSelected(project.slug) ? <Badge tone="blue">Selected</Badge> : isArchiveOnlySlug(project.slug) ? <Badge tone="gray">Archive only</Badge> : <Badge tone="neutral">{project.tier}</Badge>}
                 </div>
                 <button type="button" className="ctl-link-btn" onClick={() => openEditor({ ...project }, false)}>{project.title}</button>
                 <p>{project.shortDescription}</p>
                 <div className="ctl-tech-list">{project.stack.slice(0, 4).map((technology) => <span key={technology}>{technology}</span>)}{project.stack.length > 4 && <span>+{project.stack.length - 4}</span>}</div>
                 <div className="ctl-project-card-foot">
-                  <Badge tone={project.status === "draft" ? "gray" : project.status === "archived" ? "red" : "green"}>{project.status}</Badge>
+                  <Badge tone={project.status === "draft" || project.status === "archived" ? "gray" : "green"}>{project.status}</Badge>
                   <button type="button" className="ctl-btn ctl-btn--ghost ctl-btn--sm" onClick={() => openEditor({ ...project }, false)}>Edit</button>
                   <details className="ctl-overflow-menu">
                     <summary aria-label={`More actions for ${project.title}`}><AdminIcon name="more" size={18} /></summary>
@@ -358,8 +358,8 @@ export function ProjectsAdmin() {
                     {p.heroImage && <img className="ctl-project-row-thumb" src={resolveMediaUrl(p.heroImage)} alt="" loading="lazy" />}
                     <button type="button" className="ctl-link-btn" onClick={() => openEditor({ ...p }, false)}>{p.title}</button>
                     {signatureSlugs.has(p.slug) && <span> </span>}
-                    {isFlagship(p.slug) && <Badge tone="amber">HOMEPAGE · FLAGSHIP</Badge>}
-                    {!isFlagship(p.slug) && isSelected(p.slug) && <Badge tone="amber">HOMEPAGE · SELECTED</Badge>}
+                    {isFlagship(p.slug) && <Badge tone="blue">HOMEPAGE · FLAGSHIP</Badge>}
+                    {!isFlagship(p.slug) && isSelected(p.slug) && <Badge tone="blue">HOMEPAGE · SELECTED</Badge>}
                     {!signatureSlugs.has(p.slug) && p.featured && <span> </span>}
                     {!signatureSlugs.has(p.slug) && p.featured && <Badge tone="neutral">FEATURED</Badge>}
                     {isArchiveOnlySlug(p.slug) && <span> </span>}
@@ -367,7 +367,7 @@ export function ProjectsAdmin() {
                     <div className="ctl-row-sub">/{p.slug}</div>
                   </td>
                   <td data-mobile-label="Tier"><Badge tone="neutral">{p.tier}</Badge></td>
-                  <td data-mobile-label="Status"><Badge tone={p.status === "draft" ? "gray" : p.status === "archived" ? "red" : "green"}>{p.status}</Badge></td>
+                  <td data-mobile-label="Status"><Badge tone={p.status === "draft" || p.status === "archived" ? "gray" : "green"}>{p.status}</Badge></td>
                   <td data-mobile-label="Order">{p.order}</td>
                   <td data-mobile-label="Updated"><time dateTime={p.updatedAt}>{new Date(p.updatedAt).toLocaleDateString()}</time></td>
                   <td data-mobile-label="Actions">
