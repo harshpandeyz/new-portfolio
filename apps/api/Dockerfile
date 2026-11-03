@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN node ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.pri
   && npm run build --workspace @hp/shared \
   && npm run build --workspace @hp/api
 
-FROM node:22-bookworm-slim
+FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -46,6 +46,7 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/src ./apps/api/src
 COPY --from=build /app/apps/api/seed-assets ./apps/api/seed-assets
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
+COPY scripts/admin-create.ts scripts/admin-set-password.ts ./scripts/
 COPY scripts/docker-entrypoint-api.sh /usr/local/bin/hp-entrypoint
 
 # Named volumes initialize from this directory's ownership, so pre-create the

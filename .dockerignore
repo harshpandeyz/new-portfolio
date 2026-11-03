@@ -12,6 +12,8 @@ apps/api/uploads
 e2e
 docs
 scripts/admin-create.ts
+!scripts/admin-create.ts
+!scripts/admin-set-password.ts
 *.db
 *.log
 .DS_Store

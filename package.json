@@ -46,5 +46,8 @@
     "esbuild@0.21.5": true,
     "nodemailer@6.10.1": true,
     "prisma@5.22.0": true
+  },
+  "overrides": {
+    "glob": "^14.0.3"
   }
 }

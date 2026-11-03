@@ -10,10 +10,15 @@ test-results/
 .env.local
 .env.*.local
 .env.production
+.env.production.local
 .env.test
 .env.staging
 !.env.example
 !apps/web/.env.example
+!deploy/.env.production.example
+deploy/.env.production
+deploy/.env.backup
+deploy/backup.env
 *.pem
 
 # api runtime data
@@ -26,6 +31,8 @@ apps/api/prisma/*.db
 *.sqlite
 *.sqlite-journal
 *.tsbuildinfo
+backups/
+restore-media-*/
 
 # tooling / editor
 .vite/

@@ -1,31 +1,42 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    platform: linux/arm64
     restart: unless-stopped
-    # Loopback-only binding: reachable from the host for local dev/tests, but
-    # never exposed to the LAN/internet. In Oracle production the DB lives
-    # only on the compose network (reverse proxy in front, no public DB port).
+    # Maintenance access is host-only. The database is also attached to the
+    # private application network; no public interface is published.
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the stack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: hp_os
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}}
+      POSTGRES_MIGRATOR_PASSWORD: ${POSTGRES_MIGRATOR_PASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
       - hp_pgdata:/var/lib/postgresql/data
-      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+      - ./deploy/postgres/create-app-roles.sql:/docker-entrypoint-initdb.d/10-create-app-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hp_os"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    mem_limit: 2g
+    cpus: 1.0
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+    networks:
+      app_net:
+        ipv4_address: ${DB_IPV4:-172.30.0.10}
 
   api:
+    image: ${API_IMAGE:-hp-os-api:local}
+    platform: linux/arm64
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -36,83 +47,117 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 4000
-      APP_URL: ${APP_URL:?Set APP_URL to the public site origin}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the stack}@db:5432/hp_os
-      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET before starting the production stack}
+      APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS origin}
+      TRUST_PROXY: ${TRUST_PROXY:-172.30.0.30/32}
+      DATABASE_URL: postgresql://hp_app:${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}}@db:5432/hp_os?schema=public
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      SESSION_SECRET_PREVIOUS: ${SESSION_SECRET_PREVIOUS:-}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
+      TOTP_ENCRYPTION_KEY_PREVIOUS: ${TOTP_ENCRYPTION_KEY_PREVIOUS:-}
       AI_CONFIG_KEY: ${AI_CONFIG_KEY:-}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      AI_CONFIG_KEY_PREVIOUS: ${AI_CONFIG_KEY_PREVIOUS:-}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
-      UPLOAD_DIR: ${UPLOAD_DIR:-uploads}
+      UPLOAD_DIR: uploads
       LLM_PROVIDER: ${LLM_PROVIDER:-none}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      CONTACT_NOTIFY_EMAIL: ${CONTACT_NOTIFY_EMAIL:-}
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
+      CONTACT_NOTIFY_EMAIL: ${CONTACT_NOTIFY_EMAIL:-}
       REPLY_FROM_NAME: ${REPLY_FROM_NAME:-Harsh Pandey}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - hp_uploads:/app/apps/api/uploads
-    # API is proxied via `web`/NGINX in production; the host port mapping
-    # below is for single-host Oracle deploys. Behind a reverse proxy, drop
-    # the mapping and route through the proxy network instead.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    # Host-local maintenance only; public traffic goes through Caddy -> web.
     ports:
-      - "127.0.0.1:4000:4000"
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          memory: 256M
+      - "127.0.0.1:${API_HOST_PORT:-4000}:4000"
+    healthcheck:
+      # Readiness includes a live DB query. /api/health remains a cheap liveness check.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 1g
+    cpus: 0.75
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+    networks:
+      app_net:
+        ipv4_address: ${API_IPV4:-172.30.0.20}
+
+  migrate:
+    image: ${API_IMAGE:-hp-os-api:local}
+    platform: linux/arm64
+    profiles: ["ops"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://hp_migrator:${POSTGRES_MIGRATOR_PASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}}@db:5432/hp_os?schema=public
+    entrypoint: ["node", "/app/node_modules/.bin/prisma"]
+    command: ["migrate", "deploy", "--schema", "/app/apps/api/prisma/schema.prisma"]
+    networks:
+      app_net: {}
 
   web:
+    image: ${WEB_IMAGE:-hp-os-web:local}
+    platform: linux/arm64
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_SITE_URL: ${VITE_SITE_URL:?Set VITE_SITE_URL to the public site origin before building}
+        VITE_SITE_URL: ${VITE_SITE_URL:?Set VITE_SITE_URL to the public HTTPS origin before building}
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:5173:80"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
+      - "127.0.0.1:${WEB_HOST_PORT:-5173}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+    cpus: 0.25
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ > /dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
+    networks:
+      app_net:
+        ipv4_address: ${WEB_IPV4:-172.30.0.30}
 
 volumes:
   hp_pgdata:
+    name: ${DATABASE_VOLUME_NAME:-${COMPOSE_PROJECT_NAME:-portfolio}_hp_pgdata}
   hp_uploads:
+    name: ${UPLOAD_VOLUME_NAME:-${COMPOSE_PROJECT_NAME:-portfolio}_hp_uploads}
+
+networks:
+  app_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${APP_SUBNET:-172.30.0.0/24}
