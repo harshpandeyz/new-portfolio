@@ -272,10 +272,13 @@ API through the release procedure below.
 
 ## 8. First deployment, migration, seed, and admin provisioning
 
-Build and run natively on the A1 ARM64 host. The Dockerfiles pin the Node,
-NGINX, and PostgreSQL base image digests and Compose selects `linux/arm64`.
-Prisma Client is generated in the same Debian/OpenSSL family used by the API
-runtime.
+Build and run natively on the A1 ARM64 host. The Dockerfiles track the
+`node:24-bookworm-slim`, `nginx:1.27-alpine` and `postgres:16-alpine` floating
+tags (no digest pins, no `platform:` constraint) so the same Compose file also
+builds on amd64 CI/dev machines. Prisma Client is generated in the same
+Debian/OpenSSL family used by the API runtime. Only
+`scripts/restore-media-volume.sh` still passes `--platform linux/arm64`
+(explicitly, for the ARM64 restore helper).
 
 First deployment only, after reviewing the chosen data volumes and validating
 the production environment:

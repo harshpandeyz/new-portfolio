@@ -17,20 +17,40 @@ function staticSeo(siteUrl: string) {
       const outputDir = path.resolve(configDir, "dist");
       const template = await readFile(path.join(outputDir, "index.html"), "utf8");
       const { pages } = JSON.parse(await readFile(path.join(configDir, "seo-routes.json"), "utf8")) as {
-        pages: { path: string; title: string; description: string }[];
+        pages: { path: string; title: string; description: string; image?: string; imageWidth?: number; imageHeight?: number; imageAlt?: string }[];
+      };
+      const defaultImage = {
+        url: `${siteUrl}/files/harsh-photo.jpeg`,
+        width: 1516,
+        height: 1600,
+        alt: "Portrait of Harsh Pandey",
       };
 
       for (const page of pages) {
         if (page.path === "/") continue;
         const pageUrl = `${siteUrl}${page.path}`;
+        const image = page.image
+          ? {
+              url: page.image.startsWith("/") ? `${siteUrl}${page.image}` : page.image,
+              width: page.imageWidth ?? defaultImage.width,
+              height: page.imageHeight ?? defaultImage.height,
+              alt: page.imageAlt ?? defaultImage.alt,
+            }
+          : defaultImage;
         let html = template.replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(page.title)}</title>`);
         html = setMeta(html, "name", "description", page.description);
         html = setMeta(html, "property", "og:title", page.title);
         html = setMeta(html, "property", "og:description", page.description);
         html = setMeta(html, "property", "og:url", pageUrl);
         html = setMeta(html, "property", "og:type", page.path.startsWith("/projects/") ? "article" : "website");
+        html = setMeta(html, "property", "og:image", image.url);
+        html = setMeta(html, "property", "og:image:width", String(image.width));
+        html = setMeta(html, "property", "og:image:height", String(image.height));
+        html = setMeta(html, "property", "og:image:alt", image.alt);
         html = setMeta(html, "name", "twitter:title", page.title);
         html = setMeta(html, "name", "twitter:description", page.description);
+        html = setMeta(html, "name", "twitter:image", image.url);
+        html = setMeta(html, "name", "twitter:image:alt", image.alt);
         html = setLink(html, "canonical", pageUrl);
 
         const segments = page.path.split("/").filter(Boolean);
@@ -39,7 +59,8 @@ function staticSeo(siteUrl: string) {
         await writeFile(path.join(targetDir, "index.html"), html);
       }
 
-      const locations = pages.map(({ path: route }) => `  <url><loc>${escapeXml(siteUrl + route)}</loc></url>`).join("\n");
+      const buildDate = new Date().toISOString().slice(0, 10);
+      const locations = pages.map(({ path: route }) => `  <url><loc>${escapeXml(siteUrl + route)}</loc><lastmod>${buildDate}</lastmod></url>`).join("\n");
       await writeFile(path.join(outputDir, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${locations}\n</urlset>\n`);
       await writeFile(path.join(outputDir, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /private\n\nSitemap: ${siteUrl}/sitemap.xml\n`);
     },

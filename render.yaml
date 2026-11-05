@@ -1,0 +1,102 @@
+# Render Blueprint — backend API + managed PostgreSQL.
+# Frontend deploys separately on Netlify (see netlify.toml).
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: hp-os-api
+    runtime: node
+    plan: starter
+    # Repo root is the working directory for all commands below.
+    buildCommand: >-
+      npm ci &&
+      node ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma &&
+      npm run build --workspace @hp/shared &&
+      npm run build --workspace @hp/api
+    # Pre-deploy gate fails fast on placeholder/mismatched production env
+    # (Render-aware: checks DATABASE_URL + secrets + origins, not Docker
+    # role passwords), then applies pending Prisma migrations.
+    preDeployCommand: node scripts/validate-production-env.mjs && npm run db:migrate --workspace @hp/api
+    startCommand: node apps/api/dist/apps/api/src/server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      # Render injects PORT automatically — config.ts reads PORT with an
+      # API_PORT fallback, so do NOT set a static port here.
+      - key: RENDER
+        value: "true"
+      # Behind Render's edge there is no stable proxy IP to allow-list;
+      # hop-count trust is the correct setting on this host.
+      - key: TRUST_PROXY
+        value: "1"
+      # Split-origin cookies: Netlify frontend + Render API must use
+      # SameSite=None; Secure or admin sessions will not persist.
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: COOKIE_SECURE
+        value: "true"
+      # Public origin of the Netlify site (used for CORS + canonical links).
+      # Example: https://your-site.netlify.app (no trailing slash).
+      - key: APP_URL
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hp-os-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SESSION_SECRET_PREVIOUS
+        sync: false
+      - key: AI_CONFIG_KEY
+        generateValue: true
+      - key: AI_CONFIG_KEY_PREVIOUS
+        sync: false
+      - key: TOTP_ENCRYPTION_KEY
+        generateValue: true
+      - key: TOTP_ENCRYPTION_KEY_PREVIOUS
+        sync: false
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      # Local disk is ephemeral on Render. Keep UPLOAD_DIR unset (defaults to
+      # apps/api/uploads) for throwaway deploys, or attach a Disk at this path
+      # and pin the service to 1 instance for durable media.
+      - key: UPLOAD_DIR
+        sync: false
+      - key: STORAGE_DRIVER
+        value: local
+      - key: LLM_PROVIDER
+        value: none
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      # Production mail goes over the Resend HTTPS API (SMTP ports are
+      # restricted on Render). Set all three together.
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CONTACT_NOTIFY_EMAIL
+        sync: false
+      - key: REPLY_FROM_NAME
+        value: Harsh Pandey
+      - key: GITHUB_TOKEN
+        sync: false
+    disk:
+      name: hp-os-uploads
+      # Mounted at the API's default upload dir. Single-instance only while a
+      # disk is attached (Render disks cannot be shared across instances).
+      mountPath: /opt/render/project/src/apps/api/uploads
+      sizeGB: 1
+
+databases:
+  - name: hp-os-db
+    plan: starter
+    postgresMajorVersion: "16"

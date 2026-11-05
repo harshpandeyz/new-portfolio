@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { unlock } from "../../lib/achievements";
 import { useDialogLifecycle } from "../../hooks/useDialogLifecycle";
 import type { ChatReply } from "@hp/shared";
@@ -79,11 +79,18 @@ export function ChatWidget({ openSignal, launcherRef, onOpenChange }: ChatWidget
       if (!controller.signal.aborted) {
         setMessages((m) => [...m, { role: "ai", text: reply.answer, reply }]);
       }
-    } catch {
+    } catch (err) {
       if (!controller.signal.aborted) {
+        const limited = err instanceof ApiError && err.isRateLimited;
         setMessages((m) => [
           ...m,
-          { role: "ai", text: "Something went wrong. Please try again.", retry: q },
+          {
+            role: "ai",
+            text: limited
+              ? "Too many questions at once — please wait a moment, then try again."
+              : "Something went wrong. Please try again.",
+            retry: q,
+          },
         ]);
       }
     } finally {
@@ -122,7 +129,7 @@ export function ChatWidget({ openSignal, launcherRef, onOpenChange }: ChatWidget
     } else if (href.startsWith("/")) {
       navigate(href);
     } else {
-      window.open(href, "_blank", "noopener");
+      window.open(href, "_blank", "noopener,noreferrer");
     }
   };
 

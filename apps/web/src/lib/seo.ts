@@ -64,7 +64,7 @@ export function applyMeta(input: MetaInput) {
   ensureTag('meta[name="theme-color"]', () => {
     const m = document.createElement("meta");
     m.setAttribute("name", "theme-color");
-    m.setAttribute("content", "#0a0a0f");
+    m.setAttribute("content", "#F5F5F7");
     return m;
   });
 

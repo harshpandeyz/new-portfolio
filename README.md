@@ -65,6 +65,8 @@ cd new-portfolio
 
 npm ci
 cp .env.example .env
+# Fill in .env (see the per-variable reference in .env.example), then:
+# strong secrets: openssl rand -hex 32  (SESSION_SECRET is mandatory)
 
 npm run db:generate --workspace @hp/api
 docker compose up -d db
@@ -77,6 +79,18 @@ npm run dev
 Configure the required environment variables in `.env` before starting the application.
 
 Open **http://localhost:5173** to access the portfolio.
+
+Two ways to run the full stack locally:
+
+- **Dev flow (recommended):** `docker compose up -d db` for PostgreSQL only,
+  then `npm run dev` (Vite on :5173 proxies `/api` + `/static` to the API on :4000).
+- **Compose flow (production images):** plain `docker compose up -d` boots
+  db + api + web. The api service is a production build and additionally needs
+  `AI_CONFIG_KEY`, `TOTP_ENCRYPTION_KEY` (generate once with
+  `openssl rand -hex 32`) and `COMPOSE_API_APP_URL` (https placeholder origin)
+  in `.env`. The bundled nginx strips the browser `Origin` on the same-origin
+  `/api/` proxy (CSRF double-submit still enforced), so admin login works from
+  `localhost` in both flows.
 
 ## Admin Dashboard
 
@@ -102,9 +116,23 @@ apps/
 packages/
   shared/       → Shared types and schemas
 
-e2e/            → End-to-end tests
-docs/            → Deployment and operations
+e2e/            → End-to-end tests (Playwright)
+docs/            → Deployment, operations and the audit report
+deploy/         → Production Compose/Caddy assets and env templates
+render.yaml     → Render Blueprint (API + managed PostgreSQL)
+netlify.toml    → Netlify static frontend (SPA fallback + headers)
 ```
+
+## Deployment
+
+- **Netlify (frontend) + Render (API + PostgreSQL):** follow
+  [`docs/NETLIFY_RENDER.md`](docs/NETLIFY_RENDER.md) — exact dashboard
+  settings, environment variables, deploy sequence and post-deploy checks.
+  `render.yaml` / `netlify.toml` are the source of truth for build commands.
+- **Private Docker/Caddy host:** follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+  (includes backup/restore runbooks for that path).
+- Full variable reference: [`.env.example`](.env.example).
+- Audit findings and production-readiness status: [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md).
 
 ## Engineering Principles
 

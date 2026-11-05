@@ -28,7 +28,7 @@ function SkillTile({ skill, onOpen, linkedProjects }: { skill: Skill; onOpen: (s
   const context = skill.relatedConcepts.slice(0, 2).join(" · ");
   if (linkedProjects.length === 0) {
     return (
-      <div className="tech-tile tech-tile--static" title={context || skill.name} aria-label={skill.name}>
+      <div className="tech-tile tech-tile--static" title={context || skill.name}>
         <TechGlyph name={skill.name} />
         <span className="tt-name">{skill.name}</span>
         {context && (

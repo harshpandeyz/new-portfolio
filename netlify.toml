@@ -1,0 +1,39 @@
+# Netlify — static frontend (apps/web). API runs on Render (see render.yaml).
+[build]
+  base = "."
+  # Shared package must build before the web bundle (Vite aliases @hp/shared
+  # to packages/shared/src, so this is belt-and-braces for type output).
+  # The site-URL gate fails the build on a missing/placeholder VITE_SITE_URL
+  # instead of shipping poisoned canonical/og/sitemap URLs.
+  command = "node scripts/validate-site-url.mjs \"$VITE_SITE_URL\" && npm run build --workspace @hp/shared && npm run build --workspace @hp/web"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: serve index.html for all non-file routes (mirrors the nginx
+# try_files $uri /index.html rule in apps/web/nginx.conf).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers mirroring apps/web/nginx.conf for the static deployment.
+# connect-src allows the Render API origin over https: (VITE_API_URL).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-DNS-Prefetch-Control = "off"
+    X-Permitted-Cross-Domain-Policies = "none"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' https:"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

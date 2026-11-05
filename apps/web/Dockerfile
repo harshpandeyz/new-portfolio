@@ -1,8 +1,19 @@
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 ARG VITE_SITE_URL
+# Optional cross-origin / contact configuration. Only VITE_SITE_URL is
+# validated as required; the rest degrade gracefully when unset (same-origin
+# API, no WhatsApp channel).
+ARG VITE_API_URL=""
+ARG VITE_WHATSAPP=""
+ARG VITE_WHATSAPP_MESSAGE=""
+ARG VITE_API_PORT=""
 ENV VITE_SITE_URL=$VITE_SITE_URL
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WHATSAPP=$VITE_WHATSAPP
+ENV VITE_WHATSAPP_MESSAGE=$VITE_WHATSAPP_MESSAGE
+ENV VITE_API_PORT=$VITE_API_PORT
 COPY package.json package-lock.json tsconfig.base.json ./
 # npm ci resolves every workspace named by the root manifest. Include the API
 # manifest even though the web bundle doesn't compile API sources.
@@ -19,7 +30,7 @@ RUN node scripts/validate-site-url.mjs "$VITE_SITE_URL" \
   && npm run build --workspace @hp/shared \
   && npm run build --workspace @hp/web
 
-FROM nginx:1.30.6-alpine3.24@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
+FROM nginx:1.27-alpine
 COPY apps/web/nginx-main.conf /etc/nginx/nginx.conf
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

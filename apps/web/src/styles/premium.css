@@ -425,6 +425,11 @@
   .hero-name { font-size: clamp(48px, 13.5vw, 68px); }
   .oss-facts > div { grid-template-columns: 1fr; gap: 4px; }
   .sw-sense-note { flex-direction: column; align-items: flex-start; gap: 4px; }
+  /* Mid-range viewports (561–720px) keep the 2–3 column runtime map grids;
+     guarantee nothing overflows its track when labels run long. */
+  .runtime-map-node, .runtime-map-router, .runtime-map-outputs > div { min-width: 0; }
+  .runtime-map-node > b, .runtime-map-router-title > b { overflow-wrap: anywhere; }
+  .runtime-map-outputs small { white-space: normal; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 560px) {

@@ -33,7 +33,14 @@ export function Login({ onSuccess }: LoginProps) {
         totpEnabled: me?.user.totpEnabled ?? r.user?.totpEnabled ?? false,
       });
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 429 ? err.message : "Invalid email or password.");
+      // 401 = wrong credentials (generic on purpose). Anything else is an
+      // environment/network problem — say so instead of blaming the password.
+      if (err instanceof ApiError && err.status === 429) setError(err.message);
+      else if (err instanceof ApiError && err.status === 403)
+        setError("Sign-in is blocked by the server configuration (origin or CSRF check). Check the API setup and try again.");
+      else if (err instanceof ApiError && err.isNetwork)
+        setError("Cannot reach the API. Check your connection and try again.");
+      else setError("Invalid email or password.");
     } finally {
       setBusy(false);
     }

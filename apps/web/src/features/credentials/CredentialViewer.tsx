@@ -29,6 +29,7 @@ export interface CredentialViewerProps {
 export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbors }: CredentialViewerProps) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [pdfSlow, setPdfSlow] = useState(false);
+  const [pdfReload, setPdfReload] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,12 +51,22 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
   useEffect(() => {
     setState("loading");
     setPdfSlow(false);
+    setPdfReload(0);
     clearSlowTimer();
     if (isPdf) {
       slowTimer.current = setTimeout(() => setPdfSlow(true), PDF_LOAD_GRACE_MS);
     }
     return clearSlowTimer;
   }, [certificate?.id, isPdf]);
+
+  const reloadPdf = () => {
+    setPdfSlow(false);
+    clearSlowTimer();
+    setPdfReload((n) => n + 1);
+    if (isPdf) {
+      slowTimer.current = setTimeout(() => setPdfSlow(true), PDF_LOAD_GRACE_MS);
+    }
+  };
 
   useKeyboardShortcut(["ArrowRight"], () => hasNeighbors && onNavigate(1), !!certificate);
   useKeyboardShortcut(["ArrowLeft"], () => hasNeighbors && onNavigate(-1), !!certificate);
@@ -131,6 +142,7 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
         {url && isPdf && (
           <>
             <iframe
+              key={pdfReload}
               src={`${url}#toolbar=0`}
               title={`${certificate.title} certificate`}
               onLoad={handlePdfLoad}
@@ -138,8 +150,11 @@ export function CredentialViewer({ certificate, onClose, onNavigate, hasNeighbor
             />
             {pdfSlow && (
               <div className="cert-viewer-fallback cert-viewer-pdf-hint" role="status">
-                <span>Preview still loading? Open it in a new tab.</span>
-                <a className="link-btn" href={url} target="_blank" rel="noopener noreferrer">Open document <IconExternal /></a>
+                <span>Preview still loading? Reload it or open it in a new tab.</span>
+                <span className="cert-viewer-pdf-actions">
+                  <Button size="sm" onClick={reloadPdf}>Reload preview</Button>
+                  <a className="link-btn" href={url} target="_blank" rel="noopener noreferrer">Open document <IconExternal /></a>
+                </span>
               </div>
             )}
           </>

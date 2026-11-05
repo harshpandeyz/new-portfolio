@@ -221,8 +221,8 @@ function Experience() {
       { id: "credential-archive", label: "Open credential archive", icon: "vault" as const, hint: "ALL", action: () => navigate("/credentials"), keywords: "certificates archive all credentials" },
       { id: "resume", label: "View résumé", icon: "resume" as const, hint: "PDF", action: openResume, keywords: "resume cv pdf view" },
       { id: "recruiter", label: "Recruiter view", icon: "recruiter" as const, hint: "FAST", action: () => navigate("/recruiter"), keywords: "recruiter quick summary hr" },
-      { id: "github", label: "Open GitHub", icon: "github" as const, hint: "EXT", action: () => window.open("https://github.com/harshpandeyz", "_blank", "noopener"), keywords: "github code repos" },
-      { id: "linkedin", label: "Open LinkedIn", icon: "linkedin" as const, hint: "EXT", action: () => window.open("https://www.linkedin.com/in/harshpandeyz/", "_blank", "noopener"), keywords: "linkedin profile network" },
+      { id: "github", label: "Open GitHub", icon: "github" as const, hint: "EXT", action: () => window.open("https://github.com/harshpandeyz", "_blank", "noopener,noreferrer"), keywords: "github code repos" },
+      { id: "linkedin", label: "Open LinkedIn", icon: "linkedin" as const, hint: "EXT", action: () => window.open("https://www.linkedin.com/in/harshpandeyz/", "_blank", "noopener,noreferrer"), keywords: "linkedin profile network" },
       { id: "chat", label: "Ask Harsh", icon: "chat" as const, action: openChat, keywords: "ai chat assistant ask" },
       { id: "recruiter-home", label: "Return Home", icon: "home" as const, action: () => navigate("/"), keywords: "home top start hero" },
     ];

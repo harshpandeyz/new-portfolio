@@ -139,7 +139,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
               setActive(0);
             }}
             aria-label="Search commands"
-            aria-expanded={filtered.length > 0}
+            aria-autocomplete="list"
+            aria-expanded={open}
             aria-controls="palette-listbox"
             aria-activedescendant={filtered.length > 0 ? `palette-option-${active}` : undefined}
             role="combobox"

@@ -89,6 +89,16 @@
       "path": "/projects/codsoft-tasks",
       "title": "CodSoft Internship Tasks — Harsh Pandey",
       "description": "A web development internship submission containing a portfolio site, landing page and calculator."
+    },
+    {
+      "path": "/projects/senseline",
+      "title": "SENSELINE — Harsh Pandey",
+      "description": "Evaluation benchmark measuring whether AI coding agents preserve physical measurement integrity from raw sensor data to safe engineering decisions."
+    },
+    {
+      "path": "/projects/shopsphere",
+      "title": "ShopSphere — Harsh Pandey",
+      "description": "React Native + Expo + TypeScript demo store — catalog, cart, coupons, simulated checkout, order tracking and admin tools, fully on-device."
     }
   ]
 }
