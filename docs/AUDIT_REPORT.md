@@ -317,7 +317,63 @@ If login still reports invalid credentials, the restored database carries an old
 password hash — reset it with `npm run admin:set-password` (interactive, password never
 stored in files).
 
-## 16. Final production-readiness assessment
+## 17. Production deployment verification session (Netlify exit-2 + Render fail)
+
+Context: Netlify site `harshpandeyz` failed building commit `863cae6` (exit 2);
+Render service `harsh-portfolio` failed deploying (dep `dep-dbmgrk8473hc7396scig`).
+Published frontend predates the failure. No dashboard access was available, so all
+verification below is local reproduction + code/config inspection — no deploy-log
+contents are claimed beyond what was reproduced.
+
+**Netlify.** The branch build command (`shared` + `web`) was run in a pristine
+checkout with no `VITE_*` set: `tsc` + `vite build` exit 0 — the code builds clean,
+so exit 2 is not reproducible from the repo and points at build-environment or
+dashboard configuration. Proven failure signatures (exact log lines): missing
+`VITE_SITE_URL` → `[site-url] VITE_SITE_URL is required …` exit 1 before anything
+compiles (the gate was introduced in `863cae6`, so this commit is the first that
+fails loudly instead of shipping poisoned canonical/og URLs); placeholder or
+localhost value → explicit rejection. With `VITE_SITE_URL=https://harshpandeyz.netlify.app`
++ `VITE_API_URL=https://harsh-portfolio-lysq.onrender.com`: full build exit 0,
+canonical correct, API URL inlined in the bundle, zero `localhost` refs in HTML,
+static per-route pages + sitemap with `<lastmod>` generated. Remaining suspects for
+the exit-2 (dashboard-side, listed for the owner to check): production branch not
+`main`, Base directory not empty, UI build command overridden to root
+`npm run build` (compiles the API too — fails the site on API-only issues), or
+Node/install drift. The `react-router` `http://localhost` strings and the
+`RESEND_API_KEY` UI hint text found in bundles are library internals / help copy,
+not config leaks or secrets.
+
+**Render.** `render.yaml` Blueprint path verified step by step in a pristine checkout:
+`npm ci` clean; `prisma generate` + shared + API `tsc` builds exit 0; start path
+`apps/api/dist/apps/api/src/server.js` exists; preDeploy validation gate passes with a
+complete Render-style env and names the exact missing/weak variable otherwise
+(`DATABASE_URL`, `VITE_SITE_URL`, secrets, `TRUST_PROXY`, Resend pair, SMTP
+completeness). Production boot simulation (`PORT=15500`, managed-proxy + split-cookie
+settings, real local PG for the readiness path only): `/api/health` ok,
+`/api/ready` ready, `/api/public/home` 200 with real data. All requested endpoints
+exist (`/api/ready`, `/api/health`, `/api/public/home`, `/api/projects`,
+`/api/timeline`, `/api/settings/public`). Migration history is `16/16` "up to date";
+the index migration is non-destructive DDL. No production database was contacted;
+no secrets leave the machines that hold them.
+
+**Integration (live local stack + config proof for prod values).** CORS allow-list
+echoes only listed origins (negative control: random origin gets no ACAO header);
+forged-Origin login → 403 before auth; unauthenticated admin mutation → 401 with no
+state change; invalid contact payload → 400 with structured issues (no write). Cookie
+contract verified at config level (`SameSite=None; Secure`, host-only, 7d/24h/10m
+windows). One probe row written to the *dev* inbox during CSRF probing was deleted
+again (verified count 0) — dev data unchanged otherwise.
+
+**Required manual dashboard values (names only).** Netlify:
+`VITE_SITE_URL=https://harshpandeyz.netlify.app`,
+`VITE_API_URL=https://harsh-portfolio-lysq.onrender.com` (+ optional `VITE_WHATSAPP*`).
+Render: `APP_URL` + `VITE_SITE_URL` (both the Netlify origin), `DATABASE_URL` from
+`hp-os-db`, existing `SESSION_SECRET`/`AI_CONFIG_KEY`/`TOTP_ENCRYPTION_KEY` (+ previous
+keys untouched), `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `EMAIL_FROM` +
+`CONTACT_NOTIFY_EMAIL`, optional `GITHUB_TOKEN`/`LLM_*`. Branch for both: `main`;
+Netlify base dir empty, build/publish per `netlify.toml`.
+
+## 18. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,

@@ -75,6 +75,29 @@ Notes:
 `APP_URL` (Render) and `VITE_SITE_URL` (Netlify) must describe the same
 frontend origin; rebuild the Netlify site after changing either.
 
+## 6. Diagnosing failed deploys (exact log signatures)
+
+These pre-deploy/build gates fail fast with the exact variable at fault.
+Match your dashboard deploy log against this table:
+
+| Log line | Meaning | Fix (dashboard, no code change) |
+|---|---|---|
+| `[site-url] VITE_SITE_URL is required for a production web build.` | Netlify build env lacks `VITE_SITE_URL` (or it expanded empty) | Set `VITE_SITE_URL=https://harshpandeyz.netlify.app` in Netlify Site settings → Environment |
+| `[site-url] VITE_SITE_URL must be the exact public HTTPS origin …` | Value is localhost / placeholder / has path | Set it to the exact `https://harshpandeyz.netlify.app` origin |
+| `VITE_SITE_URL is required and cannot be empty.` (Render pre-deploy) | Render env lacks `VITE_SITE_URL` | Set `VITE_SITE_URL` on the Render service to the same Netlify origin |
+| `DATABASE_URL is required …` | Managed DB not wired | Link `DATABASE_URL` from `hp-os-db` (Blueprint does this; manual services: add from-database) |
+| `SESSION_SECRET / AI_CONFIG_KEY / TOTP_ENCRYPTION_KEY must be …` | Missing, weak, duplicated or placeholder secret | Generate with `openssl rand -hex 32`; keep the three distinct; never reuse across keys |
+| `TRUST_PROXY must …` | Proxy trust misconfigured | Render: `TRUST_PROXY=1` with `RENDER=true`. Docker/Caddy: exact proxy IP `/32` |
+| `RESEND_API_KEY and EMAIL_FROM must be configured together` | Half-configured mail | Set both (verified sender) or neither; Render must use Resend (SMTP ports restricted) |
+
+If a Netlify build fails with none of these lines, check Site settings first:
+production branch (`main`), Base directory empty (repo root), build command and
+publish dir exactly as `netlify.toml`, `NODE_VERSION=20`. A root `npm run build`
+override compiles the API too and fails the whole site on API-only issues —
+do not use it. If a Render deploy fails after the gate passes, read the service
+runtime logs: `/api/health` (no DB) vs `/api/ready` (DB + migrations) isolates
+boot, env, and database faults.
+
 ## 3. Post-deploy checks
 
 - `GET https://<api>/api/health` → `{"status":"ok",…}` (no DB needed).
