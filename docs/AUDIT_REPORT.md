@@ -373,7 +373,44 @@ keys untouched), `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `EMAIL_FROM` +
 `CONTACT_NOTIFY_EMAIL`, optional `GITHUB_TOKEN`/`LLM_*`. Branch for both: `main`;
 Netlify base dir empty, build/publish per `netlify.toml`.
 
-## 18. Final production-readiness assessment
+## 18. Live-production probe session (no dashboard access)
+
+Date: 2026-11-06. Available integrations: GitHub CLI only (`gh`, account
+harshpandeyz; no Netlify/Render CLIs or API tokens in this environment, no CI
+workflows in the repo). No dashboard could be opened, so all findings below are
+from public endpoints + local reproduction. No production system was modified.
+
+**Observed live state (all via public HTTPS):**
+- Netlify `https://harshpandeyz.netlify.app/` → 200, but bakes
+  `canonical http://localhost:5173/` and calls
+  `https://new-portfolio-gp3p.onrender.com` (a different, older backend — not the
+  target service). Conclusion: the published build came from a dashboard without
+  `VITE_SITE_URL` on pre-gate code. It cannot work correctly.
+- Old backend `new-portfolio-gp3p` → `/api/health` 200 (after ~22 s cold start),
+  but `/api/public/home` → 500 `INTERNAL`. Boots, cannot serve data. Do not touch
+  it; it is outside this plan's scope.
+- Target backend `harsh-portfolio-lysq` → `/api/health` 500 `INTERNAL` while
+  `/api/ready` and `/api/public/home` → 404 `Unknown route`. In every known code
+  revision health+ready are registered together, so this signature means the
+  running revision predates the readiness endpoints (ancient code whose health
+  check hits the database, now unreachable) — i.e. the failed deploy left a
+  stale broken release running. Redeploying `main` replaces it wholesale.
+- Net consequence: the public site currently shows the "temporarily unavailable"
+  banner (live frontend → 500 backend). Both dashboards need the fixes below.
+
+**What could not be done without dashboard access (exact unblock):**
+1. Confirm each service's connected branch (must be `main`), build/publish dirs,
+   build & start commands, and health-check paths.
+2. Read the failed deploy logs (`863cae6` Netlify exit 2; Render
+   `dep-dbmgrk8473hc7396scig`) to match against the §6/§17 signature tables.
+3. Set/verify non-secret env vars (lists in `docs/NETLIFY_RENDER.md`) and confirm
+   secrets + `hp-os-db` linkage exist without displaying values.
+4. Trigger the Render deploy first, then the Netlify clear-cache rebuild.
+Needs: Netlify personal token (sites read+write) or the user clicking through
+Site settings; Render API key (service read+deploy) or dashboard clicks. GitHub
+alone cannot perform any of these — there are no workflows to dispatch.
+
+## 19. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,

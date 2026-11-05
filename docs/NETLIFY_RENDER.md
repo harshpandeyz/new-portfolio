@@ -100,12 +100,28 @@ boot, env, and database faults.
 
 ## 3. Post-deploy checks
 
-- `GET https://<api>/api/health` → `{"status":"ok",…}` (no DB needed).
-- `GET https://<api>/api/ready` → `{"status":"ready",…}` (DB + migrations).
+Run in order after the Render deploy, before touching Netlify:
+
+```sh
+API=https://harsh-portfolio-lysq.onrender.com
+curl -s -m 90 $API/api/health   # expect {"status":"ok",...} (cold start can exceed 60 s on small plans)
+curl -s -m 30 $API/api/ready    # expect {"status":"ready",...} (DB + migrations reachable)
+```
+
+Then deploy Netlify (clear cache) and verify the published site (allow a minute
+for CDN propagation):
+
+```sh
+SITE=https://harshpandeyz.netlify.app
+curl -s $SITE/ | grep -o 'rel="canonical"[^>]*'   # expect ...netlify.app/ (never localhost)
+curl -s $SITE/api/public/home | head -c 200      # expect real data, http 200
+```
+
 - Public pages load from the Netlify origin; `/api/*` calls reach Render
   (check `VITE_API_URL` when the homepage shows "temporarily unavailable").
 - Admin login at `https://<site>/private` persists across refreshes
-  (proves `SameSite=None; Secure` + CORS are correct).
+  (proves `SameSite=None; Secure` + CORS are correct). Test with a wrong
+  password first (expect 401 + an audit row, no lockout from one attempt).
 - Contact form stores to the inbox; replies send only when Resend is
   configured (otherwise the UI reports `EMAIL_NOT_CONFIGURED`).
 
