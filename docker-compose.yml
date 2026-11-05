@@ -1,7 +1,9 @@
 services:
   db:
-    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
-    platform: linux/arm64
+    image: postgres:16-alpine
+    # No platform pin: the same file works on arm64 (Oracle Ampere, Apple
+    # Silicon) and amd64 (most CI / Render Docker). The digest above is
+    # multi-arch for postgres:16-alpine.
     restart: unless-stopped
     # Maintenance access is host-only. The database is also attached to the
     # private application network; no public interface is published.
@@ -36,7 +38,6 @@ services:
 
   api:
     image: ${API_IMAGE:-hp-os-api:local}
-    platform: linux/arm64
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -47,7 +48,10 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 4000
-      APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS origin}
+      # Local Compose stacks use COMPOSE_API_APP_URL (public-https placeholder
+      # origin) while the dev flow keeps APP_URL on localhost. Production hosts
+      # leave COMPOSE_API_APP_URL unset so APP_URL (the real origin) applies.
+      APP_URL: ${COMPOSE_API_APP_URL:-${APP_URL:?Set APP_URL to the public HTTPS origin}}
       TRUST_PROXY: ${TRUST_PROXY:-172.30.0.30/32}
       DATABASE_URL: postgresql://hp_app:${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}}@db:5432/hp_os?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
@@ -99,7 +103,6 @@ services:
 
   migrate:
     image: ${API_IMAGE:-hp-os-api:local}
-    platform: linux/arm64
     profiles: ["ops"]
     restart: "no"
     depends_on:
@@ -115,12 +118,16 @@ services:
 
   web:
     image: ${WEB_IMAGE:-hp-os-web:local}
-    platform: linux/arm64
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
         VITE_SITE_URL: ${VITE_SITE_URL:?Set VITE_SITE_URL to the public HTTPS origin before building}
+        # Optional bake-ins (empty = same-origin API / no WhatsApp channel).
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_API_PORT: ${VITE_API_PORT:-}
+        VITE_WHATSAPP: ${VITE_WHATSAPP:-}
+        VITE_WHATSAPP_MESSAGE: ${VITE_WHATSAPP_MESSAGE:-}
     restart: unless-stopped
     depends_on:
       api:

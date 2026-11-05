@@ -1,4 +1,4 @@
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df AS build
+FROM node:24-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ RUN node ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.pri
   && npm run build --workspace @hp/shared \
   && npm run build --workspace @hp/api
 
-FROM node:24.19.0-bookworm-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production

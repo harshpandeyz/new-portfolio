@@ -57,13 +57,15 @@ declare module "fastify" {
   }
 }
 
-function sessionCookieOptions(maxAgeSec: number) {
+export function sessionCookieOptions(maxAgeSec: number) {
+  // Same-origin Docker deploys keep Lax (CSRF-resistant). Split deployments
+  // (Netlify frontend + Render API) require SameSite=None; Secure so the
+  // browser sends session/CSRF cookies cross-origin. Set COOKIE_SAMESITE=none
+  // (and COOKIE_SECURE defaults to true) for split origins.
   return {
     httpOnly: true,
-    // Production is same-origin behind NGINX, so Lax works and blocks the
-    // cookie on most cross-site requests. Secure remains mandatory on HTTPS.
-    sameSite: "lax" as const,
-    secure: config.isProd,
+    sameSite: config.cookieSameSite,
+    secure: config.cookieSecure,
     path: "/",
     maxAge: maxAgeSec,
   } as const;
@@ -158,7 +160,7 @@ export async function destroySession(req: FastifyRequest, reply: FastifyReply): 
   if (token && token.length === 64) {
     await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }
-  const clearOpts = { path: "/", sameSite: "lax" as const, secure: config.isProd } as const;
+  const clearOpts = { path: "/", sameSite: config.cookieSameSite, secure: config.cookieSecure } as const;
   reply.clearCookie(COOKIE_NAMES.session, clearOpts);
   reply.clearCookie(COOKIE_NAMES.csrf, clearOpts);
 }

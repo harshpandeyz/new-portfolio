@@ -125,6 +125,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   app.setErrorHandler((err, _req, reply) => {
     const error = err as FastifyError & { details?: unknown };
     if (error instanceof HttpError) {
+      if (error.statusCode === 429) {
+        const retryAfter = (error.details as { retryAfterSeconds?: unknown } | undefined)?.retryAfterSeconds;
+        if (typeof retryAfter === "number" && Number.isFinite(retryAfter)) {
+          reply.header("retry-after", Math.max(1, Math.ceil(retryAfter)));
+        }
+      }
       reply.code(error.statusCode).send({
         error: error.code,
         message: error.message,
@@ -164,10 +170,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // Periodic cleanup is safe across replicas; all operations are idempotent.
+  // (Expired media versions included — previously pruned on the media read
+  // path, which added writes to GET requests.)
   const runMaintenance = () => {
     void Promise.allSettled([
       import("./modules/auth/session.js").then((m) => m.purgeExpiredSessions()),
       import("./modules/analytics/retention.js").then((m) => m.purgeRetainedData()),
+      import("./modules/media/routes.js").then((m) => m.pruneExpiredVersions()),
     ]);
   };
   runMaintenance();

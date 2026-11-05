@@ -24,17 +24,13 @@ function readDotEnv(file) {
 
 const values = { ...readDotEnv(".env"), ...process.env };
 const errors = [];
-const required = [
-  "POSTGRES_PASSWORD",
-  "POSTGRES_APP_PASSWORD",
-  "POSTGRES_MIGRATOR_PASSWORD",
-  "SESSION_SECRET",
-  "AI_CONFIG_KEY",
-  "TOTP_ENCRYPTION_KEY",
-  "APP_URL",
-  "VITE_SITE_URL",
-  "TRUST_PROXY",
-];
+// Managed hosts (Render) use a provided DATABASE_URL instead of the
+// self-managed POSTGRES_* role passwords, which do not exist there.
+const managedHost = String(values.RENDER ?? "").trim().toLowerCase() === "true" ||
+  String(values.RENDER_EXTERNAL_URL ?? "").trim() !== "";
+const required = managedHost
+  ? ["DATABASE_URL", "SESSION_SECRET", "AI_CONFIG_KEY", "TOTP_ENCRYPTION_KEY", "APP_URL", "VITE_SITE_URL", "TRUST_PROXY"]
+  : ["POSTGRES_PASSWORD", "POSTGRES_APP_PASSWORD", "POSTGRES_MIGRATOR_PASSWORD", "SESSION_SECRET", "AI_CONFIG_KEY", "TOTP_ENCRYPTION_KEY", "APP_URL", "VITE_SITE_URL", "TRUST_PROXY"];
 
 for (const key of required) {
   if (!String(values[key] ?? "").trim()) errors.push(`${key} is required and cannot be empty.`);
@@ -69,9 +65,7 @@ for (const [left, right] of [["SESSION_SECRET", "AI_CONFIG_KEY"], ["SESSION_SECR
   if (values[left] && values[left] === values[right]) errors.push(`${left} and ${right} must be separate keys.`);
 }
 
-function parseOrigin(key) {
-  const raw = String(values[key] ?? "").trim();
-  if (!raw) return null;
+function checkOrigin(key, raw) {
   let url;
   try {
     url = new URL(raw);
@@ -108,15 +102,32 @@ function parseOrigin(key) {
   return invalid ? null : url.origin;
 }
 
-const appOrigin = parseOrigin("APP_URL");
-const siteOrigin = parseOrigin("VITE_SITE_URL");
-if (appOrigin && siteOrigin && appOrigin !== siteOrigin) {
-  errors.push("APP_URL and VITE_SITE_URL must match exactly; rebuild the web image after changing either origin.");
+function parseOrigin(key) {
+  const raw = String(values[key] ?? "").trim();
+  if (!raw) return null;
+  // APP_URL accepts a comma-separated allow-list for split deployments
+  // (Netlify site + custom domain). Every entry must be a valid origin.
+  const origins = raw.split(",").map((s) => s.trim()).filter(Boolean).map((entry) => checkOrigin(key, entry)).filter(Boolean);
+  return origins.length ? origins : null;
 }
 
+const appOrigins = parseOrigin("APP_URL");
+const siteOrigins = parseOrigin("VITE_SITE_URL");
+if (appOrigins && siteOrigins && !siteOrigins.every((origin) => appOrigins.includes(origin))) {
+  errors.push("Every VITE_SITE_URL origin must be listed in APP_URL; rebuild the web bundle after changing either origin.");
+}
+
+// Managed hosts (Render) terminate TLS at dynamic edge IPs: TRUST_PROXY=1
+// (or RENDER=true with an unset TRUST_PROXY) is the correct setting there.
+// Private Docker/Caddy deployments must still pin the exact proxy IP.
+// (Mirrors config.ts isManagedProxyEnv: host signals only, never the cookie mode.)
+const managedProxy = managedHost;
 const trustedProxy = String(values.TRUST_PROXY ?? "").trim();
 const proxyEntries = trustedProxy.split(",").map((part) => part.trim()).filter(Boolean);
-if (
+const hopCountTrust = /^(true|1)$/i.test(trustedProxy);
+if (!trustedProxy && managedProxy) {
+  // Allowed: platform router is trusted implicitly.
+} else if (
   !trustedProxy ||
   /^(true|false|\d+)$/i.test(trustedProxy) ||
   proxyEntries.length === 0 ||
@@ -126,7 +137,11 @@ if (
     return version === 0 || (prefix !== undefined && Number(prefix) !== (version === 4 ? 32 : 128));
   })
 ) {
-  errors.push("TRUST_PROXY must be an explicit comma-separated list of exact proxy IPs; booleans, hop counts, and broad networks are rejected in production.");
+  if (managedProxy && hopCountTrust) {
+    // Allowed on managed hosts.
+  } else {
+    errors.push("TRUST_PROXY must be an explicit comma-separated list of exact proxy IPs; booleans, hop counts, and broad networks are rejected in production (set TRUST_PROXY=1 with RENDER=true on Render).");
+  }
 }
 
 if (values.ADMIN_EMAIL || values.ADMIN_PASSWORD) {
@@ -146,6 +161,16 @@ const resendKey = String(values.RESEND_API_KEY ?? "").trim();
 const emailFrom = String(values.EMAIL_FROM ?? "").trim();
 if ((resendKey && !emailFrom) || (!resendKey && emailFrom)) {
   errors.push("RESEND_API_KEY and EMAIL_FROM must be configured together; the sender must be verified in Resend.");
+}
+
+// SMTP completeness is only enforced when SMTP is the active provider;
+// otherwise a half-configured SMTP section silently never sends.
+const emailProvider = String(values.EMAIL_PROVIDER ?? "").trim().toLowerCase();
+const smtpActive = emailProvider === "smtp" || (!emailProvider && !resendKey);
+if (smtpActive) {
+  for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "CONTACT_NOTIFY_EMAIL"]) {
+    if (!String(values[key] ?? "").trim()) errors.push(`${key} is required when EMAIL_PROVIDER=smtp (or when RESEND_API_KEY is unset).`);
+  }
 }
 
 if (errors.length) {

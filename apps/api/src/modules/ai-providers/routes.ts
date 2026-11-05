@@ -5,7 +5,7 @@ import { prisma } from "../../db/prisma.js";
 import { config } from "../../config.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requireAdminRole, requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, HttpError, noStore, notFound, parseBody } from "../../utils/http.js";
+import { audit, clientIp, HttpError, noStore, notFound, parseBody, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { decryptApiKey, encryptApiKey, keyHintFor } from "./secrets.js";
 import { aiProviderTableReady, listProviderRows, toPublicProvider } from "./store.js";
@@ -95,7 +95,7 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
   // ── create (ADMIN only — writes secrets) ──
   app.post("/", { preHandler: [requireAdminRole, requireCsrf] }, async (req, reply) => {
     const wl = await rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     await requireTable();
     const input = parseBody(req, aiProviderCreateSchema);
     let baseUrl: string;
@@ -133,7 +133,7 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
   // ── update (ADMIN only) ──
   app.patch("/:id", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`ai-prov:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
     if (!id || id.length > 64) throw notFound("AI provider");
@@ -177,6 +177,8 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
 
   // ── delete (ADMIN only) ──
   app.delete("/:id", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
+    const del = await rateLimit(`ai-del:${clientIp(req)}`, 20, 10 * 60 * 1000);
+    if (!del.allowed) throw rateLimited(del.retryAfterSeconds, "Too many deletions. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
     if (!id || id.length > 64) throw notFound("AI provider");
@@ -190,7 +192,7 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
   // ── test connection / test model (ADMIN only, never returns key) ──
   app.post("/:id/test", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`ai-test:${clientIp(req)}`, 20, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many tests. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many tests. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
     const body = (req.body ?? {}) as { mode?: string };
@@ -228,11 +230,13 @@ export async function aiProviderRoutes(app: FastifyInstance): Promise<void> {
 
   // ── rotate hint: explicit endpoint so UI can label it clearly ──
   app.post("/:id/rotate", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
+    const rot = await rateLimit(`ai-rot:${clientIp(req)}`, 20, 10 * 60 * 1000);
+    if (!rot.allowed) throw rateLimited(rot.retryAfterSeconds, "Too many rotations. Try again later.");
     await requireTable();
     const { id } = req.params as { id: string };
     const body = (req.body ?? {}) as { apiKey?: string };
     const raw = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
-    if (raw.length < 8) throw new HttpError(400, "VALIDATION_ERROR", "A new API key is required to rotate");
+    if (raw.length < 8 || raw.length > 500) throw new HttpError(400, "VALIDATION_ERROR", "A new API key is required to rotate");
     const existing = await db().findUnique({ where: { id } });
     if (!existing) throw notFound("AI provider");
     const updated = (await db().update({

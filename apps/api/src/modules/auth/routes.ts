@@ -15,6 +15,7 @@ import {
   isFreshlyAuthenticated,
   issueCsrfToken,
   resolveSessionUser,
+  sessionCookieOptions,
   touchReauth,
   verifyCsrf as verify,
 } from "./session.js";
@@ -302,11 +303,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get("/csrf", { preHandler: [requireAuth] }, async (_req, reply) => {
     const csrfToken = issueCsrfToken();
     reply.setCookie(COOKIE_NAMES.csrf, csrfToken, {
-      httpOnly: false,
-      sameSite: "lax",
-      secure: config.isProd,
-      path: "/",
-      maxAge: config.sessionTtlDays * 24 * 60 * 60,
+      ...sessionCookieOptions(config.sessionTtlDays * 24 * 60 * 60),
+      httpOnly: false, // must be readable by the SPA for double-submit
     });
     return { csrfToken };
   });
@@ -385,7 +383,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid email or password");
     }
     if (db.totpEnabled) {
-      const code = typeof body.code === "string" ? body.code : "";
+      const rawCode = typeof body.code === "string" ? body.code : "";
+      if (rawCode.length > 64) throw new HttpError(400, "VALIDATION_ERROR", "Invalid code");
+      const code = rawCode;
       const secret = db.totpSecret ? decryptSecret(db.totpSecret) : null;
       const totpCounter = secret ? verifyTotpCounter(code, secret) : null;
       let ok = totpCounter !== null ? await claimTotpCounter(u.id, totpCounter) : false;

@@ -39,8 +39,7 @@ model User {
   sessions            Session[]
   recoveryCodes       RecoveryCode[]
   loginChallenges     LoginChallenge[]
-
-  @@index([email])
+  // (email is @unique — no separate index needed)
 }
 
 model RecoveryCode {
@@ -95,8 +94,9 @@ model Session {
   reauthAt   DateTime @default(now())
   revokedAt  DateTime?
 
-  @@index([userId])
+  @@index([userId, lastSeenAt])
   @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 /// ── Content ──────────────────────────────────────────────────
@@ -161,11 +161,12 @@ model Project {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  @@index([slug])
+  // (slug is @unique — no separate index needed)
   @@index([tier])
   @@index([featured])
   @@index([status])
   @@index([updatedAt])
+  @@index([status, tier, featured, order])
 }
 
 enum ProjectDomain {
@@ -195,6 +196,7 @@ model Certificate {
   @@index([category])
   @@index([featured])
   @@index([issuer])
+  @@index([category, featured, order])
 }
 
 model Skill {
@@ -213,6 +215,7 @@ model Skill {
 
   @@index([category])
   @@index([level])
+  @@index([category, order])
 }
 
 model Education {
@@ -242,6 +245,7 @@ model TimelineItem {
 
   @@index([type])
   @@index([date])
+  @@index([type, order])
 }
 
 /// ── Communication / operations ───────────────────────────────
@@ -262,6 +266,7 @@ model ContactMessage {
   @@index([status])
   @@index([createdAt])
   @@index([email, createdAt])
+  @@index([status, createdAt])
 }
 
 model MessageReply {
@@ -274,8 +279,7 @@ model MessageReply {
   sentBy    String?
   sentAt    DateTime       @default(now())
 
-  @@index([messageId])
-  @@index([sentAt])
+  @@index([messageId, sentAt])
 }
 
 model MediaAsset {
@@ -292,6 +296,7 @@ model MediaAsset {
 
   @@index([kind])
   @@index([createdAt])
+  @@index([kind, createdAt])
 }
 
 model MediaAssetVersion {
@@ -332,6 +337,8 @@ model AuditLog {
   @@index([entity])
   @@index([createdAt])
   @@index([action])
+  @@index([action, createdAt])
+  @@index([entity, createdAt])
 }
 
 model AnalyticsEvent {
@@ -343,6 +350,7 @@ model AnalyticsEvent {
 
   @@index([type])
   @@index([createdAt])
+  @@index([type, createdAt])
 }
 
 /// ── AI provider configuration (admin-managed, secrets encrypted) ──

@@ -11,7 +11,7 @@ import { config } from "../../config.js";
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, HttpError, noStore } from "../../utils/http.js";
+import { audit, clientIp, HttpError, noStore, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { getAssetReferences, lockMediaReferenceChanges, referenceMatchesAsset } from "./references.js";
 
@@ -51,7 +51,8 @@ async function removeFileBestEffort(filePath: string): Promise<void> {
   }
 }
 
-async function pruneExpiredVersions(): Promise<void> {
+/** Deletes expired media versions + files. Runs from the hourly maintenance sweep; idempotent. */
+export async function pruneExpiredVersions(): Promise<void> {
   try {
     const expired = await prisma.mediaAssetVersion.findMany({
       where: { deleteAfter: { lte: new Date() } },
@@ -222,7 +223,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.post("/:id/replace", { preHandler: [requireMediaWrite, requireCsrf] }, async (req, reply) => {
     const ip = clientIp(req);
     const limit = await rateLimit(`media:${ip}`, 20, 10 * 60 * 1000);
-    if (!limit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many uploads. Try again later.");
+    if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds, "Too many uploads. Try again later.");
     const { id } = req.params as { id: string };
     if (!/^[a-z0-9_-]{5,64}$/i.test(id)) throw new HttpError(400, "BAD_REQUEST", "Invalid asset id");
     const file = await req.file();
@@ -295,7 +296,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     }
 
     if (oldStoredName) await removeFileBestEffort(resolveSafe(mediaDir, oldStoredName));
-    await pruneExpiredVersions();
+    // Expired-version pruning runs on the hourly maintenance sweep instead.
     await audit(req, "MEDIA_REPLACED", "media", id, { filename: asset.filename, sizeBytes: asset.sizeBytes });
     reply.code(200);
     return { asset: { ...asset, referenced } };
@@ -303,7 +304,6 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/", { preHandler: [requireMediaRead] }, async (_req, reply) => {
     noStore(reply);
-    await pruneExpiredVersions();
     const [assets, referenceRows] = await Promise.all([
       prisma.mediaAsset.findMany({
         orderBy: { createdAt: "desc" },
@@ -334,7 +334,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/:id", { preHandler: [requireMediaWrite, requireCsrf] }, async (req) => {
     const ip = clientIp(req);
     const limit = await rateLimit(`media-del:${ip}`, 30, 10 * 60 * 1000);
-    if (!limit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
+    if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds, "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     if (!/^[a-z0-9_-]{5,64}$/i.test(id)) throw new HttpError(400, "BAD_REQUEST", "Invalid asset id");
     const asset = await prisma.$transaction(async (tx) => {

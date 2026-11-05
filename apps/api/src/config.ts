@@ -30,9 +30,32 @@ function required(name: string, fallback?: string): string {
 
 export const isTest = process.env.TEST_MODE === "1";
 
+// TEST_MODE relaxes secrets, proxy trust and rate limits for the isolated
+// test database. It must never be enabled in a real production process:
+// fail fast instead of running weakened.
+if (process.env.NODE_ENV === "production" && process.env.TEST_MODE === "1") {
+  throw new Error("TEST_MODE=1 is not allowed when NODE_ENV=production.");
+}
+
+function isManagedProxyEnv(): boolean {
+  // Render (and similar managed hosts) terminate TLS at their own edge and
+  // forward via X-Forwarded-* from dynamic IPs. There is no stable /32 to
+  // allow-list, so hop-count / boolean trust is the correct setting there.
+  // Deliberately keyed ONLY on explicit host signals — never on the cookie
+  // mode, so a mis-set COOKIE_SAMESITE cannot silently weaken client-IP
+  // trust (rate limits, audit IPs) on single-host deployments.
+  return process.env.RENDER === "true" || Boolean(process.env.RENDER_EXTERNAL_URL);
+}
+
 function parseTrustProxy(raw: string | undefined): boolean | number | string[] {
   const value = raw?.trim();
-  if (!value) return isTest ? false : 0;
+  if (!value) {
+    if (isTest) return false;
+    // On managed hosts without an explicit TRUST_PROXY, trust the first
+    // proxy hop (the platform router). Everywhere else keep direct behavior.
+    if (isManagedProxyEnv()) return 1;
+    return 0;
+  }
   if (/^\d+$/.test(value)) return Number(value);
   if (/^true$/i.test(value)) return true;
   if (/^false$/i.test(value)) return false;
@@ -91,7 +114,11 @@ function validatePublicOrigin(name: string, value: string): string {
 if (!isTest && isProd) {
   validateStrongSecret("SESSION_SECRET", rawSessionSecret);
   if (!rawAppUrl.trim()) throw new Error("APP_URL is required in production.");
-  validatePublicOrigin("APP_URL", rawAppUrl.trim());
+  // APP_URL may be a single origin (same-origin Docker deploy) or a
+  // comma-separated allow-list (split Netlify frontend + custom domains).
+  for (const origin of rawAppUrl.split(",").map((s) => s.trim()).filter(Boolean)) {
+    validatePublicOrigin("APP_URL", origin);
+  }
   if (!rawAiConfigKey) throw new Error("AI_CONFIG_KEY is required in production; generate and persist a separate key with: openssl rand -hex 32");
   if (!rawTotpEncryptionKey) throw new Error("TOTP_ENCRYPTION_KEY is required in production; generate and persist a separate key with: openssl rand -hex 32");
   validateStrongSecret("AI_CONFIG_KEY", rawAiConfigKey);
@@ -99,16 +126,25 @@ if (!isTest && isProd) {
   if (rawSessionSecret === rawAiConfigKey || rawSessionSecret === rawTotpEncryptionKey || rawAiConfigKey === rawTotpEncryptionKey) {
     throw new Error("SESSION_SECRET, AI_CONFIG_KEY, and TOTP_ENCRYPTION_KEY must be separate persistent keys.");
   }
-  if (!rawTrustProxy || /^(true|false|\d+)$/i.test(rawTrustProxy.trim())) {
-    throw new Error("TRUST_PROXY must list the exact trusted proxy IP address(es) in production; boolean and hop-count trust are rejected.");
-  }
-  const proxies = rawTrustProxy.split(",").map((item) => item.trim()).filter(Boolean);
-  if (proxies.length === 0 || proxies.some((item) => {
-    const [address, prefix] = item.split("/");
-    const version = isIP(address ?? "");
-    return version === 0 || (prefix !== undefined && Number(prefix) !== (version === 4 ? 32 : 128));
-  })) {
-    throw new Error("TRUST_PROXY must contain exact IP addresses or /32 and /128 entries only.");
+  // Managed hosts (Render) sit behind dynamic edge IPs: hop-count trust
+  // (TRUST_PROXY=1) is the correct setting there. Private Docker/Caddy
+  // deployments must still pin the exact proxy IP (/32 or /128 only).
+  const managedProxy = isManagedProxyEnv();
+  if (!rawTrustProxy && managedProxy) {
+    // Allowed: platform router is trusted implicitly (see parseTrustProxy).
+  } else if (!rawTrustProxy || /^(true|false|\d+)$/i.test(rawTrustProxy.trim())) {
+    if (!managedProxy) {
+      throw new Error("TRUST_PROXY must list the exact trusted proxy IP address(es) in production; boolean and hop-count trust are rejected.");
+    }
+  } else {
+    const proxies = rawTrustProxy.split(",").map((item) => item.trim()).filter(Boolean);
+    if (proxies.length === 0 || proxies.some((item) => {
+      const [address, prefix] = item.split("/");
+      const version = isIP(address ?? "");
+      return version === 0 || (prefix !== undefined && Number(prefix) !== (version === 4 ? 32 : 128));
+    })) {
+      throw new Error("TRUST_PROXY must contain exact IP addresses or /32 and /128 entries only.");
+    }
   }
 }
 
@@ -127,8 +163,27 @@ function normalizeOriginList(raw: string): string[] {
     .filter(Boolean);
 }
 
+function parseCookieSameSite(): "lax" | "none" {
+  const raw = (process.env.COOKIE_SAMESITE ?? "").trim().toLowerCase();
+  if (raw === "none") return "none";
+  return "lax";
+}
+
+const cookieSameSite = parseCookieSameSite();
+
 export const config = {
-  port: safeNumber(process.env.API_PORT, 4000, 1),
+  // Render injects PORT; local Docker Compose uses API_PORT. PORT wins when set.
+  port: safeNumber(process.env.PORT ?? process.env.API_PORT, 4000, 1),
+  cookieSameSite,
+  // SameSite=None requires Secure, so force it on even outside production
+  // when cross-site cookies are requested. Explicit COOKIE_SECURE wins.
+  cookieSecure: (() => {
+    const raw = (process.env.COOKIE_SECURE ?? "").trim().toLowerCase();
+    if (raw === "true") return true;
+    if (raw === "false") return isProd;
+    if (cookieSameSite === "none") return true;
+    return isProd;
+  })(),
   appUrl: rawAppUrl,
   isProd,
   trustProxy: parseTrustProxy(rawTrustProxy),

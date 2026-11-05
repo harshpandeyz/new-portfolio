@@ -3,7 +3,7 @@ import { siteSettingsInputSchema } from "@hp/shared";
 
 import { requireCsrf } from "../auth/routes.js";
 import { requireAdminRole, requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, HttpError, noStore, parseBody } from "../../utils/http.js";
+import { audit, clientIp, HttpError, noStore, parseBody, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { getSiteSettings, saveSiteSettings } from "./store.js";
 
@@ -21,7 +21,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch("/", { preHandler: [requireAdminRole, requireCsrf] }, async (req) => {
     const limit = await rateLimit(`settings:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!limit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds, "Too many changes. Try again later.");
     const settings = parseBody(req, siteSettingsInputSchema);
     await saveSiteSettings(settings);
     await audit(req, "SETTINGS_UPDATED", "site_settings", null, { keys: Object.keys(settings) });

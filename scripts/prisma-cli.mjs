@@ -27,6 +27,28 @@ function loadEnv(file) {
 loadEnv(path.join(rootDir, ".env"));
 loadEnv(path.join(rootDir, "apps/api/.env"));
 
+// DANGER GUARD: `prisma migrate diff --shadow-database-url=<dev-db>` EMPTIES
+// the referenced database (Prisma uses it as scratch space and deletes its
+// contents). The local dev database on :5432 holds real content, so refuse to
+// ever use it — or the test database port — as a shadow. Use an empty scratch
+// database instead (e.g. create one with `createdb`, or point at the isolated
+// hp-os-test container AFTER `npm run db:test:reset`).
+{
+  const args = process.argv.slice(2);
+  const at = args.indexOf("--shadow-database-url");
+  const shadow = at >= 0 ? String(args[at + 1] ?? "") : "";
+  if (
+    shadow &&
+    /127\.0\.0\.1:5432|localhost:5432/.test(shadow)
+  ) {
+    console.error(
+      "REFUSED: --shadow-database-url points at the local development database (:5432). " +
+        "Prisma deletes the shadow database contents during `migrate diff`; use an empty scratch database instead."
+    );
+    process.exit(1);
+  }
+}
+
 const npm = process.platform === "win32" ? "npx.cmd" : "npx";
 const result = spawnSync(npm, ["--no-install", "prisma", ...process.argv.slice(2)], {
   cwd: path.join(rootDir, "apps/api"),

@@ -5,7 +5,7 @@ import { certificateInputSchema, certificateQuerySchema } from "@hp/shared";
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { clientIp } from "../../utils/http.js";
+import { clientIp, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
 import { audit, notFound, parseBody, parseQuery } from "../../utils/http.js";
@@ -54,7 +54,7 @@ export async function certificateRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
     const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const input = parseBody(req, certificateInputSchema);
     const certificate = await prisma.$transaction(async (tx) => {
       await lockMediaReferenceChanges(tx);
@@ -69,7 +69,7 @@ export async function certificateRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, certificateInputSchema.partial());
     const certificate = await prisma.$transaction(async (tx) => {
@@ -89,7 +89,7 @@ export async function certificateRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.$transaction(async (tx) => {
       await lockMediaReferenceChanges(tx);

@@ -5,7 +5,7 @@ import { projectInputSchema, projectQuerySchema } from "@hp/shared";
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, noStore, notFound, parseBody, parseQuery } from "../../utils/http.js";
+import { audit, clientIp, noStore, notFound, parseBody, parseQuery, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { HttpError } from "../../utils/http.js";
 import { invalidateKnowledge } from "../chat/knowledge.js";
@@ -59,7 +59,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   // ── admin ────────────────────────────────────────────────────
   app.post("/", { preHandler: [requireEditor, requireCsrf] }, async (req, reply) => {
     const ipLimit = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!ipLimit.allowed) throw rateLimited(ipLimit.retryAfterSeconds, "Too many changes. Try again later.");
     const input = parseBody(req, projectInputSchema);
     const project = await prisma.$transaction(async (tx) => {
       await lockMediaReferenceChanges(tx);
@@ -76,7 +76,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
     const ipLimit = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!ipLimit.allowed) throw rateLimited(ipLimit.retryAfterSeconds, "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const input = parseBody(req, projectInputSchema.partial());
     const project = await prisma.$transaction(async (tx) => {
@@ -106,7 +106,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/:id", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
     const ipLimit = await rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!ipLimit.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
+    if (!ipLimit.allowed) throw rateLimited(ipLimit.retryAfterSeconds, "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     await prisma.$transaction(async (tx) => {
       await lockMediaReferenceChanges(tx);

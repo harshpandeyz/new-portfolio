@@ -15,6 +15,16 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Uniform 429 for rate-limited routes. The global error handler translates
+ * details.retryAfterSeconds into a `retry-after` response header so clients
+ * can back off consistently across every endpoint.
+ */
+export function rateLimited(retryAfterSeconds: number, message = "Too many requests. Try again later."): HttpError {
+  const seconds = Number.isFinite(retryAfterSeconds) ? Math.max(1, Math.ceil(retryAfterSeconds)) : 60;
+  return new HttpError(429, "RATE_LIMITED", message, { retryAfterSeconds: seconds });
+}
+
 /** Parses and validates a JSON body with the given zod schema. */
 export function parseBody<T extends ZodTypeAny>(req: FastifyRequest, schema: T): import("zod").infer<T> {
   const result = schema.safeParse(req.body);
@@ -115,7 +125,7 @@ export async function audit(
     });
   } catch (err) {
     // auditing must never break the request path, but log the failure
-    console.error("[audit] failed to write audit log", err instanceof Error ? err.name : "unknown error");
+    req.log.warn({ err: err instanceof Error ? err.name : "unknown error" }, "audit write failed");
   }
 }
 

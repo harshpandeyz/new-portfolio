@@ -28,5 +28,26 @@ ALTER DEFAULT PRIVILEGES FOR ROLE hp_migrator IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE hp_migrator IN SCHEMA public
   GRANT USAGE ON TYPES TO hp_app;
 
+-- Converge EXISTING objects too (volumes initialized before this script
+-- existed, or objects created by the superuser via `prisma db push`,
+-- otherwise stay invisible to hp_app despite the default privileges above).
+-- Safe to re-run: grants are idempotent.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hp_app;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO hp_app;
+DO $$
+DECLARE
+  enum_type text;
+BEGIN
+  FOR enum_type IN
+    SELECT format('%I.%I', n.nspname, t.typname)
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public' AND t.typtype = 'e'
+  LOOP
+    EXECUTE format('GRANT USAGE ON TYPE %s TO hp_app', enum_type);
+  END LOOP;
+END
+$$;
+
 \unset app_password
 \unset migrator_password

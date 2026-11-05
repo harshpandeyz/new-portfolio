@@ -196,6 +196,10 @@ describe("authentication", () => {
     );
     const codes = attempts.map((r) => r.statusCode);
     expect(codes.filter((c) => c === 429).length).toBeGreaterThan(0);
+    // Every 429 carries a retry-after header so clients can back off uniformly.
+    for (const r of attempts.filter((r) => r.statusCode === 429)) {
+      expect(Number(r.headers["retry-after"])).toBeGreaterThan(0);
+    }
   });
 
   it("a spoofed X-Forwarded-For header cannot rotate the rate-limit identity", async () => {
@@ -414,7 +418,10 @@ describe("contact system", () => {
       url: "/api/contact",
       payload: { name: "Bot", email: "bot@spam.io", message: "buy my stuff please", company: "spam inc" },
     });
-    expect([200, 202]).toContain(res.statusCode);
+    // Honeypot replies use the exact shape of a real submission (201 + id)
+    // so probes cannot distinguish them from stored messages.
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ ok: true, id: "received", notificationAvailable: false });
     const stored = await prisma.contactMessage.findFirst({ where: { email: "bot@spam.io" } });
     expect(stored).toBeNull();
   });
@@ -432,6 +439,9 @@ describe("contact system", () => {
     }));
     const results = await Promise.all(payloads.map((p) => app.inject({ method: "POST", url: "/api/contact", payload: p })));
     expect(results.some((r) => r.statusCode === 429)).toBe(true);
+    for (const r of results.filter((r) => r.statusCode === 429)) {
+      expect(Number(r.headers["retry-after"])).toBeGreaterThan(0);
+    }
   });
 
   it("messages inbox requires authentication", async () => {

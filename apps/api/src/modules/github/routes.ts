@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 
 import { config } from "../../config.js";
-import { clientIp, HttpError } from "../../utils/http.js";
+import { clientIp, HttpError, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 
 interface GithubRepo {

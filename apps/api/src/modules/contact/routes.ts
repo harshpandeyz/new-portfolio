@@ -4,7 +4,7 @@ import { contactQuerySchema, messageBulkDeleteSchema, messageBulkStatusSchema, m
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { audit, clientIp, noStore, notFound, parseBody, parseQuery } from "../../utils/http.js";
+import { audit, clientIp, noStore, notFound, parseBody, parseQuery, rateLimited } from "../../utils/http.js";
 import { rateLimit } from "../../utils/rate-limit.js";
 import { sendContactNotification, sendMessageReply } from "./mailer.js";
 import { HttpError } from "../../utils/http.js";
@@ -41,9 +41,10 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
     const input = parseBody(req, contactSchema);
 
-    // honeypot: bots fill hidden fields — pretend success, store nothing
+    // honeypot: bots fill hidden fields — pretend success with the exact
+    // shape of a real submission (202 aside) so probes cannot distinguish it.
     if (input.company) {
-      return reply.code(202).send({ ok: true });
+      return reply.code(201).send({ ok: true, id: "received", notificationAvailable: false });
     }
 
     const recent = await prisma.contactMessage.count({
@@ -196,7 +197,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   app.patch("/:id/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const { id } = req.params as { id: string };
     const { status } = parseBody(req, messageStatusSchema);
     const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
@@ -208,7 +209,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/bulk/status", { preHandler: [requireMessagesWrite, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many changes. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const { ids, status } = parseBody(req, messageBulkStatusSchema);
     const result = await prisma.contactMessage.updateMany({ where: { id: { in: ids } }, data: { status } });
     await audit(req, "MESSAGE_STATUS_CHANGED", "contact_message", null, { status, count: result.count });
@@ -217,7 +218,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/bulk/delete", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many deletions. Try again later.");
     const { ids } = parseBody(req, messageBulkDeleteSchema);
     const result = await prisma.contactMessage.deleteMany({ where: { id: { in: ids } } });
     await audit(req, "MESSAGE_DELETED", "contact_message", null, { count: result.count });
@@ -226,7 +227,7 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/:id", { preHandler: [requireMessagesDelete, requireCsrf] }, async (req) => {
     const wl = await rateLimit(`write-del:${clientIp(req)}`, 30, 10 * 60 * 1000);
-    if (!wl.allowed) throw new HttpError(429, "RATE_LIMITED", "Too many deletions. Try again later.");
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many deletions. Try again later.");
     const { id } = req.params as { id: string };
     const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw notFound("Contact message");

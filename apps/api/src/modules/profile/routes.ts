@@ -4,7 +4,8 @@ import { profileInputSchema } from "@hp/shared";
 import { prisma } from "../../db/prisma.js";
 import { requireCsrf } from "../auth/routes.js";
 import { requirePermission } from "../auth/rbac.js";
-import { audit, HttpError, parseBody } from "../../utils/http.js";
+import { audit, clientIp, HttpError, parseBody, rateLimited } from "../../utils/http.js";
+import { rateLimit } from "../../utils/rate-limit.js";
 import { invalidateKnowledge } from "../chat/knowledge.js";
 import { lockMediaReferenceChanges, validateManagedMediaReferences } from "../media/references.js";
 
@@ -21,6 +22,8 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch("/", { preHandler: [requireEditor, requireCsrf] }, async (req) => {
+    const wl = await rateLimit(`write:${clientIp(req)}`, 60, 10 * 60 * 1000);
+    if (!wl.allowed) throw rateLimited(wl.retryAfterSeconds, "Too many changes. Try again later.");
     const input = parseBody(req, profileInputSchema);
     const { socials, ...data } = input;
 
