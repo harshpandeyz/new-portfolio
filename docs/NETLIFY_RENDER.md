@@ -4,6 +4,14 @@ The Docker/Caddy path in `docs/DEPLOYMENT.md` (Oracle VM) still works unchanged.
 This file covers the managed-host alternative: static frontend on Netlify,
 API + PostgreSQL on Render. No Oracle, Caddy, or Docker knowledge is required.
 
+> **Branch requirement — read first.** Both platforms must build the **`main`**
+> branch. The `world-class-oracle-ready` branch (tip `c4c7291`, Sep 2026) is
+> stale and **cannot deploy**: it has no `render.yaml`, its Netlify config lacks
+> the base dir, SPA fallback, Node pin and validation gates, its API build omits
+> `prisma generate` (TypeScript fails on the stale generated client), and its API
+> ignores the `PORT` env var (binds 4000 while Render probes `$PORT`). All of this
+> is fixed on `main`. Do not ship `c4c7291`; switch both dashboards to `main`.
+
 ## 1. Render — API + database (Blueprint)
 
 1. Push this repo to GitHub and choose **New → Blueprint** in Render,
@@ -46,10 +54,13 @@ Notes:
 
 ## 2. Netlify — static frontend
 
-1. **Add New site → Import from Git**, selecting this repo.
+1. **Add New site → Import from Git**, selecting this repo, production branch **`main`**.
    Netlify auto-detects `netlify.toml`: build
-   `npm run build --workspace @hp/shared && npm run build --workspace @hp/web`,
-   publish `apps/web/dist`.
+   `node scripts/validate-site-url.mjs "$VITE_SITE_URL" && npm run build --workspace @hp/shared && npm run build --workspace @hp/web`,
+   publish `apps/web/dist`, `NODE_VERSION=20`. Keep **Base directory empty**
+   (repo root — the build addresses workspaces from there) and do **not**
+   override the build command with root `npm run build` (that also compiles the
+   API and fails the deploy on API-only issues).
 2. Set site environment variables (Site settings → Environment):
    - `VITE_SITE_URL` — the Netlify site origin, e.g.
      `https://your-site.netlify.app` (required; baked into

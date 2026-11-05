@@ -26,6 +26,11 @@ RUN npm ci
 COPY apps/web apps/web
 COPY packages/shared packages/shared
 COPY scripts/check-web-budget.mjs scripts/check-web-budget.mjs
+# Empty VITE_API_URL is correct for the Docker/nginx same-origin proxy, but a
+# static host (Netlify) has no /api proxy — every API call would hit the SPA
+# fallback. Warn loudly without failing local/compose builds; Netlify builds
+# must set VITE_API_URL in the site environment instead.
+RUN if [ -z "$VITE_API_URL" ]; then echo "[web] WARNING: VITE_API_URL is empty, baking same-origin API calls. Set VITE_API_URL for split (Netlify + Render) deployments."; fi
 RUN node scripts/validate-site-url.mjs "$VITE_SITE_URL" \
   && npm run build --workspace @hp/shared \
   && npm run build --workspace @hp/web

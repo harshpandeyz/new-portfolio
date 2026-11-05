@@ -259,7 +259,48 @@ None. `npm ci` from the existing lockfile; `npm audit` (prod and full): **0 vuln
 6. Deliberately unchanged MEDIUMs: lockout-DoS (recovery documented), step-up scope,
    session-cap (bounded by login limits), stored-HTML contract, public/home cache policy.
 
-## 14. Post-audit fix: local admin login 403 (addendum)
+## 14. Deployment-failure postmortem: c4c7291 on Netlify + Render (addendum)
+
+Reported: Netlify build of `c4c7291` failed (exit 2); Render deploy of `c4c7291`
+failed; published site still `863cae6`. Investigation found `c4c7291` is the tip
+of the stale `world-class-oracle-ready` branch (Sep 2026) and an ancestor of `main`
+— both platforms were building the wrong branch.
+
+**Render — root causes reproduced locally (worktree at c4c7291):**
+1. Build failure: the branch pipeline never runs `prisma generate`, so `tsc`
+   fails on the stale generated client (`TS2694` missing `*WhereInput`/`ProjectSelect`
+   plus cascading `TS7006`). Verified: `npm run build --workspace @hp/api` fails;
+   after `prisma generate` it passes. `main` fixes this (`render.yaml` buildCommand
+   generates first; pre-deploy validation gate fails fast with clear messages).
+2. Startup failure: the branch API ignores the `PORT` env var and binds 4000
+   (verified: boots on :4000, nothing on `$PORT=10000`), so Render health checks
+   fail and the deploy is marked failed. `main` reads `PORT ?? API_PORT`.
+3. No `render.yaml` on the branch: fully manual dashboard config, no pre-deploy
+   migrate, no env validation; branch session cookies are lax-only (cross-origin
+   admin broken regardless).
+
+**Netlify — exit code 2:** the branch build command (`shared` + `web`) passes
+cleanly in a faithful local reproduction (exit 0, no `VITE_*` set), so the failure
+is a dashboard/build-environment mismatch, not branch code. Prime suspects, in
+order: (a) UI build command overridden to root `npm run build`, which also compiles
+the API and fails at the exact `tsc` breakage above; (b) Base directory set to
+`apps/web`, which breaks the workspace-addressed build command; (c) Node version or
+install-step mismatch. The branch `netlify.toml` additionally lacks base pin, SPA
+fallback, `NODE_VERSION` and validation gates — a "successful" build of it would
+still serve broken deep links. Exact correct settings are in `docs/NETLIFY_RENDER.md`.
+
+**Resolution (no code changes to the stale branch — it is 2 months behind `main`,
+missing security hardening):** switch both dashboards to production branch `main`
+(`863cae6`, proven: currently published and verified here with the exact production
+env — canonical `https://harshpandeyz.netlify.app/`, `VITE_API_URL` inlined, zero
+localhost leaks, CORS allow-list = Netlify origin, `PORT`/SameSite/trust correct).
+Required manual dashboard values: Netlify `VITE_SITE_URL` + `VITE_API_URL`
+(`https://harsh-portfolio-lysq.onrender.com`); Render `APP_URL` + `VITE_SITE_URL`
+(both = `https://harshpandeyz.netlify.app`), `DATABASE_URL` (from managed DB),
+three generated secrets, Resend trio. Added a loud non-failing build warning when
+`VITE_API_URL` is empty so the split-deploy misconfiguration is visible in logs.
+
+## 15. Post-audit fix: local admin login 403 (addendum)
 
 **Symptom:** admin login at `http://localhost:5173/private` showed "Invalid email or
 password" for any credentials, with zero `AUTH_LOGIN_FAILURE` audit rows.
@@ -276,7 +317,7 @@ If login still reports invalid credentials, the restored database carries an old
 password hash — reset it with `npm run admin:set-password` (interactive, password never
 stored in files).
 
-## 15. Final production-readiness assessment
+## 16. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,
