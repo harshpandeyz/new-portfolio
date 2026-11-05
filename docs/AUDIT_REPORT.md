@@ -410,7 +410,39 @@ Needs: Netlify personal token (sites read+write) or the user clicking through
 Site settings; Render API key (service read+deploy) or dashboard clicks. GitHub
 alone cannot perform any of these — there are no workflows to dispatch.
 
-## 19. Final production-readiness assessment
+## 19. Autonomous deployment attempt (no platform access)
+
+Date: 2026-11-06. Authorized to use any authenticated integrations found.
+Inventory: GitHub CLI authenticated (`harshpandeyz`, keyring) — works. No Netlify
+CLI auth (`~/.netlify` absent, no tokens in env; `netlify login` needs an
+interactive browser which is unavailable here). No Render CLI exists on npm and
+no Render API key anywhere in the environment. No CI workflows in the repo to
+dispatch, no repo webhooks, no commit statuses from either platform.
+Conclusion: dashboards, env vars, and deploy triggers are reachable only by the
+owner (dashboard clicks) or by providing a Netlify personal token (sites
+read+write) / Render API key (service read+deploy) — GitHub access cannot
+substitute for either.
+
+Executed with the access available: pushed verified `main` to origin
+(`42b445f..90db61b`, docs-only deltas) and polled both public surfaces for
+~22 minutes. Neither service changed (Netlify still serves the stale
+localhost-canonical bundle `index-fM4paHlw.js`; Render `harsh-portfolio-lysq`
+still 500s `/api/health`): auto-deploy is off and/or both services are pinned
+away from `main`. The push was safe (docs + Dockerfile warning only; no runtime
+delta vs the already-verified `42b445f`).
+
+Exact unblock for the owner: (1) Render dashboard → service → Settings: branch
+`main`, confirm build/preDeploy/start/healthcheck per `render.yaml`; Environment:
+`APP_URL` + `VITE_SITE_URL` = `https://harshpandeyz.netlify.app`,
+`DATABASE_URL` from `hp-os-db`, existing secrets (verify present, never rotate),
+Resend trio, `TRUST_PROXY=1`; Deploy → poll `/api/ready` until `ready`.
+(2) Netlify dashboard → Site settings: branch `main`, base dir empty, build per
+`netlify.toml` (never root `npm run build`); Environment: `VITE_SITE_URL` +
+`VITE_API_URL=https://harsh-portfolio-lysq.onrender.com`; Clear cache + Deploy.
+Expected post-deploy signatures are tabulated in `docs/NETLIFY_RENDER.md` §6 and
+the curl checklist in §3.
+
+## 20. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,
