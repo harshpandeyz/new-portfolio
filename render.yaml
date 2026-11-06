@@ -7,8 +7,12 @@ services:
     runtime: node
     plan: starter
     # Repo root is the working directory for all commands below.
+    # --include=dev is mandatory: NODE_ENV=production makes npm drop
+    # devDependencies (typescript, @types/node), which the tsc builds need.
+    # Omitting it fails the shared build with `TS2304: Cannot find name 'URL'`
+    # (observed in production build logs).
     buildCommand: >-
-      npm ci &&
+      npm ci --include=dev &&
       node ./node_modules/.bin/prisma generate --schema apps/api/prisma/schema.prisma &&
       npm run build --workspace @hp/shared &&
       npm run build --workspace @hp/api
