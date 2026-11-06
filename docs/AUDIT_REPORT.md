@@ -410,7 +410,44 @@ Needs: Netlify personal token (sites read+write) or the user clicking through
 Site settings; Render API key (service read+deploy) or dashboard clicks. GitHub
 alone cannot perform any of these — there are no workflows to dispatch.
 
-## 19. Autonomous deployment attempt (no platform access)
+## 19. Autonomous deployment execution (Netlify done, Render blocked on access)
+
+Date: 2026-11-06. Netlify CLI authenticated as the site owner during this
+session (`netlify status` verified); no Render CLI/API key exists anywhere in
+this environment and this agent has no browser tool, so Render dashboard/env
+access remains owner-only.
+
+**Netlify — FIXED AND VERIFIED LIVE.**
+- Inspection via API: site tracks `main` ✓, but build settings were
+  `cmd="npm run build --workspace @hp/web"` + `package_path="apps/web"`
+  (dependency install and build ran in different directories) and
+  `VITE_SITE_URL` was missing from every context while only `VITE_API_URL`
+  (pointing at the old `new-portfolio-gp3p` backend) existed.
+- Deploy history: `d1fa7c4` ready (stale localhost build, still published),
+  then `863cae6`, `42b445f`, `90db61b` all error exit 2 — every commit carrying
+  the `validate-site-url` gate failed for the missing variable.
+- Actions executed: set `VITE_SITE_URL=https://harshpandeyz.netlify.app` (all
+  contexts); corrected `VITE_API_URL` to `https://harsh-portfolio-lysq.onrender.com`
+  (was the old gp3p URL); cleared `cmd` + `package_path` so the repo
+  `netlify.toml` governs; triggered two clear-cache production builds.
+- Result: deploy `6aed1cc62ee79cce371c8753` ready, then redeploy
+  `6aed1d51cb297203b6d4e09e` ready on commit `90db61b`. Live bundle verified:
+  single API origin `harsh-portfolio-lysq.onrender.com`, canonical
+  `https://harshpandeyz.netlify.app/`, zero localhost, correct CSP/headers,
+  SPA deep links resolve (trailing-slash 301 → 200).
+- Residual risk: the published site calls an API that is still down (see
+  Render), so the homepage currently shows its designed error state. This
+  resolves the moment Render is healthy — no further Netlify action needed.
+
+**Render — NOT EXECUTED (no access).**
+`harsh-portfolio-lysq` still serves the stale broken release (`/api/health`
+500, `/api/ready` + `/api/public/home` 404). Code-side prerequisites are all
+verified in-repo (build, pre-deploy gate, PORT binding, start path, health
+endpoints). Required owner actions: set branch `main`, confirm build/preDeploy/
+start/health per `render.yaml`, wire `DATABASE_URL` from `hp-os-db`, set
+`APP_URL` + `VITE_SITE_URL` to the Netlify origin plus the secrets trio and
+Resend vars (names in `docs/NETLIFY_RENDER.md`; never rotate existing values),
+then Manual Deploy and poll `/api/ready` until `ready`.
 
 Date: 2026-11-06. Authorized to use any authenticated integrations found.
 Inventory: GitHub CLI authenticated (`harshpandeyz`, keyring) — works. No Netlify
