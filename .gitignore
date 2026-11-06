@@ -42,3 +42,6 @@ restore-media-*/
 # misc
 .DS_Store
 *.log
+
+# Netlify CLI local link/auth state — never commit
+.netlify
