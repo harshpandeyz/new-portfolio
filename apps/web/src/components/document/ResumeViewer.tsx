@@ -14,6 +14,47 @@ export interface ResumeViewerProps {
 }
 
 /**
+ * Returns true for a PDF `Content-Type` (may carry `; charset=` suffixes).
+ * Exported for unit tests covering inline-serving header expectations.
+ */
+export function isPdfContentType(contentType: string | null | undefined): boolean {
+  if (!contentType) return false;
+  return contentType.toLowerCase().includes("application/pdf");
+}
+
+/**
+ * Proactively verify the résumé URL serves a PDF.
+ *
+ * Chrome's native PDF viewer can render its internal error page inside the
+ * iframe without firing `onError`, so a failed embed would otherwise look
+ * like a silent blank page. A same-origin `HEAD` check detects 404s, SPA
+ * fallbacks (`text/html`), and wrong MIME types before we trust the iframe.
+ */
+export async function verifyPdfAvailable(
+  pdfUrl: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!pdfUrl) return { ok: false, reason: "empty-url" };
+  try {
+    const head = await fetchFn(pdfUrl, { method: "HEAD" });
+    if (head.ok) {
+      const contentType = head.headers.get("content-type");
+      if (isPdfContentType(contentType)) return { ok: true };
+      return { ok: false, reason: `unexpected-content-type:${contentType ?? "none"}` };
+    }
+    // Some static hosts reject HEAD; fall back to a 1-byte ranged GET probe.
+    if (head.status === 405 || head.status === 501) {
+      const probe = await fetchFn(pdfUrl, { headers: { Range: "bytes=0-0" } });
+      if (!probe.ok) return { ok: false, reason: `status:${probe.status}` };
+      return { ok: true };
+    }
+    return { ok: false, reason: `status:${head.status}` };
+  } catch {
+    return { ok: false, reason: "network-error" };
+  }
+}
+
+/**
  * Reusable in-site résumé viewer.
  *
  * Clicking "View résumé" anywhere opens this instead of a new browser tab, so
@@ -29,13 +70,27 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
   const titleId = "resume-dialog-title";
   const [failed, setFailed] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     setFailed(false);
     setSlow(false);
-    const t = window.setTimeout(() => setSlow(true), 3000);
-    return () => window.clearTimeout(t);
+    setReloadKey(0);
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) setSlow(true);
+    }, 3000);
+    // Chrome can paint its internal PDF error page inside the iframe without
+    // firing onError, so verify serving headers up front instead of relying
+    // solely on the iframe event.
+    void verifyPdfAvailable(url).then((result) => {
+      if (!cancelled && !result.ok) setFailed(true);
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(slowTimer);
+    };
   }, [open, url]);
 
   const onDownload = useMemo(
@@ -44,6 +99,15 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
     },
     [],
   );
+
+  const retryPreview = () => {
+    setFailed(false);
+    setSlow(false);
+    setReloadKey((n) => n + 1);
+    void verifyPdfAvailable(url).then((result) => {
+      if (!result.ok) setFailed(true);
+    });
+  };
 
   return (
     <Dialog
@@ -70,12 +134,12 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
       </header>
 
       <div className="resume-viewer-doc">
-        {!failed && (
+        {!failed && url && (
           <iframe
+            key={reloadKey}
             src={`${url}#toolbar=0`}
             title="Harsh Pandey résumé"
             loading="eager"
-            sandbox="allow-same-origin"
             onLoad={() => setSlow(false)}
             onError={() => setFailed(true)}
           />
@@ -87,6 +151,7 @@ export function ResumeViewer({ open, onClose, resumeUrl }: ResumeViewerProps) {
             <div className="resume-fallback-actions">
               <a className="btn btn-sm btn-solid" href={url} target="_blank" rel="noopener noreferrer">Open in new tab</a>
               <a className="btn btn-sm" href={url} download onClick={onDownload}>Download</a>
+              <button type="button" className="btn btn-sm" onClick={retryPreview}>Retry preview</button>
             </div>
           </div>
         ) : slow ? (
