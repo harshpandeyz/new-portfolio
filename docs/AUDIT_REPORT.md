@@ -479,7 +479,46 @@ Resend trio, `TRUST_PROXY=1`; Deploy → poll `/api/ready` until `ready`.
 Expected post-deploy signatures are tabulated in `docs/NETLIFY_RENDER.md` §6 and
 the curl checklist in §3.
 
-## 20. Final production-readiness assessment
+## 20. Render execution via official CLI (authenticated)
+
+Authenticated with the official Render CLI (`render login` browser flow) as
+the account owner. Verified workspace, listed all services/databases.
+
+**Findings (all verified, not assumed):**
+- The account holds NO Render Postgres: `postgres list` returns `[]`, and no
+  database appears linked to any service. The "existing hp-os-db" does not
+  exist here — check other accounts/teams before assuming data loss.
+- `harsh-portfolio` (`srv-daeoc9dbedkc73e2fgq0`, branch `main`, autoDeploy on)
+  `DATABASE_URL` points at an unreachable Supabase pooler
+  (`P1001 aws-0-ap-southeast-1.pooler.supabase.com:5432`), copied from a local
+  `.env`. Every deploy fails in build at `migrate deploy` with P1001; the
+  running release is ancient code (no `/api/ready`, DB-coupled health).
+- Fixed via CLI/API and verified live: `preDeployCommand` =
+  `validate + migrate deploy`; build command = generate + both `tsc` builds
+  (plus `--include=dev`, without which `tsc` fails on Render with
+  `TS2304: Cannot find name 'URL'` — reproduced from real build logs, fixed in
+  repo `render.yaml` too); health check `/api/health`; env added
+  `AI_CONFIG_KEY`/`TOTP_ENCRYPTION_KEY` (fresh, never printed),
+  `RENDER`, `TRUST_PROXY=1`, `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true`,
+  `APP_URL` + `VITE_SITE_URL` (Netlify origin). Original 12 vars preserved
+  byte-identical (hash-verified).
+- Triggered deploy `dep-dbmi5d6tlv9c73arpnlg`: build now green, service live on
+  new code (`/api/health` 200, `/api/ready` honest 503, old 404/500 shapes gone).
+- **Remaining blockers (owner action, no workaround):**
+  1. No reachable database. Options: (a) add a billing card
+     (dashboard → Billing) then author `hp-os-db` creation + link + migrate;
+     (b) revive/check the Supabase project behind the current URL; (c) supply a
+     different live Postgres URL. Until then preDeploy migrate and `/api/ready`
+     cannot succeed — by design, without touching data.
+  2. No mail provider configured (no Resend key/sender, no SMTP set); the
+     preDeploy gate requires one complete provider and fails fast otherwise.
+     Provide `RESEND_API_KEY` + verified `EMAIL_FROM`, or approve softening the
+     gate to warn-only (deliberately not done unilaterally).
+- Housekeeping: the CLI token used here was partially displayed in tool output
+  during setup — revoke it (dashboard → Account Settings → CLI tokens) and
+  re-login; also delete `~/.render` if this machine is shared.
+
+## 21. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,
