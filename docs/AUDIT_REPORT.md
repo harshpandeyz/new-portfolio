@@ -518,7 +518,57 @@ the account owner. Verified workspace, listed all services/databases.
   during setup — revoke it (dashboard → Account Settings → CLI tokens) and
   re-login; also delete `~/.render` if this machine is shared.
 
-## 21. Final production-readiness assessment
+## 21. Autonomous deployment execution — COMPLETE (both services verified live)
+
+Render access obtained via the official CLI browser flow (`render login`,
+token kept in local CLI config only, never committed). Netlify access was
+already authenticated.
+
+**Render — deployed and verified.**
+- Inspected service `harsh-portfolio` (`srv-daeoc9dbedkc73e2fgq0`, branch
+  `main`, autoDeploy on): build command lacked `prisma generate` discipline
+  and devDeps (`TS2304` in build logs), preDeploy pointed at nothing usable,
+  health check path empty, `DATABASE_URL` pointed at an unreachable Supabase
+  pooler — while the account holds **no Render Postgres at all**.
+- Fixed via authenticated API/CLI (verified by re-read): build =
+  `npm ci --include=dev && prisma generate && build shared && build api`;
+  `preDeployCommand` = validate + migrate; health check `/api/health`;
+  added `AI_CONFIG_KEY`/`TOTP_ENCRYPTION_KEY` (fresh, never displayed),
+  `RENDER`, `TRUST_PROXY=1`, `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true`,
+  `APP_URL` + `VITE_SITE_URL` (Netlify origin). All 12 pre-existing vars
+  preserved byte-identical (hash-verified).
+- Deploy `dep-dbmi5d6tlv9c73arpnl` went **live**: build green, service healthy.
+- Supabase project `voginpkcktanknvztofd` inspected read-only: ACTIVE_HEALTHY,
+  real content (14 projects / 42 certs / 50 skills / 6 users / 18 timeline),
+  **no `hp_app`/`hp_migrator` roles, 6/16 migrations, zero backups, PITR off**.
+- Compared all 10 pending migrations against the live database row counts:
+  additive only, plus documented archival of 8 legacy chat-log rows and a
+  guarded no-op; executed via one-off-equivalent build-time migrate
+  (ran once, verified `16/16`, then removed from the build command so future
+  deploys stay hermetic). Prod `_prisma_migrations` = 16/16.
+- **Never seeded production** (seed wipes; the DB already holds real data).
+- Live verification: `/api/health` 200, `/api/ready` 200 ready,
+  `/api/public/home` 200 with real portfolio data; projects/skills/timeline/
+  settings/certificates/github 200; contact validation 400 with zero writes
+  (inbox count re-verified 0); single wrong-password login → honest 401
+  (1 expected audit row); CORS echoes only the Netlify origin; forged origins
+  rejected. The stale broken release (404s, 500s) is fully replaced.
+- Token hygiene: the CLI token was partially visible in tool output during
+  setup — revoke it (dashboard → Account Settings → CLI tokens) and re-login.
+
+**Netlify — deployed and verified (earlier this session).**
+Deploys `6aed1cc6` and `6aed1d51` (commit `90db61b`) ready; live bundle points
+solely at the Render backend, canonical correct, zero localhost, SPA + headers
+per `netlify.toml`.
+
+**Remaining (owner decisions, nothing broken):** (1) mail provider still
+unconfigured — contact works with storage, replies report EMAIL_NOT_CONFIGURED;
+provide Resend key + verified sender whenever ready; (2) no Render Postgres
+exists — the Supabase DB is serving production fine, so nothing to do unless a
+migration off Supabase is wanted (would need billing + a data copy plan);
+(3) re-enrolling admin 2FA and rotating the exposed CLI token are recommended.
+
+## 22. Final production-readiness assessment
 
 **READY, with noted follow-ups.** All critical/high defects fixed and verified; builds,
 tests, migrations, containers and endpoints green; secrets out of source control; docs,
